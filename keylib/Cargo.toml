@@ -1,0 +1,30 @@
+[package]
+name = "keylib"
+description = "Keylib bindings"
+authors.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[features]
+default = []
+static = []
+integration-tests = []
+
+[dependencies]
+keylib-sys = { workspace = true }
+ciborium = "0.2"
+p256 = { version = "0.13", features = ["ecdh"] }
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+sha2 = "0.10"
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+hmac = "0.12"
+hkdf = "0.12"
+
+[dev-dependencies]
+lazy_static = "1.4"
