@@ -1,9 +1,10 @@
-use keylib::Authenticator;
-use keylib::callbacks::Callbacks;
-use keylib::callbacks::{UpResult, UvResult};
 use keylib::ctaphid::{self, Ctaphid};
 use keylib::error::Result;
 use keylib::uhid::Uhid;
+use keylib::{
+    Authenticator, AuthenticatorConfig, AuthenticatorOptions, Callbacks, CtapCommand, UpResult,
+    UvResult,
+};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -241,7 +242,41 @@ fn main() -> Result<()> {
         Some(read_next_callback),
     );
 
-    let mut auth = Authenticator::new(callbacks)?;
+    // Configure authenticator with explicit settings
+    println!("Configuring authenticator...");
+    let options = AuthenticatorOptions::new()
+        .with_resident_keys(true)
+        .with_user_presence(true)
+        .with_user_verification(Some(true)) // UV capable and configured
+        .with_client_pin(Some(true)) // PIN capable and set
+        .with_credential_management(Some(true));
+
+    let config = AuthenticatorConfig::builder()
+        .aaguid([
+            0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d, 0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29,
+            0x7c, 0x88,
+        ])
+        .commands(vec![
+            CtapCommand::MakeCredential,
+            CtapCommand::GetAssertion,
+            CtapCommand::GetInfo,
+            CtapCommand::ClientPin,
+            CtapCommand::CredentialManagement,
+            CtapCommand::Selection,
+        ])
+        .options(options)
+        .max_credentials(50)
+        .extensions(vec!["credProtect".to_string()])
+        .build();
+
+    println!("  - Resident keys: enabled");
+    println!("  - User verification: configured");
+    println!("  - Client PIN: configured");
+    println!("  - Credential management: enabled");
+    println!("  - Max credentials: 50");
+    println!();
+
+    let mut auth = Authenticator::with_config(callbacks, config)?;
     let mut ctaphid = Ctaphid::new()?;
 
     let uhid = Uhid::open().inspect_err(|_e| {

@@ -22,7 +22,7 @@
 
 ### Rust Edition & Toolchain
 
-- **Edition**: 2021
+- **Edition**: 2024
 - **MSRV**: 1.91
 - **Linting**: All clippy warnings treated as errors (`-D warnings`)
 
@@ -392,10 +392,13 @@ pub fn my_function(param1: Type1, param2: Type2) -> Result<ReturnType> {
 ### When Adding New Features
 
 1. Update relevant module documentation
-2. Add comprehensive examples
-3. Update `README.md` implementation status
-4. Ensure all new public APIs are documented
-5. Add tests (unit and/or integration)
+2. Ensure all new public APIs are documented
+
+### IMPORTANT: Do NOT create summary documents
+
+- NEVER create markdown files to document changes (like IMPLEMENTATION.md, TESTING.md, etc.)
+- NEVER summarize your work in separate documentation files
+- Code documentation and inline comments are sufficient
 
 ### When Fixing Bugs
 

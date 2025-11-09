@@ -18,7 +18,6 @@
 //! 4. Verify the complete flow succeeds
 
 use keylib::Authenticator;
-use keylib::callbacks::{Callbacks, UpResult, UvResult};
 use keylib::client::{
     Client, ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth,
     PinUvAuthProtocol, RelyingParty, TransportList, User,
@@ -27,6 +26,9 @@ use keylib::client_pin::{PinProtocol, PinUvAuthEncapsulation};
 use keylib::ctaphid::Ctaphid;
 use keylib::error::Result;
 use keylib::uhid::Uhid;
+use keylib::{
+    AuthenticatorConfig, AuthenticatorOptions, Callbacks, CtapCommand, UpResult, UvResult,
+};
 
 use base64::prelude::*;
 use serial_test::serial;
@@ -211,8 +213,34 @@ fn run_test_authenticator(stop_flag: Arc<Mutex<bool>>, use_pin: bool) -> Result<
         Some(read_next_callback),
     );
 
-    // Create authenticator
-    let mut auth = Authenticator::new(callbacks)?;
+    // Configure authenticator explicitly
+    let options = AuthenticatorOptions::new()
+        .with_resident_keys(true)
+        .with_user_presence(true)
+        .with_user_verification(Some(true)) // UV capable and configured
+        .with_client_pin(Some(use_pin)) // PIN capability based on use_pin
+        .with_credential_management(Some(true));
+
+    let config = AuthenticatorConfig::builder()
+        .aaguid([
+            0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d, 0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29,
+            0x7c, 0x88,
+        ])
+        .commands(vec![
+            CtapCommand::MakeCredential,
+            CtapCommand::GetAssertion,
+            CtapCommand::GetInfo,
+            CtapCommand::ClientPin,
+            CtapCommand::CredentialManagement,
+            CtapCommand::Selection,
+        ])
+        .options(options)
+        .max_credentials(25)
+        .extensions(vec!["credProtect".to_string()])
+        .build();
+
+    // Create authenticator with configuration
+    let mut auth = Authenticator::with_config(callbacks, config)?;
 
     // Open UHID device
     let uhid = Uhid::open().map_err(|_| {

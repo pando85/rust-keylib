@@ -1,14 +1,16 @@
+use crate::authenticator_config::AuthenticatorConfig;
 use crate::callbacks::{Callbacks, UpResult, UvResult};
 use crate::error::{Error, Result};
 
 use keylib_sys::raw::{
-    Callbacks as UnsafeCallbacks, UpResult as RawUpResult, UpResult_UpResult_Accepted,
-    UpResult_UpResult_Denied, UpResult_UpResult_Timeout, UvResult as RawUvResult,
-    UvResult_UvResult_Accepted, UvResult_UvResult_AcceptedWithUp, UvResult_UvResult_Denied,
-    UvResult_UvResult_Timeout, auth_deinit, auth_init, auth_set_pin_hash,
+    AuthOptions as RawAuthOptions, AuthSettings as RawAuthSettings, Callbacks as UnsafeCallbacks,
+    UpResult as RawUpResult, UpResult_UpResult_Accepted, UpResult_UpResult_Denied,
+    UpResult_UpResult_Timeout, UvResult as RawUvResult, UvResult_UvResult_Accepted,
+    UvResult_UvResult_AcceptedWithUp, UvResult_UvResult_Denied, UvResult_UvResult_Timeout,
+    auth_deinit, auth_init, auth_set_pin_hash,
 };
 
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::sync::{Arc, Mutex};
 
 /// Global storage for callback closures
@@ -584,7 +586,78 @@ impl Authenticator {
     }
 
     /// Initialize a new authenticator with the given callbacks
+    ///
+    /// This uses the default authenticator configuration. For custom configuration,
+    /// use [`Authenticator::with_config`].
+    ///
+    /// # Arguments
+    ///
+    /// * `callbacks` - The callback functions for user interaction and credential storage
+    ///
+    /// # Returns
+    ///
+    /// A new `Authenticator` instance, or an error if initialization fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::InitializationFailed` if the underlying authenticator cannot be created.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use keylib::{Authenticator, CallbacksBuilder, UpResult};
+    /// # use std::sync::Arc;
+    /// # fn main() -> keylib::Result<()> {
+    /// let callbacks = CallbacksBuilder::new()
+    ///     .up(Arc::new(|info, user, rp| Ok(UpResult::Accepted)))
+    ///     .build();
+    ///
+    /// let auth = Authenticator::new(callbacks)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(callbacks: Callbacks) -> Result<Self> {
+        Self::with_config(callbacks, AuthenticatorConfig::default())
+    }
+
+    /// Initialize a new authenticator with the given callbacks and configuration
+    ///
+    /// This allows you to customize the authenticator's AAGUID and other settings.
+    ///
+    /// # Arguments
+    ///
+    /// * `callbacks` - The callback functions for user interaction and credential storage
+    /// * `config` - Configuration options for the authenticator
+    ///
+    /// # Returns
+    ///
+    /// A new `Authenticator` instance, or an error if initialization fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::InitializationFailed` if the underlying authenticator cannot be created.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use keylib::{Authenticator, AuthenticatorConfig, CallbacksBuilder, UpResult};
+    /// # use std::sync::Arc;
+    /// # fn main() -> keylib::Result<()> {
+    /// let callbacks = CallbacksBuilder::new()
+    ///     .up(Arc::new(|info, user, rp| Ok(UpResult::Accepted)))
+    ///     .build();
+    ///
+    /// let config = AuthenticatorConfig::new()
+    ///     .with_aaguid([
+    ///         0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef,
+    ///         0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef,
+    ///     ]);
+    ///
+    /// let auth = Authenticator::with_config(callbacks, config)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_config(callbacks: Callbacks, config: AuthenticatorConfig) -> Result<Self> {
         // Store the callbacks globally for the trampoline functions
         let callbacks_arc = Arc::new(callbacks);
         *CALLBACK_STORAGE.lock().map_err(|_| Error::Other)? = Some(callbacks_arc.clone());
@@ -601,7 +674,85 @@ impl Authenticator {
             read_next: Some(read_next_trampoline),
         };
 
-        let inner = unsafe { auth_init(c_callbacks) };
+        // Convert config to C-compatible settings
+        // Note: The aaguid needs to be converted from u8 to c_char
+        let mut c_aaguid = [0i8; 16];
+        for (i, &byte) in config.aaguid.iter().enumerate() {
+            c_aaguid[i] = byte as i8;
+        }
+
+        // Convert command enums to byte array
+        let command_bytes: Vec<u8> = config.commands.iter().map(|cmd| cmd.as_u8()).collect();
+
+        // Convert options if provided (allocate on heap to keep it alive)
+        let c_options_ptr = if let Some(ref opts) = config.options {
+            let c_opts = Box::new(RawAuthOptions {
+                rk: if opts.rk { 1 } else { 0 },
+                up: if opts.up { 1 } else { 0 },
+                uv: opts.uv.map_or(-1, |v| if v { 1 } else { 0 }),
+                plat: if opts.plat { 1 } else { 0 },
+                client_pin: opts.client_pin.map_or(-1, |v| if v { 1 } else { 0 }),
+                pin_uv_auth_token: opts.pin_uv_auth_token.map_or(-1, |v| if v { 1 } else { 0 }),
+                cred_mgmt: opts.cred_mgmt.map_or(-1, |v| if v { 1 } else { 0 }),
+                bio_enroll: opts.bio_enroll.map_or(-1, |v| if v { 1 } else { 0 }),
+                large_blobs: opts.large_blobs.map_or(-1, |v| if v { 1 } else { 0 }),
+                ep: opts.ep.map_or(-1, |v| if v { 1 } else { 0 }),
+                always_uv: opts.always_uv.map_or(-1, |v| if v { 1 } else { 0 }),
+            });
+            Box::into_raw(c_opts)
+        } else {
+            std::ptr::null()
+        };
+
+        // Convert extensions if provided (allocate on heap to keep alive)
+        let (c_extensions_ptr, _c_extensions_storage): (
+            *mut *const std::os::raw::c_char,
+            Vec<CString>,
+        ) = if let Some(ref exts) = config.extensions {
+            let c_strings: Vec<CString> = exts
+                .iter()
+                .map(|s| CString::new(s.as_str()).unwrap())
+                .collect();
+
+            let mut ptrs: Vec<*const std::os::raw::c_char> =
+                c_strings.iter().map(|cs| cs.as_ptr()).collect();
+            ptrs.push(std::ptr::null()); // Null terminate
+
+            let ptrs_box = ptrs.into_boxed_slice();
+            let ptrs_ptr = Box::into_raw(ptrs_box) as *mut *const std::os::raw::c_char;
+            (ptrs_ptr, c_strings)
+        } else {
+            (std::ptr::null_mut(), Vec::new())
+        };
+
+        let c_settings = RawAuthSettings {
+            aaguid: c_aaguid,
+            enabled_commands: command_bytes.as_ptr(),
+            enabled_commands_len: command_bytes.len(),
+            custom_commands: std::ptr::null(), // Not yet implemented
+            custom_commands_len: 0,
+            options: c_options_ptr,
+            max_credentials: config.max_credentials.unwrap_or(25),
+            extensions: c_extensions_ptr,
+            extensions_len: config.extensions.as_ref().map_or(0, |e| e.len()),
+            transports: 0, // Use Zig defaults
+        };
+
+        let inner = unsafe { auth_init(c_callbacks, c_settings) };
+
+        // Clean up allocated options (auth_init copies the data)
+        if !c_options_ptr.is_null() {
+            unsafe {
+                let _ = Box::from_raw(c_options_ptr as *mut RawAuthOptions);
+            }
+        }
+
+        // Clean up allocated extensions (auth_init copies the data)
+        if !c_extensions_ptr.is_null() {
+            unsafe {
+                let _ = Box::from_raw(c_extensions_ptr);
+            }
+        }
 
         if inner.is_null() {
             return Err(Error::InitializationFailed);

@@ -85,8 +85,76 @@ This crate provides safe Rust abstractions over the unsafe FFI bindings.
 ### Key Types
 
 - `Authenticator`: Safe wrapper for authenticator instances with callback support
+- `AuthenticatorConfig`: Builder pattern for configuring authenticators with custom settings
+- `AuthenticatorOptions`: Fine-grained control over authenticator capabilities (rk, up, uv,
+  clientPin, credMgmt, etc.)
+- `CtapCommand`: Type-safe enum for CTAP commands (MakeCredential, GetAssertion, etc.)
 - `Callbacks`: Configuration for user interaction callbacks (UP/UV/Select/Read/Write/Delete)
 - `CredentialManagement`: Safe API for managing discoverable credentials on authenticators
 - `Error`: Error types that can occur during operations
 - `Client`: Client-side API for communicating with authenticators
 - `Credential`: Representation of credentials stored on authenticators
+
+### Configurable Authenticator
+
+You can customize the authenticator with specific AAGUID, commands, options, and extensions:
+
+```rust
+use keylib::{
+    Authenticator, AuthenticatorConfig, AuthenticatorOptions,
+    CallbacksBuilder, CtapCommand, UpResult
+};
+use std::sync::Arc;
+
+// Configure specific capabilities
+let options = AuthenticatorOptions::new()
+    .with_resident_keys(true)
+    .with_user_verification(Some(true))  // UV capable and configured
+    .with_client_pin(Some(true))         // PIN capable and set
+    .with_credential_management(Some(true));
+
+// Build full configuration
+let config = AuthenticatorConfig::builder()
+    .aaguid([0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d,
+             0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29, 0x7c, 0x88])
+    .commands(vec![
+        CtapCommand::MakeCredential,
+        CtapCommand::GetAssertion,
+        CtapCommand::GetInfo,
+        CtapCommand::ClientPin,
+    ])
+    .options(options)
+    .max_credentials(100)  // Allow up to 100 resident keys
+    .extensions(vec!["credProtect".to_string(), "hmac-secret".to_string()])
+    .build();
+
+let callbacks = CallbacksBuilder::new()
+    .up(Arc::new(|_info, _user, _rp| Ok(UpResult::Accepted)))
+    .build();
+
+let auth = Authenticator::with_config(callbacks, config)?;
+```
+
+**Configuration Options:**
+
+- **AAGUID**: Custom 16-byte authenticator identifier
+- **Commands**: Select which CTAP commands to enable (default: MakeCredential, GetAssertion,
+  GetInfo, ClientPin, Selection)
+- **Options**: Fine-tune capabilities:
+  - `rk`: Resident key (discoverable credentials) support
+  - `up`: User presence capability
+  - `uv`: User verification (None/Some(false)/Some(true) for not capable/capable but not
+    configured/capable and configured)
+  - `plat`: Platform device flag
+  - `client_pin`: Client PIN capability and status
+  - `pin_uv_auth_token`: PIN/UV auth token support
+  - `cred_mgmt`: Credential management support
+  - `bio_enroll`: Biometric enrollment support
+  - `large_blobs`: Large blobs support
+  - `ep`: Enterprise attestation
+  - `always_uv`: Always require user verification
+- **Max Credentials**: Maximum number of discoverable credentials (default: 25)
+- **Extensions**: List of supported extensions (e.g., "credProtect", "hmac-secret", "largeBlobKey")
+
+See [`examples/advanced_config.rs`](keylib/examples/advanced_config.rs) for a complete
+demonstration.
