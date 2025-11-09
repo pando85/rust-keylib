@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 
 use flate2::read::GzDecoder;
@@ -79,11 +80,7 @@ fn verify_checksum(client: &reqwest::blocking::Client, url: &str, bytes: &[u8]) 
             let mut hasher = Sha256::new();
             hasher.update(bytes);
             let actual_checksum = format!("{:x}", hasher.finalize());
-            let expected = expected_checksum
-                .trim()
-                .split_whitespace()
-                .next()
-                .unwrap_or("");
+            let expected = expected_checksum.split_whitespace().next().unwrap_or("");
 
             if actual_checksum != expected {
                 panic!(
@@ -111,7 +108,7 @@ fn extract_tarball(bytes: &[u8], dest: &PathBuf) {
 }
 
 /// Configure linker to use prebuilt libraries
-fn setup_linking(prebuilt_dir: &PathBuf) {
+fn setup_linking(prebuilt_dir: &Path) {
     let lib_dir = prebuilt_dir.join("lib");
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
@@ -120,7 +117,7 @@ fn setup_linking(prebuilt_dir: &PathBuf) {
 }
 
 /// Generate Rust FFI bindings from prebuilt C headers
-fn generate_bindings(prebuilt_dir: &PathBuf) {
+fn generate_bindings(prebuilt_dir: &Path) {
     let include_dir = prebuilt_dir.join("include");
     let keylib_header = include_dir.join("keylib.h");
     let uhid_header = include_dir.join("uhid.h");

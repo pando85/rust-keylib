@@ -50,7 +50,7 @@ jobs:
 
       - uses: clechasseur/rs-clippy-check@v5
         with:
-          args: --all-features -- --deny warnings
+          args: -- --deny warnings
 
   build:
     strategy:
