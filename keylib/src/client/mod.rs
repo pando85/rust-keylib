@@ -242,11 +242,16 @@ impl CborCommandResult {
         if !self.is_fulfilled() {
             return None;
         }
-        let data_ptr = unsafe { (*self.raw).result.data };
-        if data_ptr.is_null() {
-            return None;
+        unsafe {
+            let data_ptr: *mut std::os::raw::c_char = (*self.raw).result.data;
+            if data_ptr.is_null() {
+                return None;
+            }
+            Some(std::slice::from_raw_parts(
+                data_ptr as *const u8,
+                (*self.raw).data_len,
+            ))
         }
-        Some(unsafe { std::slice::from_raw_parts(data_ptr as *const u8, (*self.raw).data_len) })
     }
 
     /// Get the error code if the command was rejected
