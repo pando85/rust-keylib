@@ -23,6 +23,8 @@ pub enum KeylibError {
     InvalidCallbackResult,
     /// CBOR command failed
     CborCommandFailed(i32),
+    /// Invalid client data hash (must be 32 bytes)
+    InvalidClientDataHash,
 }
 
 impl fmt::Display for KeylibError {
@@ -39,6 +41,9 @@ impl fmt::Display for KeylibError {
             KeylibError::InvalidCallbackResult => write!(f, "Invalid callback result"),
             KeylibError::CborCommandFailed(code) => {
                 write!(f, "CBOR command failed with code {}", code)
+            }
+            KeylibError::InvalidClientDataHash => {
+                write!(f, "Invalid client data hash (must be 32 bytes)")
             }
         }
     }

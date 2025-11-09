@@ -255,6 +255,54 @@ impl PinUvAuthEncapsulation {
 
         Ok(token)
     }
+
+    /// Compute PIN/UV auth parameter for a message
+    ///
+    /// This creates an HMAC-SHA-256 authentication tag over the provided message
+    /// using the PIN/UV token as the key. The result is used to authenticate
+    /// commands like makeCredential or getAssertion.
+    ///
+    /// # Arguments
+    /// * `message` - The message to authenticate (typically clientDataHash)
+    /// * `pin_uv_token` - The PIN/UV authentication token
+    ///
+    /// # Returns
+    /// For PIN Protocol V1: First 16 bytes of HMAC-SHA-256(pin_uv_token, message)
+    /// For PIN Protocol V2: Full 32 bytes of HMAC-SHA-256(pin_uv_token, message)
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use keylib::*;
+    /// # fn main() -> Result<()> {
+    /// # let mut transport = client::TransportList::enumerate()?.get(0).unwrap();
+    /// # transport.open()?;
+    /// # let mut encap = client_pin::PinUvAuthEncapsulation::new(&mut transport, client_pin::PinProtocol::V2)?;
+    /// # let pin_token = vec![0u8; 32];
+    /// use sha2::{Digest, Sha256};
+    ///
+    /// let client_data_hash = Sha256::digest(b"client data");
+    /// let auth_param = encap.authenticate(&client_data_hash, &pin_token)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn authenticate(&self, message: &[u8], pin_uv_token: &[u8]) -> Result<Vec<u8>> {
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+
+        type HmacSha256 = Hmac<Sha256>;
+
+        let mut mac = HmacSha256::new_from_slice(pin_uv_token).map_err(|_| Error::Other)?;
+        mac.update(message);
+        let result = mac.finalize();
+
+        // Per CTAP 2.1 spec:
+        // V1: authenticate returns first 16 bytes of HMAC-SHA-256
+        // V2: authenticate returns full 32 bytes of HMAC-SHA-256
+        match self.protocol_version {
+            PinProtocol::V1 => Ok(result.into_bytes()[..16].to_vec()),
+            PinProtocol::V2 => Ok(result.into_bytes()[..32].to_vec()),
+        }
+    }
 }
 
 impl Drop for PinUvAuthEncapsulation {

@@ -28,3 +28,5 @@ hkdf = "0.12"
 
 [dev-dependencies]
 lazy_static = "1.4"
+base64 = "0.22"
+serial_test = "3.0"

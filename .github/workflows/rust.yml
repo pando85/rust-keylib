@@ -32,9 +32,11 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v5
+        with:
+          submodules: true
 
-      - name: Update apt
-        run: sudo apt update
+      - name: Install udev dependency
+        run: sudo apt update && sudo apt -y install libudev-dev
 
       - name: Install stable toolchain
         id: toolchain
@@ -61,8 +63,13 @@ jobs:
     runs-on: ${{ matrix.job.os }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: true
 
       - uses: Swatinem/rust-cache@v2
+
+      - name: Install udev dependency
+        run: sudo apt update && sudo apt -y install libudev-dev
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -81,6 +88,38 @@ jobs:
       - name: Run tests
         shell: bash
         run: cargo test --verbose
+
+      # The following steps are disabled because GH runners do not have UHID available.
+      # - name: Run integration tests
+      #   shell: bash
+      #   run: make test-integration
+
+      # - name: Load and verify UHID kernel module
+      #   shell: bash
+      #   run: |
+      #     echo "Checking for UHID kernel module..."
+
+      #     # Try to load UHID module if not already loaded
+      #     if ! lsmod | grep -q uhid; then
+      #       echo "Loading UHID kernel module..."
+      #       sudo modprobe uhid
+      #     else
+      #       echo "UHID module already loaded"
+      #     fi
+
+      #     # Verify /dev/uhid exists
+      #     if [ ! -e /dev/uhid ]; then
+      #       echo "ERROR: /dev/uhid not found after loading module"
+      #       exit 1
+      #     fi
+
+      #     # Set permissions
+      #     sudo chmod 666 /dev/uhid
+      #     echo "UHID is available and permissions set"
+
+      # - name: Run E2E WebAuthn tests
+      #   shell: bash
+      #   run: make test-e2e
 
       - name: Extract crate information
         shell: bash

@@ -54,6 +54,18 @@ test:	## run tests
 test: lint
 	cargo test
 
+.PHONY: test-integration
+test-integration:	## run integration tests (requires hardware or virtual authenticator)
+	cargo test --test integration -- --ignored
+
+.PHONY: test-e2e
+test-e2e:	## run E2E WebAuthn tests (requires UHID permissions)
+	cargo test --test e2e_webauthn_test -- --ignored
+
+.PHONY: test-all
+test-all:	## run all tests including integration and E2E
+test-all: test test-integration test-e2e
+
 .PHONY: update-changelog
 update-changelog:	## automatically update changelog based on commits
 	git cliff -t v$(PROJECT_VERSION) -u -p CHANGELOG.md
