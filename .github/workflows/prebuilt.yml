@@ -10,6 +10,10 @@ on:
         required: true
         default: 'v0.1.0'
 
+concurrency:
+  group: prebuilt-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-prebuilt:
     strategy:
