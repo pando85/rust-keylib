@@ -66,6 +66,13 @@ test-e2e:	## run E2E WebAuthn tests (requires UHID permissions)
 test-all:	## run all tests including integration and E2E
 test-all: test test-integration test-e2e
 
+.PHONY: update-version
+update-version: ## update version from VERSION file in all Cargo.toml manifests
+update-version: */Cargo.toml
+	@VERSION=$$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1); \
+	sed -i -E "s/(keylib-[a-z0-9-]+ = \{ path = \"[^\"]+\", version = )\"[^\"]+\"/\1\"$$VERSION\"/g" Cargo.toml && \
+	cargo update --workspace ;
+
 .PHONY: update-changelog
 update-changelog:	## automatically update changelog based on commits
 	git cliff -t v$(PROJECT_VERSION) -u -p CHANGELOG.md

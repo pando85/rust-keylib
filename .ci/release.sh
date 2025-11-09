@@ -3,6 +3,7 @@ set -e
 
 # bump version
 vim ./Cargo.toml
+make update-version
 
 make update-changelog
 
