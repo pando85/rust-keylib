@@ -54,6 +54,17 @@ fn build_with_zig(keylib_dir: &PathBuf) {
     let prefix_dir = PathBuf::from(&out_dir).join("zig-install");
     let cache_dir = PathBuf::from(&out_dir).join("zig-cache");
 
+    println!("cargo:warning=Building keylib from source");
+    println!("cargo:warning=Keylib dir: {}", keylib_dir.display());
+    println!("cargo:warning=Prefix dir: {}", prefix_dir.display());
+    println!("cargo:warning=Cache dir: {}", cache_dir.display());
+
+    // Ensure clean build directories
+    let _ = std::fs::remove_dir_all(&prefix_dir);
+    let _ = std::fs::remove_dir_all(&cache_dir);
+    std::fs::create_dir_all(&prefix_dir).expect("Failed to create prefix dir");
+    std::fs::create_dir_all(&cache_dir).expect("Failed to create cache dir");
+
     let output = Command::new("zig")
         .args([
             "build",

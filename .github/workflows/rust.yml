@@ -152,4 +152,6 @@ jobs:
           prerelease: ${{ steps.changelog_reader.outputs.status == 'prereleased' }}
           draft: ${{ steps.changelog_reader.outputs.status == 'unreleased' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use PAT to trigger prebuilt.yml workflow
+          # See: https://docs.github.com/en/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow
+          GITHUB_TOKEN: ${{ secrets.PAT_RELEASE || secrets.GITHUB_TOKEN }}
