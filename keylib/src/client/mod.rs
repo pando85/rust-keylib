@@ -15,13 +15,13 @@ pub use types::{
 use crate::error::{Error, Result};
 
 use keylib_sys::raw::{
-    cbor_authenticator_get_info, cbor_command_free, cbor_command_get_result,
-    cbor_command_result_free, transport_close, transport_enumerate, transport_free,
-    transport_get_description, transport_get_type, transport_list_free, transport_open,
-    transport_read, transport_write, CborCommand as RawCborCommand,
-    CborCommandResult as RawCborCommandResult, CborCommandStatus_CborCommandStatus_Fulfilled,
-    CborCommandStatus_CborCommandStatus_Pending, CborCommandStatus_CborCommandStatus_Rejected,
-    Transport as RawTransport, TransportList as RawTransportList, TransportType,
+    CborCommand as RawCborCommand, CborCommandResult as RawCborCommandResult,
+    CborCommandStatus_CborCommandStatus_Fulfilled, CborCommandStatus_CborCommandStatus_Pending,
+    CborCommandStatus_CborCommandStatus_Rejected, Transport as RawTransport,
+    TransportList as RawTransportList, TransportType, cbor_authenticator_get_info,
+    cbor_command_free, cbor_command_get_result, cbor_command_result_free, transport_close,
+    transport_enumerate, transport_free, transport_get_description, transport_get_type,
+    transport_list_free, transport_open, transport_read, transport_write,
 };
 
 use std::ffi::CStr;

@@ -75,21 +75,21 @@ fn download_and_extract(url: &str, prebuilt_dir: &PathBuf, target: &str) {
 fn verify_checksum(client: &reqwest::blocking::Client, url: &str, bytes: &[u8]) {
     let checksum_url = format!("{}.sha256", url);
 
-    if let Ok(checksum_response) = client.get(&checksum_url).send() {
-        if let Ok(expected_checksum) = checksum_response.text() {
-            let mut hasher = Sha256::new();
-            hasher.update(bytes);
-            let actual_checksum = format!("{:x}", hasher.finalize());
-            let expected = expected_checksum.split_whitespace().next().unwrap_or("");
+    if let Ok(checksum_response) = client.get(&checksum_url).send()
+        && let Ok(expected_checksum) = checksum_response.text()
+    {
+        let mut hasher = Sha256::new();
+        hasher.update(bytes);
+        let actual_checksum = format!("{:x}", hasher.finalize());
+        let expected = expected_checksum.split_whitespace().next().unwrap_or("");
 
-            if actual_checksum != expected {
-                panic!(
-                    "Checksum mismatch! Expected: {}, Got: {}",
-                    expected, actual_checksum
-                );
-            }
-            println!("cargo:warning=Checksum verified successfully");
+        if actual_checksum != expected {
+            panic!(
+                "Checksum mismatch! Expected: {}, Got: {}",
+                expected, actual_checksum
+            );
         }
+        println!("cargo:warning=Checksum verified successfully");
     }
 }
 

@@ -273,12 +273,11 @@ impl Credential {
 // Helper functions for CBOR extraction
 fn extract_bytes(map: &[(Value, Value)], key: &str) -> Result<Vec<u8>> {
     for (k, v) in map {
-        if let Value::Text(k_str) = k {
-            if k_str == key {
-                if let Value::Bytes(b) = v {
-                    return Ok(b.clone());
-                }
-            }
+        if let Value::Text(k_str) = k
+            && k_str == key
+            && let Value::Bytes(b) = v
+        {
+            return Ok(b.clone());
         }
     }
     Err(Error::Other)
@@ -286,12 +285,11 @@ fn extract_bytes(map: &[(Value, Value)], key: &str) -> Result<Vec<u8>> {
 
 fn extract_string(map: &[(Value, Value)], key: &str) -> Result<String> {
     for (k, v) in map {
-        if let Value::Text(k_str) = k {
-            if k_str == key {
-                if let Value::Text(s) = v {
-                    return Ok(s.clone());
-                }
-            }
+        if let Value::Text(k_str) = k
+            && k_str == key
+            && let Value::Text(s) = v
+        {
+            return Ok(s.clone());
         }
     }
     Err(Error::Other)
@@ -299,12 +297,11 @@ fn extract_string(map: &[(Value, Value)], key: &str) -> Result<String> {
 
 fn extract_u32(map: &[(Value, Value)], key: &str) -> Option<u32> {
     for (k, v) in map {
-        if let Value::Text(k_str) = k {
-            if k_str == key {
-                if let Value::Integer(i) = v {
-                    return (*i).try_into().ok().map(|v: u32| v);
-                }
-            }
+        if let Value::Text(k_str) = k
+            && k_str == key
+            && let Value::Integer(i) = v
+        {
+            return (*i).try_into().ok().map(|v: u32| v);
         }
     }
     None
@@ -312,12 +309,11 @@ fn extract_u32(map: &[(Value, Value)], key: &str) -> Option<u32> {
 
 fn extract_i32(map: &[(Value, Value)], key: &str) -> Option<i32> {
     for (k, v) in map {
-        if let Value::Text(k_str) = k {
-            if k_str == key {
-                if let Value::Integer(i) = v {
-                    return (*i).try_into().ok().map(|v: i32| v);
-                }
-            }
+        if let Value::Text(k_str) = k
+            && k_str == key
+            && let Value::Integer(i) = v
+        {
+            return (*i).try_into().ok().map(|v: i32| v);
         }
     }
     None
@@ -325,12 +321,11 @@ fn extract_i32(map: &[(Value, Value)], key: &str) -> Option<i32> {
 
 fn extract_i64(map: &[(Value, Value)], key: &str) -> Option<i64> {
     for (k, v) in map {
-        if let Value::Text(k_str) = k {
-            if k_str == key {
-                if let Value::Integer(i) = v {
-                    return (*i).try_into().ok().map(|v: i64| v);
-                }
-            }
+        if let Value::Text(k_str) = k
+            && k_str == key
+            && let Value::Integer(i) = v
+        {
+            return (*i).try_into().ok().map(|v: i64| v);
         }
     }
     None
@@ -338,12 +333,11 @@ fn extract_i64(map: &[(Value, Value)], key: &str) -> Option<i64> {
 
 fn extract_u8(map: &[(Value, Value)], key: &str) -> Option<u8> {
     for (k, v) in map {
-        if let Value::Text(k_str) = k {
-            if k_str == key {
-                if let Value::Integer(i) = v {
-                    return (*i).try_into().ok().map(|v: u8| v);
-                }
-            }
+        if let Value::Text(k_str) = k
+            && k_str == key
+            && let Value::Integer(i) = v
+        {
+            return (*i).try_into().ok().map(|v: u8| v);
         }
     }
     None
@@ -351,12 +345,11 @@ fn extract_u8(map: &[(Value, Value)], key: &str) -> Option<u8> {
 
 fn extract_bool(map: &[(Value, Value)], key: &str) -> Option<bool> {
     for (k, v) in map {
-        if let Value::Text(k_str) = k {
-            if k_str == key {
-                if let Value::Bool(b) = v {
-                    return Some(*b);
-                }
-            }
+        if let Value::Text(k_str) = k
+            && k_str == key
+            && let Value::Bool(b) = v
+        {
+            return Some(*b);
         }
     }
     None

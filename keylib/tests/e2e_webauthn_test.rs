@@ -17,6 +17,7 @@
 //! 3. Use the Client API to perform authentication (getAssertion)
 //! 4. Verify the complete flow succeeds
 
+use keylib::Authenticator;
 use keylib::callbacks::{Callbacks, UpResult, UvResult};
 use keylib::client::{
     Client, ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth,
@@ -26,7 +27,6 @@ use keylib::client_pin::{PinProtocol, PinUvAuthEncapsulation};
 use keylib::ctaphid::Ctaphid;
 use keylib::error::Result;
 use keylib::uhid::Uhid;
-use keylib::Authenticator;
 
 use base64::prelude::*;
 use serial_test::serial;
@@ -231,11 +231,11 @@ fn run_test_authenticator(stop_flag: Arc<Mutex<bool>>, use_pin: bool) -> Result<
     let mut buffer = [0u8; 64];
     loop {
         // Check stop flag
-        if let Ok(flag) = stop_flag.lock() {
-            if *flag {
-                println!("[Authenticator] Stopping");
-                break;
-            }
+        if let Ok(flag) = stop_flag.lock()
+            && *flag
+        {
+            println!("[Authenticator] Stopping");
+            break;
         }
 
         // Read packet with timeout

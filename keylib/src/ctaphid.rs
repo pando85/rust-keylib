@@ -149,26 +149,28 @@ impl<'a> CtaphidResponse<'a> {
         inner: *mut std::ffi::c_void,
         buffer: &'a mut [u8; MAX_DATA_SIZE],
     ) -> Option<Self> {
-        let cmd_raw = raw::ctaphid_response_get_cmd(inner);
-        if cmd_raw < 0 {
-            return None;
+        unsafe {
+            let cmd_raw = raw::ctaphid_response_get_cmd(inner);
+            if cmd_raw < 0 {
+                return None;
+            }
+
+            let cmd = match (cmd_raw as u8).try_into() {
+                Ok(cmd) => cmd,
+                Err(_) => return None,
+            };
+
+            // Copy data from C API into the provided buffer
+            let len =
+                raw::ctaphid_response_get_data(inner, buffer.as_mut_ptr() as *mut i8, buffer.len());
+
+            Some(CtaphidResponse {
+                inner,
+                cmd,
+                data: &buffer[..len],
+                _phantom: PhantomData,
+            })
         }
-
-        let cmd = match (cmd_raw as u8).try_into() {
-            Ok(cmd) => cmd,
-            Err(_) => return None,
-        };
-
-        // Copy data from C API into the provided buffer
-        let len =
-            raw::ctaphid_response_get_data(inner, buffer.as_mut_ptr() as *mut i8, buffer.len());
-
-        Some(CtaphidResponse {
-            inner,
-            cmd,
-            data: &buffer[..len],
-            _phantom: PhantomData,
-        })
     }
 
     /// Get the command type

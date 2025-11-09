@@ -2,10 +2,10 @@ use crate::callbacks::{Callbacks, UpResult, UvResult};
 use crate::error::{Error, Result};
 
 use keylib_sys::raw::{
-    auth_deinit, auth_init, auth_set_pin_hash, Callbacks as UnsafeCallbacks,
-    UpResult as RawUpResult, UpResult_UpResult_Accepted, UpResult_UpResult_Denied,
-    UpResult_UpResult_Timeout, UvResult as RawUvResult, UvResult_UvResult_Accepted,
-    UvResult_UvResult_AcceptedWithUp, UvResult_UvResult_Denied, UvResult_UvResult_Timeout,
+    Callbacks as UnsafeCallbacks, UpResult as RawUpResult, UpResult_UpResult_Accepted,
+    UpResult_UpResult_Denied, UpResult_UpResult_Timeout, UvResult as RawUvResult,
+    UvResult_UvResult_Accepted, UvResult_UvResult_AcceptedWithUp, UvResult_UvResult_Denied,
+    UvResult_UvResult_Timeout, auth_deinit, auth_init, auth_set_pin_hash,
 };
 
 use std::ffi::CStr;

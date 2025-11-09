@@ -1,9 +1,9 @@
+use keylib::Authenticator;
 use keylib::callbacks::Callbacks;
 use keylib::callbacks::{UpResult, UvResult};
 use keylib::ctaphid::{self, Ctaphid};
 use keylib::error::Result;
 use keylib::uhid::Uhid;
-use keylib::Authenticator;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -11,8 +11,7 @@ use std::sync::Mutex;
 
 use sha2::{Digest, Sha256};
 
-const UHID_ERROR_MESSAGE: &str =
-    "Make sure you have the uhid kernel module loaded and proper permissions.\n\
+const UHID_ERROR_MESSAGE: &str = "Make sure you have the uhid kernel module loaded and proper permissions.\n\
 Run the following commands as root:\n\
   modprobe uhid\n\
   groupadd fido 2>/dev/null || true\n\

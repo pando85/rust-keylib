@@ -54,11 +54,11 @@ use crate::credential::{Credential, RelyingParty, User};
 use crate::error::{KeylibError, Result};
 
 use keylib_sys::raw::{
+    CredentialManagementError_CredentialManagementError_SUCCESS, FfiCredential,
     credential_management_delete_credential, credential_management_enumerate_credentials_begin,
     credential_management_enumerate_credentials_next, credential_management_enumerate_rps_begin,
     credential_management_enumerate_rps_next, credential_management_free_string,
     credential_management_get_metadata, credential_management_update_user_information,
-    CredentialManagementError_CredentialManagementError_SUCCESS, FfiCredential,
 };
 
 /// Credential management operations for CTAP authenticators
