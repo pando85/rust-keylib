@@ -8,14 +8,22 @@ readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+build = "build/main.rs"
 
 [build-dependencies]
 bindgen = "0.69"
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], optional = true }
+tar = { version = "0.4", optional = true }
+flate2 = { version = "1.0", optional = true }
+sha2 = { version = "0.10", optional = true }
 
 [features]
 default = []
 static = []
 integration-tests = []
+# Download prebuilt native libraries instead of building from source
+# This eliminates the need for Zig compiler and libudev-dev
+bundled = ["reqwest", "tar", "flate2", "sha2"]
 
 [dependencies]
 hidapi = { version = "2.6.3", features = ["linux-static-hidraw"] }

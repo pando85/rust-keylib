@@ -1,5 +1,79 @@
 # Development Guide
 
+## Building the Project
+
+### Using Prebuilt Libraries (Recommended for Users)
+
+The easiest way to use rust-keylib is with the `bundled` feature:
+
+```toml
+[dependencies]
+keylib = { version = "0.1", features = ["bundled"] }
+```
+
+This automatically downloads prebuilt native libraries for your platform during `cargo build`,
+eliminating the need to install:
+
+- Zig compiler
+- libudev-dev (on Linux)
+- Build tools
+
+### Building from Source (Recommended for Contributors)
+
+For development work, you'll want to build from source to make changes to the underlying keylib:
+
+1. **Install dependencies:**
+
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install libudev-dev
+
+   # Install Zig from https://ziglang.org/download/
+   # Or use your package manager
+   ```
+
+2. **Clone with submodules:**
+
+   ```bash
+   git clone --recurse-submodules https://github.com/pando85/rust-keylib
+   # Or if already cloned:
+   git submodule update --init
+   ```
+
+3. **Build:**
+
+   ```bash
+   cargo build
+   ```
+
+### Creating Prebuilt Artifacts
+
+Maintainers can trigger prebuilt artifact creation:
+
+1. **Automated on Release:** When you create a GitHub release, the `prebuilt.yml` workflow
+   automatically builds and attaches artifacts for supported platforms.
+
+2. **Manual Trigger:**
+
+   Go to Actions → "Build Prebuilt Artifacts" → "Run workflow" and specify the version tag.
+
+3. **Local Build:**
+
+   ```bash
+   cd keylib-sys/keylib
+   zig build install
+
+   # Package artifacts
+   mkdir -p prebuilt/lib prebuilt/include
+   cp zig-out/lib/libkeylib.a prebuilt/lib/
+   cp zig-out/lib/libuhid.a prebuilt/lib/
+   cp bindings/c/include/keylib.h prebuilt/include/
+   cp bindings/linux/include/uhid.h prebuilt/include/
+
+   tar czf keylib-prebuilt-$(rustc -vV | grep host | cut -d' ' -f2).tar.gz -C prebuilt .
+   sha256sum keylib-prebuilt-*.tar.gz > keylib-prebuilt-*.tar.gz.sha256
+   ```
+
 ## End-to-End WebAuthn Testing
 
 The `e2e_webauthn_test.rs` test file provides comprehensive end-to-end testing of the complete

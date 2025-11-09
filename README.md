@@ -2,7 +2,40 @@
 
 Rust FFI bindings for the [keylib](https://github.com/Zig-Sec/keylib) C API.
 
+## Quick Start
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+keylib = { version = "0.1", features = ["bundled"] }
+```
+
+The `bundled` feature downloads prebuilt native libraries, so you don't need to install Zig or
+libudev-dev. Just run:
+
+```bash
+cargo build
+```
+
+That's it! No additional setup required.
+
 ## Prerequisites
+
+### Option 1: Use Prebuilt Libraries (Recommended)
+
+Enable the `bundled` feature (shown above). This will automatically download prebuilt binaries for
+your platform during build.
+
+**Supported platforms:**
+
+- `x86_64-unknown-linux-gnu`
+- `aarch64-unknown-linux-gnu`
+- `x86_64-unknown-linux-musl`
+
+### Option 2: Build from Source
+
+If you want to build from source or need a different platform:
 
 In case you are downloading / checking out this repository directly via git, make sure to initialize
 the git submodules after cloning!
@@ -14,8 +47,15 @@ git submodule update --init
 Tools required for building:
 
 - Rust toolchain (stable)
-- Zig compiler (for building keylib)
-- libudev library
+- Zig compiler (for building keylib) - [Install Zig](https://ziglang.org/download/)
+- libudev library (`sudo apt-get install libudev-dev` on Ubuntu/Debian)
+
+Then omit the `bundled` feature:
+
+```toml
+[dependencies]
+keylib = "0.1"
+```
 
 ## Features
 
@@ -36,7 +76,7 @@ Tools required for building:
 - USB HID transport layer
 - Client-side device enumeration and communication
 - Virtual authenticator support via UHID (Linux)
-- Static linking to keylib library
+- **Prebuilt binaries** - Zero-setup builds with the `bundled` feature
 
 ## API
 
