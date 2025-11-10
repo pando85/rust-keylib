@@ -20,11 +20,12 @@ use keylib_sys::raw::{
     CborCommandStatus_CborCommandStatus_Rejected, Transport as RawTransport,
     TransportList as RawTransportList, TransportType, cbor_authenticator_get_info,
     cbor_command_free, cbor_command_get_result, cbor_command_result_free, transport_close,
-    transport_enumerate, transport_free, transport_get_description, transport_get_type,
-    transport_list_free, transport_open, transport_read, transport_write,
+    transport_enumerate, transport_get_description, transport_get_type, transport_list_free,
+    transport_open, transport_read, transport_write,
 };
 
 use std::ffi::CStr;
+use std::rc::Rc;
 
 /// Relying Party information for credential creation
 #[derive(Debug, Clone)]
@@ -44,6 +45,8 @@ pub struct User {
 /// Safe Rust wrapper for Transport
 pub struct Transport {
     raw: *mut RawTransport,
+    // Keep the TransportList alive to prevent use-after-free
+    _list: Rc<TransportListInner>,
 }
 
 impl Transport {
@@ -118,13 +121,27 @@ impl Transport {
 
 impl Drop for Transport {
     fn drop(&mut self) {
-        unsafe { transport_free(self.raw) };
+        // Don't call transport_free! The TransportList owns the Transport structs
+        // and will free them when the last Arc reference is dropped
+    }
+}
+
+/// Inner data for TransportList that can be shared via Arc
+struct TransportListInner {
+    raw: Option<*mut RawTransportList>,
+}
+
+impl Drop for TransportListInner {
+    fn drop(&mut self) {
+        if let Some(raw) = self.raw {
+            unsafe { transport_list_free(raw) };
+        }
     }
 }
 
 /// Safe Rust wrapper for TransportList
 pub struct TransportList {
-    raw: Option<*mut RawTransportList>,
+    inner: Rc<TransportListInner>,
 }
 
 impl TransportList {
@@ -132,13 +149,15 @@ impl TransportList {
     pub fn enumerate() -> Result<Self> {
         let raw = unsafe { transport_enumerate() };
         Ok(TransportList {
-            raw: if raw.is_null() { None } else { Some(raw) },
+            inner: Rc::new(TransportListInner {
+                raw: if raw.is_null() { None } else { Some(raw) },
+            }),
         })
     }
 
     /// Get the number of transports
     pub fn len(&self) -> usize {
-        self.raw.map_or(0, |raw| unsafe { (*raw).count })
+        self.inner.raw.map_or(0, |raw| unsafe { (*raw).count })
     }
 
     /// Check if the list is empty
@@ -151,12 +170,15 @@ impl TransportList {
         if index >= self.len() {
             return None;
         }
-        let raw = self.raw?;
+        let raw = self.inner.raw?;
         let transport_ptr = unsafe { *(*raw).transports.add(index) };
         if transport_ptr.is_null() {
             return None;
         }
-        Some(Transport { raw: transport_ptr })
+        Some(Transport {
+            raw: transport_ptr,
+            _list: Rc::clone(&self.inner),
+        })
     }
 
     /// Iterate over all transports
@@ -164,14 +186,6 @@ impl TransportList {
         TransportListIter {
             list: self,
             index: 0,
-        }
-    }
-}
-
-impl Drop for TransportList {
-    fn drop(&mut self) {
-        if let Some(raw) = self.raw {
-            unsafe { transport_list_free(raw) };
         }
     }
 }
