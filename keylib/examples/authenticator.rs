@@ -261,6 +261,7 @@ fn main() -> Result<()> {
             CtapCommand::GetAssertion,
             CtapCommand::GetInfo,
             CtapCommand::ClientPin,
+            CtapCommand::GetNextAssertion,
             CtapCommand::CredentialManagement,
             CtapCommand::Selection,
         ])

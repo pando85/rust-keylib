@@ -842,6 +842,7 @@ impl Authenticator {
             max_credentials: config.max_credentials.unwrap_or(25),
             extensions: c_extensions_ptr,
             extensions_len: config.extensions.as_ref().map_or(0, |e| e.len()),
+            firmware_version: config.firmware_version.unwrap_or(0),
             transports: 0, // Use Zig defaults
         };
 

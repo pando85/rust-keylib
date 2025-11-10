@@ -51,6 +51,9 @@ pub struct AuthenticatorConfig {
 
     /// List of supported extensions
     pub extensions: Option<Vec<String>>,
+
+    /// Firmware version (optional)
+    pub firmware_version: Option<u32>,
 }
 
 impl Default for AuthenticatorConfig {
@@ -66,6 +69,7 @@ impl Default for AuthenticatorConfig {
             options: None,               // Use Zig defaults
             max_credentials: None,       // Use Zig default (25)
             extensions: Some(vec!["credProtect".to_string(), "hmac-secret".to_string()]),
+            firmware_version: None, // No firmware version by default
         }
     }
 }
@@ -139,6 +143,15 @@ impl AuthenticatorConfigBuilder {
     /// * `extensions` - List of extension identifiers (e.g., "credProtect", "hmac-secret")
     pub fn extensions(mut self, extensions: Vec<String>) -> Self {
         self.config.extensions = Some(extensions);
+        self
+    }
+
+    /// Set firmware version
+    ///
+    /// # Arguments
+    /// * `version` - Firmware version number (e.g., 0x36 for version 54)
+    pub fn firmware_version(mut self, version: u32) -> Self {
+        self.config.firmware_version = Some(version);
         self
     }
 
