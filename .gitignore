@@ -22,3 +22,4 @@ target
 
 # Rust library
 Cargo.lock
+.vscode
