@@ -140,6 +140,7 @@ let auth = Authenticator::with_config(callbacks, config)?;
 - **AAGUID**: Custom 16-byte authenticator identifier
 - **Commands**: Select which CTAP commands to enable (default: MakeCredential, GetAssertion,
   GetInfo, ClientPin, Selection)
+- **Custom Commands**: Add vendor-specific commands (0x40-0xFF) with custom handlers
 - **Options**: Fine-tune capabilities:
   - `rk`: Resident key (discoverable credentials) support
   - `up`: User presence capability
@@ -155,6 +156,42 @@ let auth = Authenticator::with_config(callbacks, config)?;
   - `always_uv`: Always require user verification
 - **Max Credentials**: Maximum number of discoverable credentials (default: 25)
 - **Extensions**: List of supported extensions (e.g., "credProtect", "hmac-secret", "largeBlobKey")
+
+### Custom Commands
+
+You can extend the CTAP protocol with vendor-specific commands:
+
+```rust
+use keylib::{AuthenticatorConfig, CustomCommand};
+use std::sync::Arc;
+
+// Define a custom command handler
+let custom_handler = Arc::new(|_auth, request, response| {
+    // Parse request, perform operation, write response
+    response[0] = 0x00; // CTAP2_OK
+    1 // Response length
+});
+
+let custom_cmd = CustomCommand::new(0x41, custom_handler);
+
+let config = AuthenticatorConfig::builder()
+    .commands(vec![
+        CtapCommand::MakeCredential,
+        CtapCommand::GetAssertion,
+        // ... standard commands ...
+    ])
+    .custom_commands(vec![custom_cmd])
+    .build();
+```
+
+Custom commands allow you to:
+
+- Implement vendor-specific functionality
+- Extend credential management with custom operations
+- Add proprietary features while maintaining CTAP2 compatibility
+- Use command bytes 0x40-0xFF (standard CTAP2 uses 0x01-0x0b)
+
+See [`examples/custom_commands.rs`](keylib/examples/custom_commands.rs) for a complete example.
 
 See [`examples/advanced_config.rs`](keylib/examples/advanced_config.rs) for a complete
 demonstration.

@@ -70,44 +70,6 @@ mod integration_tests {
 mod unit_tests {
     use super::*;
 
-    // TODO: These tests reference old APIs that have been refactored
-    // They should be rewritten to use the new builder-based client API
-
-    /*
-    #[test]
-    fn test_promise_timeout() {
-        // Test that promises properly handle invalid commands
-        unsafe {
-            let promise = promise::CborPromise::from_raw(std::ptr::null_mut(), 100);
-            // Null command should fail immediately
-            let result = promise.await_result();
-            assert!(result.is_err());
-        }
-    }
-
-    #[test]
-    fn test_credential_options_creation() {
-        let options = credentials::CredentialCreationOptionsRust {
-            rp_id: "example.com".to_string(),
-            rp_name: Some("Example Corp".to_string()),
-            user_id: vec![1, 2, 3, 4],
-            user_name: "user@example.com".to_string(),
-            user_display_name: Some("User Name".to_string()),
-            challenge: vec![5, 6, 7, 8],
-            timeout_ms: Some(60000),
-            require_resident_key: true,
-            require_user_verification: false,
-            attestation: credentials::AttestationConveyancePreference::Direct,
-            exclude_credentials: vec![],
-            extensions: std::collections::HashMap::new(),
-        };
-
-        assert_eq!(options.rp_id, "example.com");
-        assert_eq!(options.user_name, "user@example.com");
-        assert!(options.require_resident_key);
-    }
-    */
-
     #[test]
     fn test_pin_encapsulation_creation() {
         // Test that we can create a PIN encapsulation

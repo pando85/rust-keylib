@@ -10,6 +10,7 @@ pub mod credential;
 pub mod credential_management;
 pub mod ctap_command;
 pub mod ctaphid;
+mod custom_command;
 pub mod error;
 pub mod uhid;
 
@@ -24,4 +25,5 @@ pub use callbacks::{
 pub use client::{CborCommand, CborCommandResult, Client, Transport, TransportList};
 pub use credential::{Credential, CredentialRef, Meta};
 pub use ctap_command::CtapCommand;
+pub use custom_command::{CustomCommand, CustomCommandHandler};
 pub use error::{Error, Result};

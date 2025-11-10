@@ -5,6 +5,7 @@
 
 use crate::authenticator_options::AuthenticatorOptions;
 use crate::ctap_command::CtapCommand;
+use crate::custom_command::CustomCommand;
 
 /// Authenticator configuration
 ///
@@ -39,6 +40,9 @@ pub struct AuthenticatorConfig {
     /// List of CTAP commands to enable
     pub commands: Vec<CtapCommand>,
 
+    /// List of custom vendor commands
+    pub custom_commands: Vec<CustomCommand>,
+
     /// Authenticator options controlling capabilities
     pub options: Option<AuthenticatorOptions>,
 
@@ -58,9 +62,10 @@ impl Default for AuthenticatorConfig {
                 0x7c, 0x88,
             ],
             commands: CtapCommand::default_commands(),
-            options: None,         // Use Zig defaults
-            max_credentials: None, // Use Zig default (25)
-            extensions: None,      // Use Zig defaults
+            custom_commands: Vec::new(), // No custom commands by default
+            options: None,               // Use Zig defaults
+            max_credentials: None,       // Use Zig default (25)
+            extensions: Some(vec!["credProtect".to_string(), "hmac-secret".to_string()]),
         }
     }
 }
@@ -104,10 +109,16 @@ impl AuthenticatorConfigBuilder {
         self
     }
 
-    /// Set authenticator options
+    /// Set custom vendor commands
     ///
     /// # Arguments
-    /// * `options` - Authenticator options controlling capabilities
+    /// * `custom_commands` - Vector of custom commands with their handlers
+    pub fn custom_commands(mut self, custom_commands: Vec<CustomCommand>) -> Self {
+        self.config.custom_commands = custom_commands;
+        self
+    }
+
+    /// Authenticator options controlling capabilities
     pub fn options(mut self, options: AuthenticatorOptions) -> Self {
         self.config.options = Some(options);
         self

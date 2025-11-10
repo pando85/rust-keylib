@@ -1,13 +1,14 @@
 use crate::authenticator_config::AuthenticatorConfig;
 use crate::callbacks::{Callbacks, UpResult, UvResult};
+use crate::custom_command::CustomCommand;
 use crate::error::{Error, Result};
 
 use keylib_sys::raw::{
     AuthOptions as RawAuthOptions, AuthSettings as RawAuthSettings, Callbacks as UnsafeCallbacks,
-    UpResult as RawUpResult, UpResult_UpResult_Accepted, UpResult_UpResult_Denied,
-    UpResult_UpResult_Timeout, UvResult as RawUvResult, UvResult_UvResult_Accepted,
-    UvResult_UvResult_AcceptedWithUp, UvResult_UvResult_Denied, UvResult_UvResult_Timeout,
-    auth_deinit, auth_init, auth_set_pin_hash,
+    CustomCommand as RawCustomCommand, UpResult as RawUpResult, UpResult_UpResult_Accepted,
+    UpResult_UpResult_Denied, UpResult_UpResult_Timeout, UvResult as RawUvResult,
+    UvResult_UvResult_Accepted, UvResult_UvResult_AcceptedWithUp, UvResult_UvResult_Denied,
+    UvResult_UvResult_Timeout, auth_deinit, auth_init, auth_set_pin_hash,
 };
 
 use std::ffi::{CStr, CString};
@@ -15,6 +16,76 @@ use std::sync::{Arc, Mutex};
 
 /// Global storage for callback closures
 static CALLBACK_STORAGE: Mutex<Option<Arc<Callbacks>>> = Mutex::new(None);
+
+/// Global storage for custom command handlers
+/// Maps command byte to handler function
+static CUSTOM_COMMAND_STORAGE: Mutex<Option<Arc<Vec<CustomCommand>>>> = Mutex::new(None);
+
+/// Trampoline function for custom command handlers
+///
+/// # Safety
+///
+/// - `auth` must be a valid authenticator pointer or can be null
+/// - `request` must point to a valid buffer of `request_len` bytes
+/// - `response` must point to a valid writable buffer of `response_size` bytes
+/// - Caller must ensure no data races on global CUSTOM_COMMAND_STORAGE
+///
+/// C-callable function that dispatches to the actual Rust custom command handler
+/// This is called from the Zig trampoline with the command byte already known
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn dispatch_custom_command(
+    cmd_byte: u8,
+    _auth: *mut std::ffi::c_void,
+    request: *const u8,
+    request_len: usize,
+    response: *mut u8,
+    response_size: usize,
+) -> usize {
+    // Get the command handlers from global storage
+    let storage = match CUSTOM_COMMAND_STORAGE.lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            eprintln!("❌ Failed to lock CUSTOM_COMMAND_STORAGE");
+            return 0;
+        }
+    };
+
+    let commands = match storage.as_ref() {
+        Some(cmds) => cmds,
+        None => {
+            eprintln!("❌ No custom commands in storage");
+            return 0;
+        }
+    };
+
+    // Find the handler for this command byte
+    let handler = commands.iter().find(|cmd| cmd.cmd == cmd_byte);
+
+    let handler = match handler {
+        Some(cmd) => &cmd.handler,
+        None => {
+            eprintln!("❌ No handler found for command 0x{:02x}", cmd_byte);
+            return 0;
+        }
+    };
+
+    // Convert raw pointers to slices
+    // SAFETY: Caller must ensure pointers are valid
+    let request_slice = if request.is_null() || request_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(request, request_len) }
+    };
+
+    let response_slice = if response.is_null() || response_size == 0 {
+        return 0;
+    } else {
+        unsafe { std::slice::from_raw_parts_mut(response, response_size) }
+    };
+
+    // Call the handler
+    handler(_auth, request_slice, response_slice)
+}
 
 /// Trampoline function for user presence callback
 ///
@@ -551,7 +622,10 @@ struct IterationState {
 /// Safe wrapper around the keylib authenticator
 pub struct Authenticator {
     inner: *mut std::ffi::c_void,
-    _callbacks: Arc<Callbacks>, // Keep callbacks alive
+    _callbacks: Arc<Callbacks>,              // Keep callbacks alive
+    _custom_commands: Vec<RawCustomCommand>, // Keep custom command array alive for Zig
+    _extensions_storage: Vec<CString>,       // Keep extension strings alive
+    _extensions_ptrs: *mut *const std::os::raw::c_char, // Keep extension pointer array alive
 }
 
 impl Authenticator {
@@ -681,8 +755,41 @@ impl Authenticator {
             c_aaguid[i] = byte as i8;
         }
 
-        // Convert command enums to byte array
+        // Convert command enums to byte array (keep alive during auth_init)
         let command_bytes: Vec<u8> = config.commands.iter().map(|cmd| cmd.as_u8()).collect();
+
+        // Store custom commands globally so trampoline can access them
+        let custom_commands_arc = if !config.custom_commands.is_empty() {
+            let arc = Arc::new(config.custom_commands.clone());
+            if let Ok(mut storage) = CUSTOM_COMMAND_STORAGE.lock() {
+                *storage = Some(arc.clone());
+            }
+            Some(arc)
+        } else {
+            None
+        };
+
+        // Convert custom commands to C-compatible array (keep alive during auth_init)
+        let custom_commands_storage: Vec<RawCustomCommand> =
+            if let Some(ref custom_cmds) = custom_commands_arc {
+                custom_cmds
+                    .iter()
+                    .map(|cmd| {
+                        RawCustomCommand {
+                            cmd: cmd.cmd,
+                            handler: None, // Zig will create the trampoline
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+        let c_custom_commands_ptr = if custom_commands_storage.is_empty() {
+            std::ptr::null()
+        } else {
+            custom_commands_storage.as_ptr()
+        };
 
         // Convert options if provided (allocate on heap to keep it alive)
         let c_options_ptr = if let Some(ref opts) = config.options {
@@ -705,7 +812,7 @@ impl Authenticator {
         };
 
         // Convert extensions if provided (allocate on heap to keep alive)
-        let (c_extensions_ptr, _c_extensions_storage): (
+        let (c_extensions_ptr, c_extensions_storage): (
             *mut *const std::os::raw::c_char,
             Vec<CString>,
         ) = if let Some(ref exts) = config.extensions {
@@ -729,8 +836,8 @@ impl Authenticator {
             aaguid: c_aaguid,
             enabled_commands: command_bytes.as_ptr(),
             enabled_commands_len: command_bytes.len(),
-            custom_commands: std::ptr::null(), // Not yet implemented
-            custom_commands_len: 0,
+            custom_commands: c_custom_commands_ptr,
+            custom_commands_len: config.custom_commands.len(),
             options: c_options_ptr,
             max_credentials: config.max_credentials.unwrap_or(25),
             extensions: c_extensions_ptr,
@@ -747,12 +854,9 @@ impl Authenticator {
             }
         }
 
-        // Clean up allocated extensions (auth_init copies the data)
-        if !c_extensions_ptr.is_null() {
-            unsafe {
-                let _ = Box::from_raw(c_extensions_ptr);
-            }
-        }
+        // NOTE: Do NOT clean up c_extensions_ptr or c_extensions_storage here!
+        // The Zig code stores pointers to the extension strings, not copies.
+        // These must remain alive for the lifetime of the Authenticator.
 
         if inner.is_null() {
             return Err(Error::InitializationFailed);
@@ -761,6 +865,9 @@ impl Authenticator {
         Ok(Self {
             inner,
             _callbacks: callbacks_arc,
+            _custom_commands: custom_commands_storage, // Keep Vec alive for Zig pointer
+            _extensions_storage: c_extensions_storage, // Keep extension CStrings alive
+            _extensions_ptrs: c_extensions_ptr,        // Keep extension pointer array alive
         })
     }
 
@@ -836,6 +943,11 @@ impl Drop for Authenticator {
     fn drop(&mut self) {
         unsafe {
             auth_deinit(self.inner);
+
+            // Clean up the extensions pointer array
+            if !self._extensions_ptrs.is_null() {
+                let _ = Box::from_raw(self._extensions_ptrs);
+            }
         }
         // Clear the global callback storage
         *CALLBACK_STORAGE.lock().unwrap() = None;
