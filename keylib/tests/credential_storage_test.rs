@@ -56,7 +56,7 @@ mod tests {
             id: b"cred_id_12345".to_vec(),
             user: User {
                 id: b"test_user_123".to_vec(),
-                name: "testuser".to_string(),
+                name: Some("testuser".to_string()),
                 display_name: Some("Test User".to_string()),
             },
             rp: keylib::credential::RelyingParty {
@@ -74,7 +74,8 @@ mod tests {
         println!("1️⃣ Creating test credential:");
         println!(
             "   User: {} ({:?})",
-            test_cred.user.name, test_cred.user.display_name
+            test_cred.user.name.clone().unwrap(),
+            test_cred.user.display_name
         );
         println!("   RP: {} ({:?})", test_cred.rp.id, test_cred.rp.name);
         println!("   Credential ID: {:?}", test_cred.id);
@@ -100,7 +101,11 @@ mod tests {
         match retrieved_cred {
             Some(cred) => {
                 println!("   ✅ Credential retrieved successfully!");
-                println!("   User: {} ({:?})", cred.user.name, cred.user.display_name);
+                println!(
+                    "   User: {} ({:?})",
+                    cred.user.name.clone().unwrap(),
+                    cred.user.display_name
+                );
                 println!("   RP: {} ({:?})", cred.rp.id, cred.rp.name);
                 println!();
 
@@ -166,7 +171,7 @@ mod tests {
                 id: b"cred1".to_vec(),
                 user: User {
                     id: b"user1".to_vec(),
-                    name: "user1".to_string(),
+                    name: Some("user1".to_string()),
                     display_name: Some("User One".to_string()),
                 },
                 rp: keylib::credential::RelyingParty {
@@ -184,7 +189,7 @@ mod tests {
                 id: b"cred2".to_vec(),
                 user: User {
                     id: b"user2".to_vec(),
-                    name: "user2".to_string(),
+                    name: Some("user2".to_string()),
                     display_name: Some("User Two".to_string()),
                 },
                 rp: keylib::credential::RelyingParty {
@@ -202,7 +207,7 @@ mod tests {
                 id: b"cred3".to_vec(),
                 user: User {
                     id: b"user3".to_vec(),
-                    name: "user3".to_string(),
+                    name: Some("user3".to_string()),
                     display_name: Some("User Three".to_string()),
                 },
                 rp: keylib::credential::RelyingParty {
@@ -220,7 +225,12 @@ mod tests {
 
         println!("1️⃣ Storing {} credentials...", creds.len());
         for (i, cred) in creds.iter().enumerate() {
-            println!("   {}. User: {}, RP: {}", i + 1, cred.user.name, cred.rp.id);
+            println!(
+                "   {}. User: {}, RP: {}",
+                i + 1,
+                cred.user.name.as_ref().unwrap(),
+                cred.rp.id
+            );
             let mut store = store.lock().unwrap();
             store
                 .write(cred.clone())

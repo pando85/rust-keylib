@@ -66,7 +66,7 @@ impl CustomCommand {
     /// use keylib::CustomCommand;
     /// use std::sync::Arc;
     ///
-    /// let handler = Arc::new(|_auth, request, response| {
+    /// let handler = Arc::new(|_auth, request: &[u8], response: &mut [u8]| {
     ///     // Your custom command logic here
     ///     response[0] = 0x00; // CTAP2_OK
     ///     1

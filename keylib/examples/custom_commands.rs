@@ -56,7 +56,7 @@ impl CredentialStore {
 /// Useful for testing the custom command infrastructure.
 fn create_custom_echo_command() -> CustomCommand {
     let handler = Arc::new(
-        move |_auth: *mut std::ffi::c_void, request: &[u8], response: &mut [u8]| -> usize {
+        |_auth: *mut std::ffi::c_void, request: &[u8], response: &mut [u8]| -> usize {
             println!("ECHO command (0x{:02x}) called", CMD_CUSTOM_ECHO);
             println!(
                 "   Request length: {} bytes (command byte already consumed)",
@@ -165,7 +165,7 @@ fn main() -> Result<()> {
                     },
                     user: keylib::credential::User {
                         id: cred.user_id.to_vec(),
-                        name: String::new(),
+                        name: None,
                         display_name: None,
                     },
                     sign_count: cred.sign_count,

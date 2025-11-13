@@ -126,7 +126,7 @@ impl CredentialStore {
         self.credentials
             .values()
             .filter(|cred| cred.rp.id == rp_id)
-            .map(|cred| cred.user.name.clone())
+            .map(|cred| String::from_utf8_lossy(&cred.user.id).to_string())
             .collect()
     }
 }

@@ -17,6 +17,10 @@ pub struct CredentialRef<'a> {
     pub rp_name: Option<&'a str>,
     /// User ID (max 64 bytes)
     pub user_id: &'a [u8],
+    /// User name
+    pub user_name: Option<&'a str>,
+    /// User display name (optional)
+    pub user_display_name: Option<&'a str>,
     /// Signature counter
     pub sign_count: u32,
     /// Algorithm (-7 for ES256)
@@ -42,8 +46,8 @@ impl<'a> CredentialRef<'a> {
             },
             user: User {
                 id: self.user_id.to_vec(),
-                name: String::new(),
-                display_name: None,
+                name: self.user_name.map(|s| s.to_string()),
+                display_name: self.user_display_name.map(|s| s.to_string()),
             },
             sign_count: self.sign_count,
             alg: self.alg,
@@ -96,7 +100,7 @@ pub struct User {
     /// User handle (max 64 bytes)
     pub id: Vec<u8>,
     /// Username
-    pub name: String,
+    pub name: Option<String>,
     /// Display name (optional)
     pub display_name: Option<String>,
 }
@@ -189,6 +193,20 @@ impl Credential {
             ));
         }
 
+        if let Some(ref user_name) = self.user.name {
+            map.push((
+                Value::Text("user_name".to_string()),
+                Value::Text(user_name.clone()),
+            ));
+        }
+
+        if let Some(ref user_display_name) = self.user.display_name {
+            map.push((
+                Value::Text("user_display_name".to_string()),
+                Value::Text(user_display_name.clone()),
+            ));
+        }
+
         // Extensions
         if let Some(cred_protect) = self.extensions.cred_protect {
             map.push((
@@ -224,6 +242,8 @@ impl Credential {
         let rp_id = extract_string(&map, "rp")?;
         let rp_name = extract_string(&map, "rp_name").ok();
         let user_id = extract_bytes(&map, "user")?;
+        let user_name = extract_string(&map, "user_name").ok();
+        let user_display_name = extract_string(&map, "user_display_name").ok();
         let sign_count = extract_u32(&map, "signCount").unwrap_or(0);
         let alg = extract_i32(&map, "alg").unwrap_or(-7);
         let private_key = extract_bytes(&map, "privateKey")?;
@@ -247,8 +267,8 @@ impl Credential {
         // Create user and RP structs
         let user = User {
             id: user_id,
-            name: String::from_utf8_lossy(&id).to_string(), // Use id as name fallback
-            display_name: None,
+            name: user_name,
+            display_name: user_display_name,
         };
 
         let rp = RelyingParty {

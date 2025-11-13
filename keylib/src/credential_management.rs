@@ -480,6 +480,21 @@ impl From<FfiCredential> for Credential {
             None
         };
         let user_id = ffi.user_id[..ffi.user_id_len as usize].to_vec();
+        let user_name = if ffi.user_name_len > 0 {
+            Some(String::from_utf8_lossy(&ffi.user_name[..ffi.user_name_len as usize]).to_string())
+        } else {
+            None
+        };
+        let user_display_name = if ffi.user_display_name_len > 0 {
+            Some(
+                String::from_utf8_lossy(
+                    &ffi.user_display_name[..ffi.user_display_name_len as usize],
+                )
+                .to_string(),
+            )
+        } else {
+            None
+        };
         let private_key = ffi.private_key.to_vec();
 
         let rp = RelyingParty {
@@ -489,8 +504,8 @@ impl From<FfiCredential> for Credential {
 
         let user = User {
             id: user_id,
-            name: String::from_utf8_lossy(&ffi.user_id[..ffi.user_id_len as usize]).to_string(),
-            display_name: None,
+            name: user_name,
+            display_name: user_display_name,
         };
 
         Credential::new(credential_id, rp, user, private_key, ffi.alg)

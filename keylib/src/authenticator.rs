@@ -378,11 +378,33 @@ pub unsafe extern "C" fn write_trampoline(
                 None
             };
 
+            let user_name_str = if ffi_cred.user_name_len > 0 {
+                match std::str::from_utf8(&ffi_cred.user_name[..ffi_cred.user_name_len as usize]) {
+                    Ok(s) => Some(s),
+                    Err(_) => return -6,
+                }
+            } else {
+                None
+            };
+
+            let user_display_name_str = if ffi_cred.user_display_name_len > 0 {
+                match std::str::from_utf8(
+                    &ffi_cred.user_display_name[..ffi_cred.user_display_name_len as usize],
+                ) {
+                    Ok(s) => Some(s),
+                    Err(_) => return -6,
+                }
+            } else {
+                None
+            };
+
             let cred_ref = crate::CredentialRef {
                 id: &ffi_cred.id[..ffi_cred.id_len as usize],
                 rp_id: rp_id_str,
                 rp_name: rp_name_str,
                 user_id: &ffi_cred.user_id[..ffi_cred.user_id_len as usize],
+                user_name: user_name_str,
+                user_display_name: user_display_name_str,
                 sign_count: ffi_cred.sign_count,
                 alg: ffi_cred.alg,
                 private_key: &ffi_cred.private_key,
@@ -518,6 +540,34 @@ pub unsafe extern "C" fn read_first_trampoline(
                     ffi_out.user_id[..ffi_out.user_id_len as usize]
                         .copy_from_slice(&user_id_bytes[..ffi_out.user_id_len as usize]);
 
+                    // Initialize user_name field
+                    let user_name_bytes = credential
+                        .user
+                        .name
+                        .as_ref()
+                        .map(|s| s.as_bytes())
+                        .unwrap_or(&[]);
+                    ffi_out.user_name_len = user_name_bytes.len().min(64) as u8;
+                    if ffi_out.user_name_len > 0 {
+                        ffi_out.user_name[..ffi_out.user_name_len as usize]
+                            .copy_from_slice(&user_name_bytes[..ffi_out.user_name_len as usize]);
+                    }
+
+                    // Initialize user_display_name field
+                    let user_display_name_bytes = credential
+                        .user
+                        .display_name
+                        .as_ref()
+                        .map(|s| s.as_bytes())
+                        .unwrap_or(&[]);
+                    ffi_out.user_display_name_len = user_display_name_bytes.len().min(64) as u8;
+                    if ffi_out.user_display_name_len > 0 {
+                        ffi_out.user_display_name[..ffi_out.user_display_name_len as usize]
+                            .copy_from_slice(
+                                &user_display_name_bytes[..ffi_out.user_display_name_len as usize],
+                            );
+                    }
+
                     ffi_out.sign_count = credential.sign_count;
                     ffi_out.alg = credential.alg;
                     ffi_out
@@ -585,6 +635,32 @@ pub unsafe extern "C" fn read_next_trampoline(
                     ffi_out.user_id_len = user_id_bytes.len().min(64) as u8;
                     ffi_out.user_id[..ffi_out.user_id_len as usize]
                         .copy_from_slice(&user_id_bytes[..ffi_out.user_id_len as usize]);
+
+                    let user_name_bytes = credential
+                        .user
+                        .name
+                        .as_ref()
+                        .map(|s| s.as_bytes())
+                        .unwrap_or(&[]);
+                    ffi_out.user_name_len = user_name_bytes.len().min(64) as u8;
+                    if ffi_out.user_name_len > 0 {
+                        ffi_out.user_name[..ffi_out.user_name_len as usize]
+                            .copy_from_slice(&user_name_bytes[..ffi_out.user_name_len as usize]);
+                    }
+
+                    let user_display_name_bytes = credential
+                        .user
+                        .display_name
+                        .as_ref()
+                        .map(|s| s.as_bytes())
+                        .unwrap_or(&[]);
+                    ffi_out.user_display_name_len = user_display_name_bytes.len().min(64) as u8;
+                    if ffi_out.user_display_name_len > 0 {
+                        ffi_out.user_display_name[..ffi_out.user_display_name_len as usize]
+                            .copy_from_slice(
+                                &user_display_name_bytes[..ffi_out.user_display_name_len as usize],
+                            );
+                    }
 
                     ffi_out.sign_count = credential.sign_count;
                     ffi_out.alg = credential.alg;
@@ -721,11 +797,11 @@ impl Authenticator {
     ///     .up(Arc::new(|info, user, rp| Ok(UpResult::Accepted)))
     ///     .build();
     ///
-    /// let config = AuthenticatorConfig::new()
-    ///     .with_aaguid([
+    /// let config = AuthenticatorConfig::builder()
+    ///     .aaguid([
     ///         0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef,
     ///         0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef,
-    ///     ]);
+    ///     ]).build();
     ///
     /// let auth = Authenticator::with_config(callbacks, config)?;
     /// # Ok(())
