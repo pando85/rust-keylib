@@ -59,7 +59,7 @@ impl<'a> CredentialRef<'a> {
 }
 
 /// Safe Rust representation of a FIDO2 credential
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Credential {
     /// User ID (max 64 bytes)
     pub id: Vec<u8>,
@@ -82,7 +82,7 @@ pub struct Credential {
 }
 
 /// Relying party information
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RelyingParty {
     /// RP ID (max 128 bytes)
     pub id: String,
@@ -91,7 +91,7 @@ pub struct RelyingParty {
 }
 
 /// User information
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct User {
     /// User handle (max 64 bytes)
     pub id: Vec<u8>,
@@ -102,7 +102,7 @@ pub struct User {
 }
 
 /// Extension data
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Extensions {
     /// Credential protection level
     pub cred_protect: Option<u8>,
