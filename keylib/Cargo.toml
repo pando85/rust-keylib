@@ -11,7 +11,7 @@ version.workspace = true
 
 [features]
 default = []
-static = []
+bundled = ["keylib-sys/bundled"]
 integration-tests = []
 
 [dependencies]

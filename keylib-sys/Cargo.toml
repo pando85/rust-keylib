@@ -19,7 +19,6 @@ sha2 = { version = "0.10", optional = true }
 
 [features]
 default = []
-static = []
 integration-tests = []
 # Download prebuilt native libraries instead of building from source
 # This eliminates the need for Zig compiler and libudev-dev
