@@ -19,9 +19,10 @@
 
 use keylib::client::{
     Client, ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth,
-    PinUvAuthProtocol, RelyingParty, TransportList, User,
+    PinUvAuthProtocol, TransportList, User,
 };
 use keylib::client_pin::{PinProtocol, PinUvAuthEncapsulation};
+use keylib::credential::RelyingParty;
 use keylib::error::Result;
 use sha2::{Digest, Sha256};
 

@@ -27,13 +27,6 @@ use keylib_sys::raw::{
 use std::ffi::CStr;
 use std::rc::Rc;
 
-/// Relying Party information for credential creation
-#[derive(Debug, Clone)]
-pub struct RelyingParty {
-    pub id: String,
-    pub name: Option<String>,
-}
-
 /// User information for credential creation
 #[derive(Debug, Clone)]
 pub struct User {
@@ -323,12 +316,13 @@ impl Client {
     /// # transport.open()?;
     /// use sha2::{Digest, Sha256};
     /// use keylib::client::{MakeCredentialRequest, ClientDataHash, PinUvAuth, PinUvAuthProtocol};
+    /// # use keylib::credential::RelyingParty;
     ///
     /// let client_data = b"...";
     /// let hash_bytes = Sha256::digest(client_data);
     /// let client_data_hash = ClientDataHash::from_slice(&hash_bytes)?;
     ///
-    /// let rp = client::RelyingParty {
+    /// let rp = RelyingParty {
     ///     id: "example.com".to_string(),
     ///     name: Some("Example Corp".to_string()),
     /// };

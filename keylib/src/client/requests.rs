@@ -1,7 +1,9 @@
 //! Request builders for CTAP2 client operations
 
 use super::types::{ClientDataHash, CredentialDescriptor, PinUvAuth};
-use crate::client::{RelyingParty, User};
+
+use crate::client::User;
+use crate::credential::RelyingParty;
 
 /// Request for creating a new credential (authenticatorMakeCredential)
 ///
@@ -10,7 +12,8 @@ use crate::client::{RelyingParty, User};
 /// # Example
 ///
 /// ```no_run
-/// # use keylib::client::{MakeCredentialRequest, ClientDataHash, RelyingParty, User, PinUvAuth, PinUvAuthProtocol};
+/// # use keylib::client::{MakeCredentialRequest, ClientDataHash, User, PinUvAuth, PinUvAuthProtocol};
+/// # use keylib::credential::RelyingParty;
 /// # use keylib::Result;
 /// # fn example() -> Result<()> {
 /// let hash = ClientDataHash::new([0u8; 32]);
@@ -52,7 +55,8 @@ impl MakeCredentialRequest {
     /// # Example
     ///
     /// ```
-    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, RelyingParty, User};
+    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, User, PinUvAuth, PinUvAuthProtocol};
+    /// # use keylib::credential::RelyingParty;
     /// let hash = ClientDataHash::new([0u8; 32]);
     /// let rp = RelyingParty {
     ///     id: "example.com".to_string(),
@@ -83,7 +87,8 @@ impl MakeCredentialRequest {
     /// # Example
     ///
     /// ```
-    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, RelyingParty, User, PinUvAuth, PinUvAuthProtocol};
+    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, User, PinUvAuth, PinUvAuthProtocol};
+    /// # use keylib::credential::RelyingParty;
     /// # let hash = ClientDataHash::new([0u8; 32]);
     /// # let rp = RelyingParty { id: "example.com".to_string(), name: None };
     /// # let user = User { id: vec![1], name: "alice".to_string(), display_name: None };
@@ -103,7 +108,8 @@ impl MakeCredentialRequest {
     /// # Example
     ///
     /// ```
-    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, RelyingParty, User};
+    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, User};
+    /// # use keylib::credential::RelyingParty;
     /// # let hash = ClientDataHash::new([0u8; 32]);
     /// # let rp = RelyingParty { id: "example.com".to_string(), name: None };
     /// # let user = User { id: vec![1], name: "alice".to_string(), display_name: None };
@@ -123,7 +129,8 @@ impl MakeCredentialRequest {
     /// # Example
     ///
     /// ```
-    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, RelyingParty, User};
+    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, User};
+    /// # use keylib::credential::RelyingParty;
     /// # let hash = ClientDataHash::new([0u8; 32]);
     /// # let rp = RelyingParty { id: "example.com".to_string(), name: None };
     /// # let user = User { id: vec![1], name: "alice".to_string(), display_name: None };
@@ -144,7 +151,8 @@ impl MakeCredentialRequest {
     /// # Example
     ///
     /// ```
-    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, RelyingParty, User};
+    /// # use keylib::client::{MakeCredentialRequest, ClientDataHash, User};
+    /// # use keylib::credential::RelyingParty;
     /// # let hash = ClientDataHash::new([0u8; 32]);
     /// # let rp = RelyingParty { id: "example.com".to_string(), name: None };
     /// # let user = User { id: vec![1], name: "alice".to_string(), display_name: None };
