@@ -825,11 +825,9 @@ impl Authenticator {
         };
 
         // Convert config to C-compatible settings
-        // Note: The aaguid needs to be converted from u8 to c_char
-        let mut c_aaguid = [0i8; 16];
-        for (i, &byte) in config.aaguid.iter().enumerate() {
-            c_aaguid[i] = byte as i8;
-        }
+        // Note: With -funsigned-char, c_char is u8 on all platforms
+        // We need to transmute to ensure the type matches exactly
+        let c_aaguid: [std::os::raw::c_char; 16] = unsafe { std::mem::transmute(config.aaguid) };
 
         // Convert command enums to byte array (keep alive during auth_init)
         let command_bytes: Vec<u8> = config.commands.iter().map(|cmd| cmd.as_u8()).collect();

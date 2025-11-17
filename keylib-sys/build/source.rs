@@ -114,6 +114,10 @@ fn generate_bindings(keylib_dir: &Path) {
         .header(uhid_include.join("uhid.h").to_str().unwrap())
         .clang_arg(format!("-I{}", keylib_include.display()))
         .clang_arg(format!("-I{}", uhid_include.display()))
+        // Force char to be u8 on all platforms for cross-compilation consistency
+        // On ARM64, char is unsigned by default; on x86_64 it's signed.
+        // This ensures consistent bindings across architectures.
+        .clang_arg("-funsigned-char")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");

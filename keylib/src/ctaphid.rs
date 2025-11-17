@@ -100,7 +100,7 @@ impl Ctaphid {
     /// The returned response borrows from this Ctaphid's internal buffer,
     /// so only one response can be active at a time.
     pub fn handle<'a>(&'a mut self, packet: &[u8; 64]) -> Option<CtaphidResponse<'a>> {
-        let ptr = packet.as_ptr() as *const i8;
+        let ptr = packet.as_ptr() as *const std::os::raw::c_char;
         let len = packet.len();
         let resp = unsafe { raw::ctaphid_handle(self.inner, ptr, len) };
         if resp.is_null() {
@@ -117,7 +117,7 @@ impl Ctaphid {
             let data_len = unsafe {
                 raw::ctaphid_response_get_data(
                     resp,
-                    self.buffer.as_mut_ptr() as *mut i8,
+                    self.buffer.as_mut_ptr() as *mut std::os::raw::c_char,
                     self.buffer.len(),
                 )
             };
@@ -161,8 +161,11 @@ impl<'a> CtaphidResponse<'a> {
             };
 
             // Copy data from C API into the provided buffer
-            let len =
-                raw::ctaphid_response_get_data(inner, buffer.as_mut_ptr() as *mut i8, buffer.len());
+            let len = raw::ctaphid_response_get_data(
+                inner,
+                buffer.as_mut_ptr() as *mut std::os::raw::c_char,
+                buffer.len(),
+            );
 
             Some(CtaphidResponse {
                 inner,
@@ -189,8 +192,11 @@ impl<'a> CtaphidResponse<'a> {
     /// After calling this, you should re-create the response to get the updated data.
     pub fn set_data(&mut self, data: &[u8]) -> Result<()> {
         unsafe {
-            let result =
-                raw::ctaphid_response_set_data(self.inner, data.as_ptr() as *const i8, data.len());
+            let result = raw::ctaphid_response_set_data(
+                self.inner,
+                data.as_ptr() as *const std::os::raw::c_char,
+                data.len(),
+            );
             if result == 0 {
                 // Note: We cannot update self.data here since it borrows from Ctaphid's buffer
                 // The caller needs to call handle() again to get updated data
@@ -219,19 +225,12 @@ impl Iterator for CtaphidPacketIterator {
     type Item = [u8; 64];
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut packet = [0i8; 64];
-        let result = unsafe { raw::ctaphid_iterator_next(self.inner, packet.as_mut_ptr()) };
+        let mut packet = [0u8; 64];
+        let result = unsafe {
+            raw::ctaphid_iterator_next(self.inner, packet.as_mut_ptr() as *mut std::os::raw::c_char)
+        };
 
-        if result > 0 {
-            // Convert i8 array to u8 array
-            let mut u8_packet = [0u8; 64];
-            for i in 0..64 {
-                u8_packet[i] = packet[i] as u8;
-            }
-            Some(u8_packet)
-        } else {
-            None
-        }
+        if result > 0 { Some(packet) } else { None }
     }
 }
 

@@ -19,7 +19,7 @@ impl Uhid {
 
     /// Read a 64-byte HID packet. Returns the number of bytes read.
     pub fn read_packet(&self, out: &mut [u8; 64]) -> Result<usize> {
-        let ptr = out.as_mut_ptr() as *mut i8;
+        let ptr = out.as_mut_ptr() as *mut std::os::raw::c_char;
         let r = unsafe { raw::uhid_read_packet(self.fd, ptr) };
         if r < 0 {
             return Err(crate::error::Error::Other);
@@ -29,13 +29,9 @@ impl Uhid {
 
     /// Write a 64-byte HID packet. Returns the number of bytes written.
     pub fn write_packet(&self, data: &[u8; 64]) -> Result<usize> {
-        // Convert u8 array to i8 array for C API
-        let mut i8_data = [0i8; 64];
-        for i in 0..64 {
-            i8_data[i] = data[i] as i8;
-        }
-
-        let r = unsafe { raw::uhid_write_packet(self.fd, i8_data.as_ptr() as *mut i8, 64) };
+        let r = unsafe {
+            raw::uhid_write_packet(self.fd, data.as_ptr() as *mut std::os::raw::c_char, 64)
+        };
         if r < 0 {
             return Err(crate::error::Error::Other);
         }
