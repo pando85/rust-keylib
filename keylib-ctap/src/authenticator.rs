@@ -1,0 +1,739 @@
+//! CTAP Authenticator state machine
+//!
+//! This module implements the core authenticator logic including configuration,
+//! PIN management, and overall state coordination.
+
+use crate::callbacks::AuthenticatorCallbacks;
+use crate::pin_token::{Permission, PinToken, PinTokenManager};
+use crate::{CoseAlgorithm, StatusCode};
+use keylib_crypto::pin_protocol;
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+/// Maximum PIN retries before blocking
+const MAX_PIN_RETRIES: u8 = 8;
+
+/// Authenticator configuration
+///
+/// Defines the capabilities and settings of a FIDO2 authenticator.
+#[derive(Debug, Clone)]
+pub struct AuthenticatorConfig {
+    /// Authenticator Attestation GUID (16 bytes)
+    ///
+    /// Unique identifier for the authenticator model.
+    pub aaguid: [u8; 16],
+
+    /// Supported COSE algorithms
+    pub algorithms: Vec<i32>,
+
+    /// Authenticator options
+    pub options: AuthenticatorOptions,
+
+    /// Maximum number of credentials
+    pub max_credentials: usize,
+
+    /// Supported extensions
+    pub extensions: Vec<String>,
+
+    /// Firmware version
+    pub firmware_version: Option<u32>,
+
+    /// Maximum message size
+    pub max_msg_size: Option<usize>,
+
+    /// Supported PIN/UV auth protocols (1 = V1, 2 = V2)
+    pub pin_uv_auth_protocols: Vec<u8>,
+
+    /// Maximum credential ID length
+    pub max_credential_id_length: Option<usize>,
+
+    /// Transports supported
+    pub transports: Vec<String>,
+
+    /// Maximum credential blob length
+    pub max_cred_blob_length: Option<usize>,
+}
+
+impl AuthenticatorConfig {
+    /// Create a new authenticator configuration with defaults
+    pub fn new() -> Self {
+        Self {
+            aaguid: [0u8; 16],
+            algorithms: vec![CoseAlgorithm::ES256.to_i32()],
+            options: AuthenticatorOptions::default(),
+            max_credentials: 100,
+            extensions: vec![],
+            firmware_version: None,
+            max_msg_size: Some(7609),          // CTAP max message size
+            pin_uv_auth_protocols: vec![1, 2], // Support both V1 and V2
+            max_credential_id_length: Some(128),
+            transports: vec!["usb".to_string(), "nfc".to_string()],
+            max_cred_blob_length: Some(32),
+        }
+    }
+
+    /// Set AAGUID
+    pub fn with_aaguid(mut self, aaguid: [u8; 16]) -> Self {
+        self.aaguid = aaguid;
+        self
+    }
+
+    /// Set supported algorithms
+    pub fn with_algorithms(mut self, algorithms: Vec<i32>) -> Self {
+        self.algorithms = algorithms;
+        self
+    }
+
+    /// Set authenticator options
+    pub fn with_options(mut self, options: AuthenticatorOptions) -> Self {
+        self.options = options;
+        self
+    }
+
+    /// Set maximum credentials
+    pub fn with_max_credentials(mut self, max: usize) -> Self {
+        self.max_credentials = max;
+        self
+    }
+
+    /// Add extension
+    pub fn with_extension(mut self, ext: String) -> Self {
+        self.extensions.push(ext);
+        self
+    }
+
+    /// Set firmware version
+    pub fn with_firmware_version(mut self, version: u32) -> Self {
+        self.firmware_version = Some(version);
+        self
+    }
+}
+
+impl Default for AuthenticatorConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Authenticator options
+///
+/// Boolean capabilities of the authenticator.
+#[derive(Debug, Clone, Default)]
+pub struct AuthenticatorOptions {
+    /// Platform device (vs roaming authenticator)
+    pub plat: bool,
+
+    /// Resident key (discoverable credential) support
+    pub rk: bool,
+
+    /// Client PIN supported
+    pub client_pin: Option<bool>,
+
+    /// User presence supported
+    pub up: bool,
+
+    /// User verification supported
+    pub uv: Option<bool>,
+
+    /// Always require user verification
+    pub always_uv: bool,
+
+    /// Credential management supported
+    pub cred_mgmt: bool,
+
+    /// Authenticator configuration supported
+    pub authnr_cfg: bool,
+
+    /// Bio enrollment supported
+    pub bio_enroll: Option<bool>,
+
+    /// Enterprise attestation supported
+    pub ep: Option<bool>,
+
+    /// Large blobs supported
+    pub large_blobs: Option<bool>,
+
+    /// PIN/UV auth token supported
+    pub pin_uv_auth_token: bool,
+
+    /// Set minimum PIN length supported
+    pub set_min_pin_length: bool,
+
+    /// Make credential with UV optional supported
+    pub make_cred_uv_not_required: bool,
+}
+
+impl AuthenticatorOptions {
+    /// Create new options with common defaults
+    pub fn new() -> Self {
+        Self {
+            plat: false,
+            rk: true,
+            client_pin: Some(true),
+            up: true,
+            uv: Some(true),
+            always_uv: false,
+            cred_mgmt: true,
+            authnr_cfg: false,
+            bio_enroll: Some(false),
+            ep: None,
+            large_blobs: None,
+            pin_uv_auth_token: true,
+            set_min_pin_length: false,
+            make_cred_uv_not_required: false,
+        }
+    }
+}
+
+/// Authenticator state machine
+///
+/// Central component managing authenticator configuration, PIN state,
+/// and command processing.
+pub struct Authenticator<C: AuthenticatorCallbacks> {
+    /// Authenticator configuration
+    config: AuthenticatorConfig,
+
+    /// Callbacks for user interaction and storage
+    callbacks: Arc<C>,
+
+    /// PIN hash (SHA-256 of PIN, if set)
+    pin_hash: Option<[u8; 32]>,
+
+    /// PIN retry counter
+    pin_retries: u8,
+
+    /// PIN token manager
+    pin_tokens: PinTokenManager,
+
+    /// Force change PIN flag
+    force_change_pin: bool,
+
+    /// Minimum PIN length (4-63)
+    min_pin_length: usize,
+
+    /// Custom command handlers (command code -> handler)
+    custom_commands: HashMap<u8, Box<dyn Fn(&[u8]) -> Result<Vec<u8>, StatusCode> + Send + Sync>>,
+}
+
+impl<C: AuthenticatorCallbacks> Authenticator<C> {
+    /// Create a new authenticator with configuration and callbacks
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Authenticator configuration
+    /// * `callbacks` - User interaction and storage callbacks
+    pub fn new(config: AuthenticatorConfig, callbacks: C) -> Self {
+        Self {
+            config,
+            callbacks: Arc::new(callbacks),
+            pin_hash: None,
+            pin_retries: MAX_PIN_RETRIES,
+            pin_tokens: PinTokenManager::new(),
+            force_change_pin: false,
+            min_pin_length: 4, // Default minimum PIN length
+            custom_commands: HashMap::new(),
+        }
+    }
+
+    /// Get authenticator configuration
+    pub fn config(&self) -> &AuthenticatorConfig {
+        &self.config
+    }
+
+    /// Get callbacks reference
+    pub fn callbacks(&self) -> &C {
+        &self.callbacks
+    }
+
+    /// Check if PIN is set
+    pub fn is_pin_set(&self) -> bool {
+        self.pin_hash.is_some()
+    }
+
+    /// Get PIN retry counter
+    pub fn pin_retries(&self) -> u8 {
+        self.pin_retries
+    }
+
+    /// Check if PIN is blocked
+    pub fn is_pin_blocked(&self) -> bool {
+        self.pin_retries == 0
+    }
+
+    /// Set PIN
+    ///
+    /// # Arguments
+    ///
+    /// * `new_pin` - New PIN (UTF-8 string, 4-63 bytes)
+    ///
+    /// # Returns
+    ///
+    /// Success or error status
+    pub fn set_pin(&mut self, new_pin: &str) -> Result<(), StatusCode> {
+        // Validate PIN length
+        let pin_bytes = new_pin.as_bytes();
+        if pin_bytes.len() < self.min_pin_length || pin_bytes.len() > 63 {
+            return Err(StatusCode::PinPolicyViolation);
+        }
+
+        // Hash the PIN (left-padded to 64 bytes with zeros)
+        let mut padded_pin = [0u8; 64];
+        padded_pin[..pin_bytes.len()].copy_from_slice(pin_bytes);
+        let hash = Sha256::digest(&padded_pin);
+        self.pin_hash = Some(hash.into());
+
+        // Reset retry counter
+        self.pin_retries = MAX_PIN_RETRIES;
+        self.force_change_pin = false;
+
+        Ok(())
+    }
+
+    /// Change PIN
+    ///
+    /// # Arguments
+    ///
+    /// * `current_pin` - Current PIN
+    /// * `new_pin` - New PIN
+    ///
+    /// # Returns
+    ///
+    /// Success or error status
+    pub fn change_pin(&mut self, current_pin: &str, new_pin: &str) -> Result<(), StatusCode> {
+        // Verify current PIN first
+        self.verify_pin(current_pin)?;
+
+        // Set new PIN
+        self.set_pin(new_pin)
+    }
+
+    /// Verify PIN
+    ///
+    /// # Arguments
+    ///
+    /// * `pin` - PIN to verify
+    ///
+    /// # Returns
+    ///
+    /// Success or error status
+    pub fn verify_pin(&mut self, pin: &str) -> Result<(), StatusCode> {
+        // Check if PIN is set
+        let pin_hash = self.pin_hash.ok_or(StatusCode::PinNotSet)?;
+
+        // Check if blocked
+        if self.is_pin_blocked() {
+            return Err(StatusCode::PinBlocked);
+        }
+
+        // Hash the provided PIN
+        let pin_bytes = pin.as_bytes();
+        let mut padded_pin = [0u8; 64];
+        padded_pin[..pin_bytes.len()].copy_from_slice(pin_bytes);
+        let hash = Sha256::digest(&padded_pin);
+
+        // Compare using constant-time comparison
+        use subtle::ConstantTimeEq;
+        if pin_hash.ct_eq(hash.as_slice()).into() {
+            // PIN correct - reset retry counter
+            self.pin_retries = MAX_PIN_RETRIES;
+            Ok(())
+        } else {
+            // PIN incorrect - decrement retry counter
+            self.pin_retries = self.pin_retries.saturating_sub(1);
+            if self.is_pin_blocked() {
+                Err(StatusCode::PinBlocked)
+            } else {
+                Err(StatusCode::PinInvalid)
+            }
+        }
+    }
+
+    /// Get PIN token with permissions
+    ///
+    /// # Arguments
+    ///
+    /// * `pin` - PIN for verification
+    /// * `permissions` - Requested permission bitmask
+    /// * `rp_id` - RP ID for scoped permissions
+    ///
+    /// # Returns
+    ///
+    /// PIN token value (32 bytes) or error
+    pub fn get_pin_token(
+        &mut self,
+        pin: &str,
+        permissions: u8,
+        rp_id: Option<String>,
+    ) -> Result<[u8; 32], StatusCode> {
+        // Verify PIN
+        self.verify_pin(pin)?;
+
+        // Generate random token
+        use rand::RngCore;
+        let mut token_bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut token_bytes);
+
+        // Create and store token
+        let token = PinToken::new(token_bytes, permissions, rp_id);
+        let value = *token.value();
+        self.pin_tokens.set_token(token);
+
+        Ok(value)
+    }
+
+    /// Verify PIN/UV auth token has required permission
+    ///
+    /// # Arguments
+    ///
+    /// * `permission` - Required permission
+    /// * `rp_id` - RP ID for the operation
+    ///
+    /// # Returns
+    ///
+    /// Success or error status
+    pub fn verify_pin_uv_auth_token(
+        &mut self,
+        permission: Permission,
+        rp_id: Option<&str>,
+    ) -> Result<(), StatusCode> {
+        self.pin_tokens.verify_permission(permission, rp_id)
+    }
+
+    /// Verify PIN/UV auth parameter
+    ///
+    /// # Arguments
+    ///
+    /// * `pin_uv_auth_protocol` - Protocol version (1 or 2)
+    /// * `pin_uv_auth_param` - Authentication parameter (16 bytes)
+    /// * `client_data_hash` - Client data hash to verify
+    ///
+    /// # Returns
+    ///
+    /// Success or error status
+    pub fn verify_pin_uv_auth_param(
+        &self,
+        pin_uv_auth_protocol: u8,
+        pin_uv_auth_param: &[u8],
+        client_data_hash: &[u8],
+    ) -> Result<(), StatusCode> {
+        if pin_uv_auth_param.len() != 16 {
+            return Err(StatusCode::PinAuthInvalid);
+        }
+
+        // Get current PIN token
+        let token = self.pin_tokens.get_token().ok_or(StatusCode::PinRequired)?;
+
+        // Verify based on protocol version
+        let expected: [u8; 16] = pin_uv_auth_param
+            .try_into()
+            .map_err(|_| StatusCode::PinAuthInvalid)?;
+
+        let valid = match pin_uv_auth_protocol {
+            1 => pin_protocol::v1::verify(token.value(), client_data_hash, &expected),
+            2 => pin_protocol::v2::verify(token.value(), client_data_hash, &expected),
+            _ => return Err(StatusCode::InvalidParameter),
+        };
+
+        if valid {
+            Ok(())
+        } else {
+            Err(StatusCode::PinAuthInvalid)
+        }
+    }
+
+    /// Get minimum PIN length
+    pub fn min_pin_length(&self) -> usize {
+        self.min_pin_length
+    }
+
+    /// Set minimum PIN length (4-63)
+    pub fn set_min_pin_length(&mut self, length: usize) -> Result<(), StatusCode> {
+        if !(4..=63).contains(&length) {
+            return Err(StatusCode::PinPolicyViolation);
+        }
+        self.min_pin_length = length;
+        Ok(())
+    }
+
+    /// Register a custom command handler
+    ///
+    /// # Arguments
+    ///
+    /// * `command` - Command code (0x40-0xFF vendor range)
+    /// * `handler` - Handler function
+    pub fn register_custom_command<F>(&mut self, command: u8, handler: F)
+    where
+        F: Fn(&[u8]) -> Result<Vec<u8>, StatusCode> + Send + Sync + 'static,
+    {
+        self.custom_commands.insert(command, Box::new(handler));
+    }
+
+    /// Handle custom command
+    ///
+    /// # Arguments
+    ///
+    /// * `command` - Command code
+    /// * `request` - Request payload
+    ///
+    /// # Returns
+    ///
+    /// Response payload or error
+    pub fn handle_custom_command(
+        &self,
+        command: u8,
+        request: &[u8],
+    ) -> Result<Vec<u8>, StatusCode> {
+        match self.custom_commands.get(&command) {
+            Some(handler) => handler(request),
+            None => Err(StatusCode::InvalidCommand),
+        }
+    }
+
+    /// Reset authenticator to factory defaults
+    ///
+    /// This will clear all credentials, reset PIN, and clear tokens.
+    pub fn reset(&mut self) -> Result<(), StatusCode> {
+        // Clear PIN state
+        self.pin_hash = None;
+        self.pin_retries = MAX_PIN_RETRIES;
+        self.pin_tokens.clear_token();
+        self.force_change_pin = false;
+        self.min_pin_length = 4;
+
+        // Note: Credential deletion should be handled by the caller
+        // via callbacks, as we don't want to store credentials here
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::callbacks::{CredentialStorageCallbacks, UserInteractionCallbacks};
+    use crate::types::Credential;
+    use crate::{UpResult, UvResult};
+
+    // Mock callbacks for testing
+    struct MockCallbacks;
+
+    impl UserInteractionCallbacks for MockCallbacks {
+        fn request_up(
+            &self,
+            _info: &str,
+            _user_name: Option<&str>,
+            _rp_id: &str,
+        ) -> Result<UpResult, StatusCode> {
+            Ok(UpResult::Accepted)
+        }
+
+        fn request_uv(
+            &self,
+            _info: &str,
+            _user_name: Option<&str>,
+            _rp_id: &str,
+        ) -> Result<UvResult, StatusCode> {
+            Ok(UvResult::Accepted)
+        }
+
+        fn select_credential(
+            &self,
+            _rp_id: &str,
+            _user_names: &[String],
+        ) -> Result<usize, StatusCode> {
+            Ok(0)
+        }
+    }
+
+    impl CredentialStorageCallbacks for MockCallbacks {
+        fn write_credential(&self, _credential: &Credential) -> Result<(), StatusCode> {
+            Ok(())
+        }
+
+        fn delete_credential(&self, _credential_id: &[u8]) -> Result<(), StatusCode> {
+            Ok(())
+        }
+
+        fn read_credentials(
+            &self,
+            _rp_id: &str,
+            _user_id: Option<&[u8]>,
+        ) -> Result<Vec<Credential>, StatusCode> {
+            Ok(vec![])
+        }
+
+        fn credential_exists(&self, _credential_id: &[u8]) -> Result<bool, StatusCode> {
+            Ok(false)
+        }
+
+        fn get_credential(&self, _credential_id: &[u8]) -> Result<Credential, StatusCode> {
+            Err(StatusCode::NoCredentials)
+        }
+
+        fn update_credential(&self, _credential: &Credential) -> Result<(), StatusCode> {
+            Ok(())
+        }
+
+        fn enumerate_rps(&self) -> Result<Vec<(String, Option<String>, usize)>, StatusCode> {
+            Ok(vec![])
+        }
+
+        fn credential_count(&self) -> Result<usize, StatusCode> {
+            Ok(0)
+        }
+    }
+
+    fn create_test_authenticator() -> Authenticator<MockCallbacks> {
+        let config = AuthenticatorConfig::new();
+        Authenticator::new(config, MockCallbacks)
+    }
+
+    #[test]
+    fn test_authenticator_creation() {
+        let auth = create_test_authenticator();
+        assert!(!auth.is_pin_set());
+        assert_eq!(auth.pin_retries(), MAX_PIN_RETRIES);
+        assert!(!auth.is_pin_blocked());
+    }
+
+    #[test]
+    fn test_set_pin() {
+        let mut auth = create_test_authenticator();
+        assert!(auth.set_pin("1234").is_ok());
+        assert!(auth.is_pin_set());
+    }
+
+    #[test]
+    fn test_pin_too_short() {
+        let mut auth = create_test_authenticator();
+        let result = auth.set_pin("123");
+        assert_eq!(result, Err(StatusCode::PinPolicyViolation));
+    }
+
+    #[test]
+    fn test_pin_too_long() {
+        let mut auth = create_test_authenticator();
+        let long_pin = "a".repeat(64);
+        let result = auth.set_pin(&long_pin);
+        assert_eq!(result, Err(StatusCode::PinPolicyViolation));
+    }
+
+    #[test]
+    fn test_verify_pin_success() {
+        let mut auth = create_test_authenticator();
+        auth.set_pin("1234").unwrap();
+        assert!(auth.verify_pin("1234").is_ok());
+        assert_eq!(auth.pin_retries(), MAX_PIN_RETRIES);
+    }
+
+    #[test]
+    fn test_verify_pin_incorrect() {
+        let mut auth = create_test_authenticator();
+        auth.set_pin("1234").unwrap();
+        let result = auth.verify_pin("wrong");
+        assert_eq!(result, Err(StatusCode::PinInvalid));
+        assert_eq!(auth.pin_retries(), MAX_PIN_RETRIES - 1);
+    }
+
+    #[test]
+    fn test_pin_retry_exhaustion() {
+        let mut auth = create_test_authenticator();
+        auth.set_pin("1234").unwrap();
+
+        // Exhaust retries
+        for _ in 0..MAX_PIN_RETRIES {
+            let _ = auth.verify_pin("wrong");
+        }
+
+        assert!(auth.is_pin_blocked());
+        let result = auth.verify_pin("1234");
+        assert_eq!(result, Err(StatusCode::PinBlocked));
+    }
+
+    #[test]
+    fn test_change_pin() {
+        let mut auth = create_test_authenticator();
+        auth.set_pin("1234").unwrap();
+        assert!(auth.change_pin("1234", "5678").is_ok());
+        assert!(auth.verify_pin("5678").is_ok());
+        assert!(auth.verify_pin("1234").is_err());
+    }
+
+    #[test]
+    fn test_get_pin_token() {
+        let mut auth = create_test_authenticator();
+        auth.set_pin("1234").unwrap();
+
+        let token = auth
+            .get_pin_token("1234", Permission::MakeCredential.to_u8(), None)
+            .unwrap();
+        assert_eq!(token.len(), 32);
+    }
+
+    #[test]
+    fn test_verify_pin_uv_auth_token() {
+        let mut auth = create_test_authenticator();
+        auth.set_pin("1234").unwrap();
+
+        // Get token with MakeCredential permission
+        let _ = auth
+            .get_pin_token(
+                "1234",
+                Permission::MakeCredential.to_u8(),
+                Some("example.com".to_string()),
+            )
+            .unwrap();
+
+        // Should succeed with correct permission and RP
+        assert!(
+            auth.verify_pin_uv_auth_token(Permission::MakeCredential, Some("example.com"))
+                .is_ok()
+        );
+
+        // Should fail with wrong permission
+        assert_eq!(
+            auth.verify_pin_uv_auth_token(Permission::CredentialManagement, None),
+            Err(StatusCode::UnauthorizedPermission)
+        );
+    }
+
+    #[test]
+    fn test_custom_command() {
+        let mut auth = create_test_authenticator();
+
+        // Register custom command
+        auth.register_custom_command(0x40, |request| {
+            Ok(request.iter().map(|b| b.wrapping_add(1)).collect())
+        });
+
+        // Test custom command
+        let response = auth.handle_custom_command(0x40, &[1, 2, 3]).unwrap();
+        assert_eq!(response, vec![2, 3, 4]);
+    }
+
+    #[test]
+    fn test_reset() {
+        let mut auth = create_test_authenticator();
+        auth.set_pin("1234").unwrap();
+        auth.reset().unwrap();
+        assert!(!auth.is_pin_set());
+        assert_eq!(auth.pin_retries(), MAX_PIN_RETRIES);
+    }
+
+    #[test]
+    fn test_min_pin_length() {
+        let mut auth = create_test_authenticator();
+        assert_eq!(auth.min_pin_length(), 4);
+
+        auth.set_min_pin_length(8).unwrap();
+        assert_eq!(auth.min_pin_length(), 8);
+
+        // PIN too short for new minimum
+        let result = auth.set_pin("1234");
+        assert_eq!(result, Err(StatusCode::PinPolicyViolation));
+
+        // PIN meets new minimum
+        assert!(auth.set_pin("12345678").is_ok());
+    }
+}
