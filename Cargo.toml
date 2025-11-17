@@ -1,5 +1,5 @@
 [workspace]
-members = ["keylib", "keylib-sys"]
+members = ["keylib", "keylib-crypto", "keylib-ctap", "keylib-sys", "keylib-transport"]
 resolver = "2"
 
 
@@ -14,3 +14,26 @@ readme = "README.md"
 
 [workspace.dependencies]
 keylib-sys = { path = "keylib-sys", version = "0.2.3" }
+
+# Cryptography (well-audited crates)
+p256 = { version = "0.13", features = ["ecdsa", "ecdh"] }
+sha2 = "0.10"
+hmac = "0.12"
+hkdf = "0.12"
+aes = "0.8"
+cbc = "0.1"
+rand = "0.8"
+subtle = "2.6"
+
+# CBOR serialization
+ciborium = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+
+# Utilities
+thiserror = "1.0"
+
+# Transport
+hidapi = "2.6"
+
+# Platform-specific (Linux UHID)
+nix = { version = "0.29", features = ["fs", "ioctl"] }

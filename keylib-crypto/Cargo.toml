@@ -1,0 +1,11 @@
+[package]
+name = "keylib-crypto"
+version.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[dependencies]
