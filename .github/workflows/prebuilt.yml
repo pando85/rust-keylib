@@ -23,7 +23,7 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-22.04
+            os: ubuntu-22.04-arm
           - target: x86_64-unknown-linux-musl
             os: ubuntu-22.04
 
@@ -42,11 +42,6 @@ jobs:
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
-
-      - name: Install cross-compilation tools (if needed)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build Zig libraries
         working-directory: keylib-sys/keylib
