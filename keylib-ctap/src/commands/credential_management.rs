@@ -264,15 +264,14 @@ fn handle_update_user_information<C: AuthenticatorCallbacks>(
     let cred_id_value: ciborium::Value = params_parser.get(subparam_keys::CREDENTIAL_ID)?;
     let new_user: User = params_parser.get(subparam_keys::USER)?;
 
-    // Parse credential ID
-    let cred_id_bytes: Vec<u8> = match cred_id_value {
+    // Parse credential ID and update user information
+    match cred_id_value {
         ciborium::Value::Map(m) => {
             for (k, v) in m {
                 if let (ciborium::Value::Text(key), ciborium::Value::Bytes(id)) = (k, v) {
                     if key == "id" {
                         // Found the ID, use it
                         let bytes = id;
-                        // Can't return here, so we reconstruct the logic below
                         // Get existing credential
                         let mut credential = auth.callbacks().get_credential(&bytes)?;
 
@@ -287,13 +286,10 @@ fn handle_update_user_information<C: AuthenticatorCallbacks>(
                     }
                 }
             }
-            return Err(StatusCode::InvalidParameter);
+            Err(StatusCode::InvalidParameter)
         }
-        _ => return Err(StatusCode::InvalidParameter),
-    };
-
-    // This should not be reached if the above logic works correctly
-    MapBuilder::new().build()
+        _ => Err(StatusCode::InvalidParameter),
+    }
 }
 
 /// Compute SHA-256 hash of RP ID

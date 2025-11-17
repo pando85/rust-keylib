@@ -53,6 +53,9 @@ pub struct AuthenticatorConfig {
 
     /// Maximum credential blob length
     pub max_cred_blob_length: Option<usize>,
+
+    /// Minimum PIN length
+    pub min_pin_length: Option<usize>,
 }
 
 impl AuthenticatorConfig {
@@ -70,6 +73,7 @@ impl AuthenticatorConfig {
             max_credential_id_length: Some(128),
             transports: vec!["usb".to_string(), "nfc".to_string()],
             max_cred_blob_length: Some(32),
+            min_pin_length: Some(4),            // CTAP default minimum PIN length
         }
     }
 

@@ -7,6 +7,7 @@
 use crate::authenticator::Authenticator;
 use crate::callbacks::AuthenticatorCallbacks;
 use crate::cbor::{MapBuilder, MapParser};
+use crate::extensions::GetAssertionExtensions;
 use crate::status::{Result, StatusCode};
 use crate::types::PublicKeyCredentialDescriptor;
 use crate::{UpResult, UvResult};
@@ -64,6 +65,13 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // Parse options
     let options = parse_options(&parser)?;
+
+    // Parse extensions
+    let extensions = if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
+        GetAssertionExtensions::from_cbor(&ext_value)?
+    } else {
+        GetAssertionExtensions::new()
+    };
 
     // 3. Verify PIN/UV auth if present
     if let Some(_pin_auth) = &pin_uv_auth_param {
@@ -153,10 +161,19 @@ pub fn handle<C: AuthenticatorCallbacks>(
     updated_cred.sign_count = new_sign_count;
     auth.callbacks().update_credential(&updated_cred)?;
 
-    // 9. Build authenticator data
-    let auth_data = build_authenticator_data(&rp_id, up_performed, uv_performed, new_sign_count)?;
+    // 9. Build extension outputs
+    let extension_outputs = extensions.build_outputs();
 
-    // 10. Generate signature
+    // 10. Build authenticator data
+    let auth_data = build_authenticator_data(
+        &rp_id,
+        up_performed,
+        uv_performed,
+        new_sign_count,
+        extension_outputs.as_ref(),
+    )?;
+
+    // 11. Generate signature
     let sig_data = [&auth_data[..], &client_data_hash[..]].concat();
 
     // Convert private key Vec to array
@@ -168,14 +185,14 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     let signature = ecdsa::sign(&priv_key_array, &sig_data)?;
 
-    // 11. Build credential descriptor
+    // 12. Build credential descriptor
     let credential_desc = PublicKeyCredentialDescriptor {
         cred_type: "public-key".to_string(),
         id: selected_cred.id.clone(),
         transports: None,
     };
 
-    // 12. Build response
+    // 13. Build response
     let mut builder = MapBuilder::new()
         .insert(resp_keys::CREDENTIAL, credential_desc)?
         .insert(resp_keys::AUTH_DATA, auth_data)?
@@ -221,7 +238,13 @@ fn parse_options(parser: &MapParser) -> Result<GetAssertionOptions> {
 /// Build authenticator data for assertion
 ///
 /// Format: rpIdHash (32) || flags (1) || signCount (4) || extensions (optional)
-fn build_authenticator_data(rp_id: &str, up: bool, uv: bool, sign_count: u32) -> Result<Vec<u8>> {
+fn build_authenticator_data(
+    rp_id: &str,
+    up: bool,
+    uv: bool,
+    sign_count: u32,
+    extensions: Option<&ciborium::Value>,
+) -> Result<Vec<u8>> {
     let mut auth_data = Vec::new();
 
     // RP ID hash (32 bytes)
@@ -237,10 +260,21 @@ fn build_authenticator_data(rp_id: &str, up: bool, uv: bool, sign_count: u32) ->
     if uv {
         flags |= 0x04; // UV
     }
+    if extensions.is_some() {
+        flags |= 0x80; // ED (extension data present)
+    }
     auth_data.push(flags);
 
     // Sign count (4 bytes)
     auth_data.extend_from_slice(&sign_count.to_be_bytes());
+
+    // Extensions (CBOR-encoded)
+    if let Some(ext_value) = extensions {
+        let mut ext_bytes = Vec::new();
+        ciborium::into_writer(ext_value, &mut ext_bytes)
+            .map_err(|_| StatusCode::InvalidCbor)?;
+        auth_data.extend_from_slice(&ext_bytes);
+    }
 
     Ok(auth_data)
 }
@@ -251,7 +285,7 @@ mod tests {
 
     #[test]
     fn test_build_authenticator_data() {
-        let auth_data = build_authenticator_data("example.com", true, false, 42).unwrap();
+        let auth_data = build_authenticator_data("example.com", true, false, 42, None).unwrap();
 
         // Should be: 32 (hash) + 1 (flags) + 4 (counter) = 37 bytes
         assert_eq!(auth_data.len(), 37);
@@ -266,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_build_authenticator_data_with_uv() {
-        let auth_data = build_authenticator_data("example.com", true, true, 1).unwrap();
+        let auth_data = build_authenticator_data("example.com", true, true, 1, None).unwrap();
 
         // Check flags (UP=1, UV=1)
         assert_eq!(auth_data[32], 0x05); // 0x01 | 0x04

@@ -7,6 +7,7 @@
 use crate::authenticator::Authenticator;
 use crate::callbacks::AuthenticatorCallbacks;
 use crate::cbor::{MapBuilder, MapParser};
+use crate::extensions::MakeCredentialExtensions;
 use crate::status::{Result, StatusCode};
 use crate::types::{PublicKeyCredentialDescriptor, PublicKeyCredentialParameters, RelyingParty, User};
 use crate::{CredProtect, UpResult, UvResult};
@@ -74,6 +75,13 @@ pub fn handle<C: AuthenticatorCallbacks>(
     // Parse options
     let options = parse_options(&parser)?;
 
+    // Parse extensions
+    let extensions = if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
+        MakeCredentialExtensions::from_cbor(&ext_value)?
+    } else {
+        MakeCredentialExtensions::new()
+    };
+
     // 3. Check if algorithm is supported
     let alg = pub_key_cred_params
         .iter()
@@ -81,8 +89,8 @@ pub fn handle<C: AuthenticatorCallbacks>(
         .ok_or(StatusCode::UnsupportedAlgorithm)?;
 
     // 4. Verify PIN/UV auth if present
-    if let Some(pin_auth) = &pin_uv_auth_param {
-        let protocol = pin_uv_auth_protocol.ok_or(StatusCode::MissingParameter)?;
+    if let Some(_pin_auth) = &pin_uv_auth_param {
+        let _protocol = pin_uv_auth_protocol.ok_or(StatusCode::MissingParameter)?;
         // TODO: Implement PIN token verification
         // For now, just check if PIN is set when pin_auth is provided
         if !auth.is_pin_set() {
@@ -133,6 +141,11 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // 10. Store credential if resident key
     if options.rk {
+        // Use cred_protect from extensions, or default
+        let cred_protect_value = extensions.cred_protect
+            .map(|p| p.to_u8())
+            .unwrap_or(CredProtect::UserVerificationOptional as u8);
+
         let credential = crate::types::Credential {
             id: credential_id.clone(),
             rp_id: rp.id.clone(),
@@ -145,13 +158,16 @@ pub fn handle<C: AuthenticatorCallbacks>(
             sign_count: 0,
             created: current_timestamp(),
             discoverable: true,
-            cred_protect: CredProtect::UserVerificationOptional as u8,
+            cred_protect: cred_protect_value,
         };
 
         auth.callbacks().write_credential(&credential)?;
     }
 
-    // 11. Build authenticator data
+    // 11. Build extension outputs
+    let extension_outputs = extensions.build_outputs(auth.config().min_pin_length);
+
+    // 12. Build authenticator data
     let auth_data = build_authenticator_data(
         &rp.id,
         up_performed,
@@ -160,15 +176,16 @@ pub fn handle<C: AuthenticatorCallbacks>(
         &credential_id,
         &public_key_bytes,
         alg.alg,
+        extension_outputs.as_ref(),
     )?;
 
-    // 12. Build attestation statement (self-attestation for now)
+    // 13. Build attestation statement (self-attestation for now)
     let sig_data = [&auth_data[..], &client_data_hash[..]].concat();
     let signature = ecdsa::sign(&private_key, &sig_data)?;
 
     let att_stmt = build_attestation_statement(&signature, alg.alg)?;
 
-    // 13. Build response
+    // 14. Build response
     MapBuilder::new()
         .insert(resp_keys::FMT, "packed")?
         .insert(resp_keys::AUTH_DATA, auth_data)?
@@ -230,6 +247,7 @@ fn build_authenticator_data(
     credential_id: &[u8],
     public_key: &[u8],
     algorithm: i32,
+    extensions: Option<&ciborium::Value>,
 ) -> Result<Vec<u8>> {
     let mut auth_data = Vec::new();
 
@@ -247,6 +265,9 @@ fn build_authenticator_data(
         flags |= 0x04; // UV
     }
     flags |= 0x40; // AT (attested credential data present)
+    if extensions.is_some() {
+        flags |= 0x80; // ED (extension data present)
+    }
     auth_data.push(flags);
 
     // Sign count (4 bytes) - always 0 for new credentials
@@ -265,6 +286,14 @@ fn build_authenticator_data(
     // Credential public key (COSE format)
     let cose_key = build_cose_public_key(public_key, algorithm)?;
     auth_data.extend_from_slice(&cose_key);
+
+    // Extensions (CBOR-encoded)
+    if let Some(ext_value) = extensions {
+        let mut ext_bytes = Vec::new();
+        ciborium::into_writer(ext_value, &mut ext_bytes)
+            .map_err(|_| StatusCode::InvalidCbor)?;
+        auth_data.extend_from_slice(&ext_bytes);
+    }
 
     Ok(auth_data)
 }

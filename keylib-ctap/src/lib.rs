@@ -9,6 +9,7 @@ pub mod authenticator;
 pub mod callbacks;
 pub mod cbor;
 pub mod commands;
+pub mod extensions;
 pub mod pin_token;
 pub mod status;
 pub mod types;
