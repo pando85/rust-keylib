@@ -1,14 +1,11 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! Pure Rust CTAP (Client to Authenticator Protocol) implementation
+//!
+//! This crate provides the CTAP 2.0/2.1 protocol logic for FIDO2 authenticators.
+//!
+//! Implements the FIDO2 specification:
+//! <https://fidoalliance.org/specs/fido-v2.2-rd-20230321/fido-client-to-authenticator-protocol-v2.2-rd-20230321.html>
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod status;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+// Re-export commonly used types
+pub use status::{Result, StatusCode};

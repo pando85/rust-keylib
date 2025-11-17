@@ -9,3 +9,18 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
+# Internal dependencies
+keylib-crypto = { path = "../keylib-crypto" }
+
+# CBOR serialization
+ciborium.workspace = true
+serde.workspace = true
+
+# Crypto utilities
+sha2.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+[dev-dependencies]
+hex = "0.4"
