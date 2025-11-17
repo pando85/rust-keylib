@@ -3,6 +3,7 @@
 //! This crate provides transport implementations for CTAP (Client to Authenticator Protocol):
 //! - CTAP HID protocol (message framing, fragmentation, reassembly)
 //! - Channel management (CID allocation, message assembly, timeouts)
+//! - Command handler abstraction for processing CTAP messages
 //! - USB HID transport (via hidapi)
 //! - Linux UHID virtual device support (for testing)
 //!
@@ -11,8 +12,10 @@
 pub mod channel;
 pub mod ctaphid;
 pub mod error;
+pub mod handler;
 
 // Re-export commonly used types
 pub use channel::ChannelManager;
 pub use ctaphid::{Cmd, Message, Packet};
 pub use error::{Error, Result};
+pub use handler::{CommandHandler, CtapHidHandler};
