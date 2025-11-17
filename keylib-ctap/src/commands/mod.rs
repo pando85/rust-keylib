@@ -9,7 +9,9 @@ pub mod client_pin;
 pub mod credential_management;
 pub mod get_assertion;
 pub mod get_info;
+pub mod get_next_assertion;
 pub mod make_credential;
+pub mod selection;
 
 /// CTAP command codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
