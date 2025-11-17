@@ -111,11 +111,11 @@ impl PublicKeyCredentialDescriptor {
 /// Public key credential parameters
 ///
 /// Specifies an acceptable credential type and algorithm.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicKeyCredentialParameters {
     /// Credential type
     #[serde(rename = "type")]
-    pub cred_type: &'static str,
+    pub cred_type: String,
 
     /// COSE algorithm identifier
     pub alg: i32,
@@ -123,13 +123,15 @@ pub struct PublicKeyCredentialParameters {
 
 impl PublicKeyCredentialParameters {
     /// ES256 algorithm (P-256 + SHA-256)
-    pub const ES256: Self = Self {
-        cred_type: "public-key",
-        alg: -7,
-    };
+    pub fn es256() -> Self {
+        Self {
+            cred_type: "public-key".to_string(),
+            alg: -7,
+        }
+    }
 
     /// Create new credential parameters
-    pub fn new(cred_type: &'static str, alg: i32) -> Self {
+    pub fn new(cred_type: String, alg: i32) -> Self {
         Self { cred_type, alg }
     }
 }
