@@ -11,6 +11,7 @@ readme.workspace = true
 [dependencies]
 # Internal dependencies
 keylib-crypto = { path = "../keylib-crypto" }
+keylib-transport = { path = "../keylib-transport", optional = true }
 
 # CBOR serialization
 ciborium.workspace = true
@@ -26,3 +27,8 @@ thiserror.workspace = true
 
 [dev-dependencies]
 hex = "0.4"
+keylib-transport = { path = "../keylib-transport" }
+
+[features]
+default = []
+transport = ["dep:keylib-transport"]
