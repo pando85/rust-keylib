@@ -6,6 +6,11 @@
 //! <https://fidoalliance.org/specs/fido-v2.2-rd-20230321/fido-client-to-authenticator-protocol-v2.2-rd-20230321.html>
 
 pub mod status;
+pub mod types;
 
 // Re-export commonly used types
 pub use status::{Result, StatusCode};
+pub use types::{
+    AuthenticatorOptions, CoseAlgorithm, CredProtect, Credential, PublicKeyCredentialDescriptor,
+    PublicKeyCredentialParameters, RelyingParty, User,
+};
