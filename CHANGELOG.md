@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.3](https://github.com/pando85/rust-keylib/tree/v0.2.3) - 2025-11-17
+
+### Fixed
+
+- ci: Change arm64 prebuild binaries to arm runner ([0599ecc](https://github.com/pando85/rust-keylib/commit/0599ecccd0f015564ed0356e25eaab40a0b1e818))
+- Force char to be u8 on all platform for cross compilation consistency ([6737338](https://github.com/pando85/rust-keylib/commit/6737338ce44026227b8e07ae9e9f578b4ebcf9e5))
+
 ## [v0.2.2](https://github.com/pando85/rust-keylib/tree/v0.2.2) - 2025-11-17
 
 ### Fixed
