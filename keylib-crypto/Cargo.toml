@@ -9,3 +9,17 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
+# Cryptography
+p256.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+hkdf.workspace = true
+aes.workspace = true
+cbc.workspace = true
+rand.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+hex = "0.4"
+hex-literal = "0.4"
