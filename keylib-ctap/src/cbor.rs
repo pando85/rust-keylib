@@ -64,6 +64,12 @@ impl MapBuilder {
         Ok(self)
     }
 
+    /// Insert bytes directly (avoids array serialization)
+    pub fn insert_bytes(mut self, key: i32, bytes: &[u8]) -> Result<Self> {
+        self.entries.push((key, Value::Bytes(bytes.to_vec())));
+        Ok(self)
+    }
+
     /// Build the map and encode to CBOR bytes
     pub fn build(self) -> Result<Vec<u8>> {
         let map: Vec<(Value, Value)> = self.entries

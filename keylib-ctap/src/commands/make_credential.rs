@@ -286,8 +286,8 @@ fn build_cose_public_key(public_key: &[u8], algorithm: i32) -> Result<Vec<u8>> {
         .insert(1, 2)? // kty: EC2
         .insert(3, algorithm)? // alg
         .insert(-1, 1)? // crv: P-256
-        .insert(-2, x)? // x coordinate
-        .insert(-3, y)? // y coordinate
+        .insert_bytes(-2, x)? // x coordinate
+        .insert_bytes(-3, y)? // y coordinate
         .build()
 }
 

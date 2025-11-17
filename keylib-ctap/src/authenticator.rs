@@ -220,6 +220,10 @@ pub struct Authenticator<C: AuthenticatorCallbacks> {
 
     /// Custom command handlers (command code -> handler)
     custom_commands: HashMap<u8, Box<dyn Fn(&[u8]) -> Result<Vec<u8>, StatusCode> + Send + Sync>>,
+
+    /// Ephemeral ECDH keypair for PIN protocol (protocol version -> keypair)
+    /// This is used for key agreement in PIN operations
+    pin_protocol_keypairs: HashMap<u8, keylib_crypto::ecdh::KeyPair>,
 }
 
 impl<C: AuthenticatorCallbacks> Authenticator<C> {
@@ -239,6 +243,7 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
             force_change_pin: false,
             min_pin_length: 4, // Default minimum PIN length
             custom_commands: HashMap::new(),
+            pin_protocol_keypairs: HashMap::new(),
         }
     }
 
@@ -496,6 +501,34 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
         }
     }
 
+    /// Store ephemeral ECDH keypair for PIN protocol
+    ///
+    /// # Arguments
+    ///
+    /// * `protocol` - PIN/UV auth protocol version (1 or 2)
+    /// * `keypair` - ECDH keypair to store
+    pub fn set_pin_protocol_keypair(&mut self, protocol: u8, keypair: keylib_crypto::ecdh::KeyPair) {
+        self.pin_protocol_keypairs.insert(protocol, keypair);
+    }
+
+    /// Get stored ECDH keypair for PIN protocol
+    ///
+    /// # Arguments
+    ///
+    /// * `protocol` - PIN/UV auth protocol version (1 or 2)
+    ///
+    /// # Returns
+    ///
+    /// Reference to stored keypair, or None if not found
+    pub fn get_pin_protocol_keypair(&self, protocol: u8) -> Option<&keylib_crypto::ecdh::KeyPair> {
+        self.pin_protocol_keypairs.get(&protocol)
+    }
+
+    /// Clear stored PIN protocol keypairs
+    pub fn clear_pin_protocol_keypairs(&mut self) {
+        self.pin_protocol_keypairs.clear();
+    }
+
     /// Reset authenticator to factory defaults
     ///
     /// This will clear all credentials, reset PIN, and clear tokens.
@@ -506,6 +539,7 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
         self.pin_tokens.clear_token();
         self.force_change_pin = false;
         self.min_pin_length = 4;
+        self.pin_protocol_keypairs.clear();
 
         // Note: Credential deletion should be handled by the caller
         // via callbacks, as we don't want to store credentials here
