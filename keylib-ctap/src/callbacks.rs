@@ -234,7 +234,13 @@ mod tests {
     }
 
     // Mock implementation for testing
-    struct MockCallbacks;
+    pub struct MockCallbacks;
+
+    impl MockCallbacks {
+        pub fn new() -> Self {
+            Self
+        }
+    }
 
     impl UserInteractionCallbacks for MockCallbacks {
         fn request_up(

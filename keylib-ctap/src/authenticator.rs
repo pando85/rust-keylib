@@ -103,6 +103,12 @@ impl AuthenticatorConfig {
         self
     }
 
+    /// Set extensions
+    pub fn with_extensions(mut self, extensions: Vec<String>) -> Self {
+        self.extensions = extensions;
+        self
+    }
+
     /// Set firmware version
     pub fn with_firmware_version(mut self, version: u32) -> Self {
         self.firmware_version = Some(version);
@@ -505,6 +511,16 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
         // via callbacks, as we don't want to store credentials here
 
         Ok(())
+    }
+
+    /// Get remaining discoverable credentials capacity
+    ///
+    /// Returns the number of additional discoverable credentials that can be stored,
+    /// or None if the authenticator doesn't track this information.
+    pub fn remaining_discoverable_credentials(&self) -> Option<usize> {
+        // For now, return a simple calculation based on max_credentials
+        // In a real implementation, this would query the credential storage
+        Some(self.config.max_credentials)
     }
 }
 
