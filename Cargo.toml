@@ -4,7 +4,7 @@ resolver = "2"
 
 
 [workspace.package]
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Pando85 <pando855@gmail.com>"]
 rust-version = "1.91"
 edition = "2024"
@@ -13,4 +13,4 @@ repository = "https://github.com/pando85/rust-keylib"
 readme = "README.md"
 
 [workspace.dependencies]
-keylib-sys = { path = "keylib-sys", version = "0.2.1" }
+keylib-sys = { path = "keylib-sys", version = "0.2.2" }
