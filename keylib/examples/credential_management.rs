@@ -1,3 +1,14 @@
+//! Credential Management Example
+//!
+//! This example demonstrates CTAP 2.1 credential management operations.
+//!
+//! **Requires**: `zig-ffi` feature (currently not compatible with `pure-rust`)
+//!
+//! # Usage
+//! ```bash
+//! cargo run --example credential_management --features zig-ffi
+//! ```
+
 use keylib::client::TransportList;
 use keylib::credential_management::CredentialManagement;
 use keylib::error::{KeylibError, Result};

@@ -6,13 +6,13 @@ use crate::common::{Credential, CredentialRef, Error, Result};
 
 #[cfg(feature = "pure-rust")]
 use keylib_ctap::{
+    CommandDispatcher, StatusCode,
     authenticator::{Authenticator as CtapAuthenticator, AuthenticatorConfig as CtapConfig},
     callbacks::{
-        CredentialStorageCallbacks, UpResult as CtapUpResult,
-        UserInteractionCallbacks, UvResult as CtapUvResult,
+        CredentialStorageCallbacks, UpResult as CtapUpResult, UserInteractionCallbacks,
+        UvResult as CtapUvResult,
     },
     types::Credential as CtapCredential,
-    CommandDispatcher, StatusCode,
 };
 
 #[cfg(feature = "pure-rust")]
@@ -110,9 +110,8 @@ pub type WriteCallback = Arc<dyn Fn(&str, &str, CredentialRef) -> Result<()> + S
 pub type DeleteCallback = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
 
 /// Read first callback type for starting credential iteration (zig-ffi compatible)
-pub type ReadFirstCallback = Arc<
-    dyn Fn(Option<&str>, Option<&str>, Option<[u8; 32]>) -> Result<Credential> + Send + Sync,
->;
+pub type ReadFirstCallback =
+    Arc<dyn Fn(Option<&str>, Option<&str>, Option<[u8; 32]>) -> Result<Credential> + Send + Sync>;
 
 /// Read next callback type for continuing credential iteration (zig-ffi compatible)
 pub type ReadNextCallback = Arc<dyn Fn() -> Result<Credential> + Send + Sync>;
@@ -306,8 +305,9 @@ impl CredentialStorageCallbacks for CallbackAdapter {
     fn write_credential(&self, credential: &CtapCredential) -> keylib_ctap::Result<()> {
         if let Some(write_cb) = &self.callbacks.write {
             // Convert credential id to string for zig-ffi compatible signature
-            let id_str = std::str::from_utf8(&credential.id)
-                .unwrap_or_else(|_| std::str::from_utf8(&credential.id[..credential.id.len().min(16)]).unwrap_or(""));
+            let id_str = std::str::from_utf8(&credential.id).unwrap_or_else(|_| {
+                std::str::from_utf8(&credential.id[..credential.id.len().min(16)]).unwrap_or("")
+            });
 
             // Convert keylib-ctap credential to CredentialRef
             let cred_ref = CredentialRef {
@@ -334,8 +334,9 @@ impl CredentialStorageCallbacks for CallbackAdapter {
     fn delete_credential(&self, credential_id: &[u8]) -> keylib_ctap::Result<()> {
         if let Some(delete_cb) = &self.callbacks.delete {
             // Convert credential id to string for zig-ffi compatible signature
-            let id_str = std::str::from_utf8(credential_id)
-                .unwrap_or_else(|_| std::str::from_utf8(&credential_id[..credential_id.len().min(16)]).unwrap_or(""));
+            let id_str = std::str::from_utf8(credential_id).unwrap_or_else(|_| {
+                std::str::from_utf8(&credential_id[..credential_id.len().min(16)]).unwrap_or("")
+            });
             delete_cb(id_str).map_err(|_| StatusCode::Other)
         } else {
             Ok(()) // No-op if no callback

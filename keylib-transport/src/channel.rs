@@ -6,7 +6,7 @@
 //! a client and the authenticator. The broadcast channel (0xFFFFFFFF)
 //! is used for INIT commands to allocate new channels.
 
-use crate::ctaphid::{Message, Packet, BROADCAST_CID};
+use crate::ctaphid::{BROADCAST_CID, Message, Packet};
 use crate::error::{Error, Result};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -36,9 +36,7 @@ struct ChannelState {
 impl ChannelState {
     /// Create new channel state from an initialization packet
     fn new(init_packet: Packet) -> Result<Self> {
-        let expected_len = init_packet
-            .payload_len()
-            .ok_or(Error::InvalidPacket)? as usize;
+        let expected_len = init_packet.payload_len().ok_or(Error::InvalidPacket)? as usize;
 
         let initial_data_len = std::cmp::min(expected_len, 57); // Init packet holds up to 57 bytes
 
@@ -155,10 +153,7 @@ impl ChannelManager {
             Ok(None)
         } else {
             // Continuation packet
-            let state = self
-                .channels
-                .get_mut(&cid)
-                .ok_or(Error::InvalidChannel)?;
+            let state = self.channels.get_mut(&cid).ok_or(Error::InvalidChannel)?;
 
             state.add_packet(packet)?;
 

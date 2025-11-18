@@ -178,7 +178,10 @@ fn handle_set_pin<C: AuthenticatorCallbacks>(
     };
 
     // PIN is padded to 64 bytes with trailing zeros, find actual length
-    let pin_len = decrypted_pin.iter().position(|&b| b == 0).unwrap_or(decrypted_pin.len());
+    let pin_len = decrypted_pin
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(decrypted_pin.len());
     let pin_str = std::str::from_utf8(&decrypted_pin[..pin_len])
         .map_err(|_| StatusCode::PinPolicyViolation)?;
 
@@ -406,7 +409,9 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     // Verify PIN hash by comparing first 16 bytes with stored PIN hash
     if let Some(stored_pin_hash) = auth.pin_hash() {
         use subtle::ConstantTimeEq;
-        let is_valid: bool = stored_pin_hash[..16].ct_eq(&decrypted_pin_hash[..16]).into();
+        let is_valid: bool = stored_pin_hash[..16]
+            .ct_eq(&decrypted_pin_hash[..16])
+            .into();
         if !is_valid {
             // Decrement retry counter
             auth.decrement_pin_retries();
@@ -634,7 +639,8 @@ mod tests {
         let new_pin_enc = keylib_crypto::pin_protocol::v1::encrypt(&enc_key, &padded_pin).unwrap();
 
         // Step 6: Compute pinUvAuthParam
-        let pin_uv_auth_param = keylib_crypto::pin_protocol::v1::authenticate(&hmac_key, &new_pin_enc);
+        let pin_uv_auth_param =
+            keylib_crypto::pin_protocol::v1::authenticate(&hmac_key, &new_pin_enc);
 
         // Step 7: Build platform's COSE key
         let (px, py) = platform_keypair.public_key_cose();
@@ -723,10 +729,7 @@ mod tests {
         assert!(parse_cose_key(&invalid).is_err());
 
         // Invalid - missing coordinates
-        let invalid_map = MapBuilder::new()
-            .insert(1, 2)
-            .unwrap()
-            .build_value();
+        let invalid_map = MapBuilder::new().insert(1, 2).unwrap().build_value();
         assert!(parse_cose_key(&invalid_map).is_err());
     }
 }

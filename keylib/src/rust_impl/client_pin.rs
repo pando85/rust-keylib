@@ -95,10 +95,13 @@ impl PinUvAuthEncapsulation {
         let mut request_map = Vec::new();
         request_map.push((
             Value::Integer(1.into()), // pinUvAuthProtocol
-            Value::Integer(match self.protocol {
-                PinProtocol::V1 => 1,
-                PinProtocol::V2 => 2,
-            }.into()),
+            Value::Integer(
+                match self.protocol {
+                    PinProtocol::V1 => 1,
+                    PinProtocol::V2 => 2,
+                }
+                .into(),
+            ),
         ));
         request_map.push((
             Value::Integer(2.into()), // subCommand (getKeyAgreement = 0x02)
@@ -113,17 +116,16 @@ impl PinUvAuthEncapsulation {
         let response = transport.send_ctap_command(0x06, &request_bytes)?;
 
         // Parse response to get authenticator's public key
-        let response_value: Value = ciborium::de::from_reader(&response[..])
-            .map_err(|_| Error::Other)?;
+        let response_value: Value =
+            ciborium::de::from_reader(&response[..]).map_err(|_| Error::Other)?;
 
         // Extract keyAgreement from response (should be in response[0x01])
         let authenticator_cose_key = match response_value {
-            Value::Map(map) => {
-                map.iter()
-                    .find(|(k, _)| matches!(k, Value::Integer(i) if *i == 1.into()))
-                    .and_then(|(_, v)| Some(v.clone()))
-                    .ok_or(Error::Other)?
-            }
+            Value::Map(map) => map
+                .iter()
+                .find(|(k, _)| matches!(k, Value::Integer(i) if *i == 1.into()))
+                .and_then(|(_, v)| Some(v.clone()))
+                .ok_or(Error::Other)?,
             _ => return Err(Error::Other),
         };
 
@@ -175,15 +177,23 @@ impl PinUvAuthEncapsulation {
         let pin_hash_enc = match self.protocol {
             PinProtocol::V1 => {
                 // Derive encryption key for PIN protocol v1
-                let (enc_key, _) = pin_protocol::v1::derive_keys(&shared_secret.as_slice().try_into().map_err(|_| Error::Other)?);
-                pin_protocol::v1::encrypt(&enc_key, &pin_hash[..16])
-                    .map_err(|_| Error::Other)?
+                let (enc_key, _) = pin_protocol::v1::derive_keys(
+                    &shared_secret
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| Error::Other)?,
+                );
+                pin_protocol::v1::encrypt(&enc_key, &pin_hash[..16]).map_err(|_| Error::Other)?
             }
             PinProtocol::V2 => {
                 // Derive encryption key for PIN protocol v2
-                let enc_key = pin_protocol::v2::derive_encryption_key(&shared_secret.as_slice().try_into().map_err(|_| Error::Other)?);
-                pin_protocol::v2::encrypt(&enc_key, &pin_hash[..16])
-                    .map_err(|_| Error::Other)?
+                let enc_key = pin_protocol::v2::derive_encryption_key(
+                    &shared_secret
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| Error::Other)?,
+                );
+                pin_protocol::v2::encrypt(&enc_key, &pin_hash[..16]).map_err(|_| Error::Other)?
             }
         };
 
@@ -194,10 +204,13 @@ impl PinUvAuthEncapsulation {
         let mut request_map = Vec::new();
         request_map.push((
             Value::Integer(1.into()), // pinUvAuthProtocol
-            Value::Integer(match self.protocol {
-                PinProtocol::V1 => 1,
-                PinProtocol::V2 => 2,
-            }.into()),
+            Value::Integer(
+                match self.protocol {
+                    PinProtocol::V1 => 1,
+                    PinProtocol::V2 => 2,
+                }
+                .into(),
+            ),
         ));
         request_map.push((
             Value::Integer(2.into()), // subCommand (getPinUvAuthTokenUsingPinWithPermissions = 0x09)
@@ -230,33 +243,40 @@ impl PinUvAuthEncapsulation {
         let response = transport.send_ctap_command(0x06, &request_bytes)?;
 
         // Parse response to get pinUvAuthToken
-        let response_value: Value = ciborium::de::from_reader(&response[..])
-            .map_err(|_| Error::Other)?;
+        let response_value: Value =
+            ciborium::de::from_reader(&response[..]).map_err(|_| Error::Other)?;
 
         let pin_token_enc = match response_value {
-            Value::Map(map) => {
-                map.iter()
-                    .find(|(k, _)| matches!(k, Value::Integer(i) if *i == 2.into()))
-                    .and_then(|(_, v)| match v {
-                        Value::Bytes(b) => Some(b.clone()),
-                        _ => None,
-                    })
-                    .ok_or(Error::Other)?
-            }
+            Value::Map(map) => map
+                .iter()
+                .find(|(k, _)| matches!(k, Value::Integer(i) if *i == 2.into()))
+                .and_then(|(_, v)| match v {
+                    Value::Bytes(b) => Some(b.clone()),
+                    _ => None,
+                })
+                .ok_or(Error::Other)?,
             _ => return Err(Error::Other),
         };
 
         // Decrypt PIN token
         let pin_token = match self.protocol {
             PinProtocol::V1 => {
-                let (enc_key, _) = pin_protocol::v1::derive_keys(&shared_secret.as_slice().try_into().map_err(|_| Error::Other)?);
-                pin_protocol::v1::decrypt(&enc_key, &pin_token_enc)
-                    .map_err(|_| Error::Other)?
+                let (enc_key, _) = pin_protocol::v1::derive_keys(
+                    &shared_secret
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| Error::Other)?,
+                );
+                pin_protocol::v1::decrypt(&enc_key, &pin_token_enc).map_err(|_| Error::Other)?
             }
             PinProtocol::V2 => {
-                let enc_key = pin_protocol::v2::derive_encryption_key(&shared_secret.as_slice().try_into().map_err(|_| Error::Other)?);
-                pin_protocol::v2::decrypt(&enc_key, &pin_token_enc)
-                    .map_err(|_| Error::Other)?
+                let enc_key = pin_protocol::v2::derive_encryption_key(
+                    &shared_secret
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| Error::Other)?,
+                );
+                pin_protocol::v2::decrypt(&enc_key, &pin_token_enc).map_err(|_| Error::Other)?
             }
         };
 
@@ -285,8 +305,8 @@ impl PinUvAuthEncapsulation {
     /// Get the platform's key agreement parameter in COSE format
     fn get_key_agreement_cose(&self) -> Result<Value> {
         let secret_bytes = self.platform_secret.as_ref().ok_or(Error::Other)?;
-        let secret_key = P256SecretKey::from_bytes(secret_bytes.as_slice().into())
-            .map_err(|_| Error::Other)?;
+        let secret_key =
+            P256SecretKey::from_bytes(secret_bytes.as_slice().into()).map_err(|_| Error::Other)?;
         let public_key = secret_key.public_key();
         let point = public_key.to_encoded_point(false);
 
@@ -339,8 +359,7 @@ impl PinUvAuthEncapsulation {
 
         // Parse as P-256 public key
         use p256::elliptic_curve::sec1::FromEncodedPoint;
-        let point = p256::EncodedPoint::from_bytes(&uncompressed)
-            .map_err(|_| Error::Other)?;
+        let point = p256::EncodedPoint::from_bytes(&uncompressed).map_err(|_| Error::Other)?;
 
         // CtOption::into() returns Option
         let public_key: Option<P256PublicKey> = P256PublicKey::from_encoded_point(&point).into();

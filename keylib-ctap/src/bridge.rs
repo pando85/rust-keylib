@@ -57,9 +57,9 @@ impl<C: AuthenticatorCallbacks> keylib_transport::CommandHandler for TransportBr
                 self.dispatcher.dispatch(data).map_err(|e| {
                     // Convert CTAP status code to transport error
                     match e {
-                        StatusCode::InvalidParameter => keylib_transport::Error::Other(
-                            "Invalid parameter".to_string(),
-                        ),
+                        StatusCode::InvalidParameter => {
+                            keylib_transport::Error::Other("Invalid parameter".to_string())
+                        }
                         StatusCode::InvalidCommand => keylib_transport::Error::InvalidCommand,
                         _ => keylib_transport::Error::Other(format!("CTAP error: {:?}", e)),
                     }

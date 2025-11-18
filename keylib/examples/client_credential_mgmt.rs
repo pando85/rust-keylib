@@ -4,6 +4,8 @@
 //! - 0x0a/0x01: getCredsMetadata - Get credential counts
 //! - 0x0a/0x02: enumerateRPsBegin - List relying parties
 //!
+//! **Requires**: `zig-ffi` feature (currently not compatible with `pure-rust`)
+//!
 //! Prerequisites:
 //! - FIDO2 authenticator connected (e.g., passless running)
 //! - PIN set to "123456" on the authenticator

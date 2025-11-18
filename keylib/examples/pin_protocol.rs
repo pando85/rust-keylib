@@ -3,6 +3,8 @@
 //! This example demonstrates how to use the PIN/UV authentication protocol
 //! with a FIDO2 authenticator.
 //!
+//! **Requires**: `zig-ffi` feature (currently not compatible with `pure-rust`)
+//!
 //! # Prerequisites
 //! - A FIDO2 authenticator connected via USB
 //! - The authenticator must have a PIN configured

@@ -255,10 +255,11 @@ impl PinTokenManager {
     /// Get mutable reference to current token if valid
     pub fn get_token_mut(&mut self) -> Option<&mut PinToken> {
         if let Some(token) = &self.current_token
-            && !token.is_valid() {
-                self.current_token = None;
-                return None;
-            }
+            && !token.is_valid()
+        {
+            self.current_token = None;
+            return None;
+        }
         self.current_token.as_mut()
     }
 

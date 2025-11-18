@@ -73,7 +73,7 @@ impl AuthenticatorConfig {
             max_credential_id_length: Some(128),
             transports: vec!["usb".to_string(), "nfc".to_string()],
             max_cred_blob_length: Some(32),
-            min_pin_length: Some(4),            // CTAP default minimum PIN length
+            min_pin_length: Some(4), // CTAP default minimum PIN length
         }
     }
 
@@ -552,7 +552,11 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
     ///
     /// * `protocol` - PIN/UV auth protocol version (1 or 2)
     /// * `keypair` - ECDH keypair to store
-    pub fn set_pin_protocol_keypair(&mut self, protocol: u8, keypair: keylib_crypto::ecdh::KeyPair) {
+    pub fn set_pin_protocol_keypair(
+        &mut self,
+        protocol: u8,
+        keypair: keylib_crypto::ecdh::KeyPair,
+    ) {
         self.pin_protocol_keypairs.insert(protocol, keypair);
     }
 

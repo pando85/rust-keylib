@@ -5,9 +5,11 @@
 //! 2. Register them with the authenticator
 //! 3. Send custom CTAP requests and receive responses
 //!
+//! **Requires**: `zig-ffi` feature (currently not compatible with `pure-rust`)
+//!
 //! Run with:
 //! ```bash
-//! cargo run --example custom_commands
+//! cargo run --example custom_commands --features zig-ffi
 //! ```
 
 use keylib::error::Result;

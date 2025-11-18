@@ -35,4 +35,4 @@ pub use runner::AuthenticatorRunner;
 #[cfg(target_os = "linux")]
 pub use uhid::UhidDevice;
 #[cfg(feature = "usb")]
-pub use usb::{enumerate_devices, init_usb, UsbDeviceInfo, UsbTransport};
+pub use usb::{UsbDeviceInfo, UsbTransport, enumerate_devices, init_usb};

@@ -1,3 +1,14 @@
+//! Client Example
+//!
+//! This example demonstrates basic client operations with a FIDO2 authenticator.
+//!
+//! **Requires**: `zig-ffi` feature (currently not compatible with `pure-rust`)
+//!
+//! # Usage
+//! ```bash
+//! cargo run --example client --features zig-ffi [timeout_ms]
+//! ```
+
 use keylib::client::{Client, TransportList};
 
 use std::env;

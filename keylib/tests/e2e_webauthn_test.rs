@@ -23,11 +23,6 @@
 
 // Feature-specific imports for zig-ffi
 #[cfg(feature = "zig-ffi")]
-use keylib::{
-    Authenticator, AuthenticatorConfig, AuthenticatorOptions, Callbacks, CtapCommand, UpResult,
-    UvResult,
-};
-#[cfg(feature = "zig-ffi")]
 use keylib::client::{
     Client, ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth,
     PinUvAuthProtocol, TransportList, User,
@@ -42,6 +37,11 @@ use keylib::ctaphid::Ctaphid;
 use keylib::error::Result;
 #[cfg(feature = "zig-ffi")]
 use keylib::uhid::Uhid;
+#[cfg(feature = "zig-ffi")]
+use keylib::{
+    Authenticator, AuthenticatorConfig, AuthenticatorOptions, Callbacks, CtapCommand, UpResult,
+    UvResult,
+};
 
 // Feature-specific imports for pure-rust
 #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
@@ -479,8 +479,7 @@ fn run_test_authenticator(stop_flag: Arc<Mutex<bool>>, use_pin: bool) -> Result<
                                     &uhid,
                                     &pending_packets,
                                     &mut response_buffer,
-                                ) {
-                                }
+                                ) {}
                                 pending_packets.clear();
                             }
                         }
@@ -504,8 +503,7 @@ fn run_test_authenticator(stop_flag: Arc<Mutex<bool>>, use_pin: bool) -> Result<
                                             &uhid,
                                             &pending_packets,
                                             &mut response_buffer,
-                                        ) {
-                                        }
+                                        ) {}
                                         pending_packets.clear();
                                     }
                                 }
@@ -536,8 +534,7 @@ fn process_message_pure_rust(
     response_buffer: &mut Vec<u8>,
 ) -> Result<()> {
     // Reassemble message
-    let message =
-        Message::from_packets(packets).map_err(|_e| keylib::common::Error::Other)?;
+    let message = Message::from_packets(packets).map_err(|_e| keylib::common::Error::Other)?;
 
     let cid = message.cid;
     let cmd = message.cmd;

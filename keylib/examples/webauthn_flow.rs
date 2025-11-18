@@ -4,6 +4,8 @@
 //! 1. Register a new credential (makeCredential)
 //! 2. Authenticate using the registered credential (getAssertion)
 //!
+//! **Requires**: `zig-ffi` feature (currently not compatible with `pure-rust`)
+//!
 //! # Prerequisites
 //! - Virtual authenticator running (see authenticator example)
 //! - Authenticator configured with PIN "123456"
@@ -11,10 +13,10 @@
 //! # Usage
 //! ```bash
 //! # Terminal 1: Start authenticator
-//! cargo run --example authenticator
+//! cargo run --example authenticator --features zig-ffi
 //!
 //! # Terminal 2: Run complete flow
-//! cargo run --example webauthn_flow
+//! cargo run --example webauthn_flow --features zig-ffi
 //! ```
 
 use keylib::client::{

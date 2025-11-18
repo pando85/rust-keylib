@@ -121,8 +121,7 @@ impl<'a> CredentialRef<'a> {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let owned = self.to_owned();
         let mut buf = Vec::new();
-        ciborium::ser::into_writer(&owned, &mut buf)
-            .map_err(|_| Error::Other)?;
+        ciborium::ser::into_writer(&owned, &mut buf).map_err(|_| Error::Other)?;
         Ok(buf)
     }
 }
@@ -131,15 +130,13 @@ impl Credential {
     /// Serialize credential to bytes (CBOR)
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
-        ciborium::ser::into_writer(self, &mut buf)
-            .map_err(|_| Error::Other)?;
+        ciborium::ser::into_writer(self, &mut buf).map_err(|_| Error::Other)?;
         Ok(buf)
     }
 
     /// Deserialize credential from bytes (CBOR)
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
-        ciborium::de::from_reader(data)
-            .map_err(|_| Error::Other)
+        ciborium::de::from_reader(data).map_err(|_| Error::Other)
     }
 }
 
@@ -248,13 +245,10 @@ impl From<Credential> for crate::credential::Credential {
             extensions: crate::credential::Extensions {
                 cred_protect: cred.extensions.cred_protect,
                 // Convert Option<bool> to Option<Vec<u8>> - empty vec if false, single byte if true
-                hmac_secret: cred.extensions.hmac_secret.map(|enabled| {
-                    if enabled {
-                        vec![1]
-                    } else {
-                        vec![]
-                    }
-                }),
+                hmac_secret: cred
+                    .extensions
+                    .hmac_secret
+                    .map(|enabled| if enabled { vec![1] } else { vec![] }),
             },
         }
     }

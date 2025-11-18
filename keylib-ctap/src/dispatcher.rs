@@ -47,9 +47,7 @@ impl<C: AuthenticatorCallbacks> CommandDispatcher<C> {
             CommandCode::GetAssertion => {
                 crate::commands::get_assertion::handle(&mut self.authenticator, command_data)
             }
-            CommandCode::GetInfo => {
-                crate::commands::get_info::handle(&self.authenticator)
-            }
+            CommandCode::GetInfo => crate::commands::get_info::handle(&self.authenticator),
             CommandCode::ClientPin => {
                 crate::commands::client_pin::handle(&mut self.authenticator, command_data)
             }
@@ -61,9 +59,10 @@ impl<C: AuthenticatorCallbacks> CommandDispatcher<C> {
             CommandCode::GetNextAssertion => {
                 crate::commands::get_next_assertion::handle(&mut self.authenticator, command_data)
             }
-            CommandCode::CredentialManagement => {
-                crate::commands::credential_management::handle(&mut self.authenticator, command_data)
-            }
+            CommandCode::CredentialManagement => crate::commands::credential_management::handle(
+                &mut self.authenticator,
+                command_data,
+            ),
             CommandCode::Selection => {
                 crate::commands::selection::handle(&mut self.authenticator, command_data)
             }

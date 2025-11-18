@@ -234,17 +234,18 @@ fn handle_delete_credential<C: AuthenticatorCallbacks>(
     let cred_id_value: ciborium::Value = params_parser.get(subparam_keys::CREDENTIAL_ID)?;
 
     // Parse credential ID from descriptor
-    
 
     match cred_id_value {
         ciborium::Value::Map(m) => {
             for (k, v) in m {
                 if let (ciborium::Value::Text(key), ciborium::Value::Bytes(id)) = (k, v)
-                    && key == "id" {
-                        return auth.callbacks().delete_credential(&id).and_then(|_| {
-                            MapBuilder::new().build()
-                        });
-                    }
+                    && key == "id"
+                {
+                    return auth
+                        .callbacks()
+                        .delete_credential(&id)
+                        .and_then(|_| MapBuilder::new().build());
+                }
             }
             Err(StatusCode::InvalidParameter)
         }
@@ -270,21 +271,22 @@ fn handle_update_user_information<C: AuthenticatorCallbacks>(
         ciborium::Value::Map(m) => {
             for (k, v) in m {
                 if let (ciborium::Value::Text(key), ciborium::Value::Bytes(id)) = (k, v)
-                    && key == "id" {
-                        // Found the ID, use it
-                        let bytes = id;
-                        // Get existing credential
-                        let mut credential = auth.callbacks().get_credential(&bytes)?;
+                    && key == "id"
+                {
+                    // Found the ID, use it
+                    let bytes = id;
+                    // Get existing credential
+                    let mut credential = auth.callbacks().get_credential(&bytes)?;
 
-                        // Update user fields
-                        credential.user_name = new_user.name.clone();
-                        credential.user_display_name = new_user.display_name.clone();
+                    // Update user fields
+                    credential.user_name = new_user.name.clone();
+                    credential.user_display_name = new_user.display_name.clone();
 
-                        // Save updated credential
-                        auth.callbacks().update_credential(&credential)?;
+                    // Save updated credential
+                    auth.callbacks().update_credential(&credential)?;
 
-                        return MapBuilder::new().build();
-                    }
+                    return MapBuilder::new().build();
+                }
             }
             Err(StatusCode::InvalidParameter)
         }
@@ -372,7 +374,11 @@ mod tests {
         }
 
         fn enumerate_rps(&self) -> Result<Vec<(String, Option<String>, usize)>> {
-            Ok(vec![("example.com".to_string(), Some("Example".to_string()), 5)])
+            Ok(vec![(
+                "example.com".to_string(),
+                Some("Example".to_string()),
+                5,
+            )])
         }
 
         fn credential_count(&self) -> Result<usize> {
@@ -398,7 +404,9 @@ mod tests {
 
         // Parse response
         let parser = MapParser::from_bytes(&response).unwrap();
-        let count: i32 = parser.get(resp_keys::EXISTING_RESIDENT_CREDENTIALS_COUNT).unwrap();
+        let count: i32 = parser
+            .get(resp_keys::EXISTING_RESIDENT_CREDENTIALS_COUNT)
+            .unwrap();
         assert_eq!(count, 10);
     }
 

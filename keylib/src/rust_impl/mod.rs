@@ -8,11 +8,11 @@ pub mod authenticator;
 #[cfg(feature = "pure-rust")]
 pub mod authenticator_options;
 #[cfg(feature = "pure-rust")]
-pub mod ctap_command;
-#[cfg(feature = "pure-rust")]
 pub mod client;
 #[cfg(feature = "pure-rust")]
 pub mod client_pin;
+#[cfg(feature = "pure-rust")]
+pub mod ctap_command;
 #[cfg(feature = "pure-rust")]
 pub mod transport;
 #[cfg(all(feature = "pure-rust", target_os = "linux"))]

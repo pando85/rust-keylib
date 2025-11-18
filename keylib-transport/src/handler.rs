@@ -133,7 +133,10 @@ impl<H: CommandHandler> CtapHidHandler<H> {
             }
             Cmd::Cbor | Cmd::Msg => {
                 // Dispatch to command handler
-                match self.command_handler.handle_command(message.cmd, &message.data) {
+                match self
+                    .command_handler
+                    .handle_command(message.cmd, &message.data)
+                {
                     Ok(response_data) => {
                         let response = Message::new(message.cid, message.cmd, response_data);
                         response.to_packets()
@@ -310,7 +313,9 @@ mod tests {
         // Send cancel
         let cancel = Message::new(0x88888888, Cmd::Cancel, vec![]);
         let cancel_packets = cancel.to_packets().unwrap();
-        let response = ctap_handler.process_packet(cancel_packets[0].clone()).unwrap();
+        let response = ctap_handler
+            .process_packet(cancel_packets[0].clone())
+            .unwrap();
 
         // Cancel has no response
         assert!(response.is_empty());

@@ -8,11 +8,7 @@ use keylib_transport::{ChannelManager, Cmd, CtapHidHandler, Message, Packet};
 struct MockCommandHandler;
 
 impl keylib_transport::CommandHandler for MockCommandHandler {
-    fn handle_command(
-        &mut self,
-        cmd: Cmd,
-        data: &[u8],
-    ) -> keylib_transport::Result<Vec<u8>> {
+    fn handle_command(&mut self, cmd: Cmd, data: &[u8]) -> keylib_transport::Result<Vec<u8>> {
         match cmd {
             Cmd::Cbor => {
                 // Echo the data back (simple test)
@@ -64,16 +60,16 @@ fn test_channel_manager_multi_packet() {
     let data = vec![0x42; 100]; // 100 bytes
     let packets = Packet::new_init(cid, cmd, &data).expect("Failed to create packets");
 
-    assert!(packets.len() > 1, "Should be multiple packets for 100 bytes");
+    assert!(
+        packets.len() > 1,
+        "Should be multiple packets for 100 bytes"
+    );
 
     // Process first packet
     let message = manager
         .process_packet(packets[0].clone())
         .expect("Failed to process first packet");
-    assert!(
-        message.is_none(),
-        "Should not complete after first packet"
-    );
+    assert!(message.is_none(), "Should not complete after first packet");
 
     // Process remaining packets
     for (i, packet) in packets[1..].iter().enumerate() {
@@ -82,10 +78,7 @@ fn test_channel_manager_multi_packet() {
             .expect("Failed to process continuation packet");
 
         if i < packets.len() - 2 {
-            assert!(
-                message.is_none(),
-                "Should not complete until last packet"
-            );
+            assert!(message.is_none(), "Should not complete until last packet");
         } else {
             assert!(message.is_some(), "Should complete on last packet");
             let message = message.unwrap();
@@ -115,8 +108,7 @@ fn test_handler_ping_command() {
     assert!(!response_packets.is_empty(), "Should have response");
 
     // Reassemble response
-    let response_message =
-        Message::from_packets(&response_packets).expect("Failed to reassemble");
+    let response_message = Message::from_packets(&response_packets).expect("Failed to reassemble");
 
     assert_eq!(response_message.cid, cid);
     assert_eq!(response_message.cmd, Cmd::Ping);
@@ -144,8 +136,7 @@ fn test_handler_init_command() {
     assert!(!response_packets.is_empty(), "Should have response");
 
     // Reassemble response
-    let response_message =
-        Message::from_packets(&response_packets).expect("Failed to reassemble");
+    let response_message = Message::from_packets(&response_packets).expect("Failed to reassemble");
 
     assert_eq!(response_message.cid, broadcast_cid);
     assert_eq!(response_message.cmd, Cmd::Init);
@@ -185,8 +176,7 @@ fn test_handler_cbor_command() {
     assert!(!response_packets.is_empty(), "Should have response");
 
     // Reassemble response
-    let response_message =
-        Message::from_packets(&response_packets).expect("Failed to reassemble");
+    let response_message = Message::from_packets(&response_packets).expect("Failed to reassemble");
 
     assert_eq!(response_message.cid, cid);
     assert_eq!(response_message.cmd, Cmd::Cbor);
@@ -219,8 +209,8 @@ fn test_full_stack_message_round_trip() {
 
     // Step 2: Send PING with allocated CID
     let ping_data = b"Hello, CTAP!";
-    let ping_packets = Packet::new_init(allocated_cid, Cmd::Ping, ping_data)
-        .expect("Failed to create PING");
+    let ping_packets =
+        Packet::new_init(allocated_cid, Cmd::Ping, ping_data).expect("Failed to create PING");
     let ping_response = ctaphid_handler
         .process_packet(ping_packets[0].clone())
         .expect("Failed to process PING");
@@ -232,8 +222,8 @@ fn test_full_stack_message_round_trip() {
 
     // Step 3: Send CBOR command
     let cbor_data = vec![0x04]; // GetInfo
-    let cbor_packets = Packet::new_init(allocated_cid, Cmd::Cbor, &cbor_data)
-        .expect("Failed to create CBOR");
+    let cbor_packets =
+        Packet::new_init(allocated_cid, Cmd::Cbor, &cbor_data).expect("Failed to create CBOR");
     let cbor_response = ctaphid_handler
         .process_packet(cbor_packets[0].clone())
         .expect("Failed to process CBOR");
@@ -254,8 +244,7 @@ fn test_multiple_channels() {
     let nonce2 = [0x22; 8];
 
     // Initialize channel 1
-    let init1 = Packet::new_init(0xFFFFFFFF, Cmd::Init, &nonce1)
-        .expect("Failed to create INIT 1");
+    let init1 = Packet::new_init(0xFFFFFFFF, Cmd::Init, &nonce1).expect("Failed to create INIT 1");
     let response1 = ctaphid_handler
         .process_packet(init1[0].clone())
         .expect("Failed to process INIT 1");
@@ -263,8 +252,7 @@ fn test_multiple_channels() {
     let cid1 = u32::from_be_bytes([msg1.data[8], msg1.data[9], msg1.data[10], msg1.data[11]]);
 
     // Initialize channel 2
-    let init2 = Packet::new_init(0xFFFFFFFF, Cmd::Init, &nonce2)
-        .expect("Failed to create INIT 2");
+    let init2 = Packet::new_init(0xFFFFFFFF, Cmd::Init, &nonce2).expect("Failed to create INIT 2");
     let response2 = ctaphid_handler
         .process_packet(init2[0].clone())
         .expect("Failed to process INIT 2");

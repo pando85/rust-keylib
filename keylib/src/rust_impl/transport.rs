@@ -5,7 +5,7 @@
 use crate::common::{Error, Result};
 
 #[cfg(all(feature = "pure-rust", feature = "usb"))]
-use keylib_transport::{enumerate_devices, init_usb, UsbTransport as RawUsbTransport};
+use keylib_transport::{UsbTransport as RawUsbTransport, enumerate_devices, init_usb};
 
 #[cfg(all(feature = "pure-rust", target_os = "linux"))]
 use keylib_transport::UhidDevice;

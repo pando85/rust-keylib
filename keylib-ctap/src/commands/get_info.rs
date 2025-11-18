@@ -75,7 +75,10 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
         plat: Option<bool>,
         #[serde(rename = "clientPin", skip_serializing_if = "Option::is_none")]
         client_pin: Option<bool>,
-        #[serde(rename = "credentialMgmtPreview", skip_serializing_if = "Option::is_none")]
+        #[serde(
+            rename = "credentialMgmtPreview",
+            skip_serializing_if = "Option::is_none"
+        )]
         credential_mgmt_preview: Option<bool>,
         #[serde(rename = "credMgmt", skip_serializing_if = "Option::is_none")]
         cred_mgmt: Option<bool>,
@@ -162,7 +165,9 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
 mod tests {
     use super::*;
     use crate::authenticator::AuthenticatorConfig;
-    use crate::callbacks::{CredentialStorageCallbacks, UpResult, UserInteractionCallbacks, UvResult};
+    use crate::callbacks::{
+        CredentialStorageCallbacks, UpResult, UserInteractionCallbacks, UvResult,
+    };
     use crate::cbor::MapParser;
     use crate::status::StatusCode;
     use crate::types::Credential;
@@ -177,15 +182,29 @@ mod tests {
     }
 
     impl UserInteractionCallbacks for MockCallbacks {
-        fn request_up(&self, _info: &str, _user_name: Option<&str>, _rp_id: &str) -> crate::status::Result<UpResult> {
+        fn request_up(
+            &self,
+            _info: &str,
+            _user_name: Option<&str>,
+            _rp_id: &str,
+        ) -> crate::status::Result<UpResult> {
             Ok(UpResult::Accepted)
         }
 
-        fn request_uv(&self, _info: &str, _user_name: Option<&str>, _rp_id: &str) -> crate::status::Result<UvResult> {
+        fn request_uv(
+            &self,
+            _info: &str,
+            _user_name: Option<&str>,
+            _rp_id: &str,
+        ) -> crate::status::Result<UvResult> {
             Ok(UvResult::Accepted)
         }
 
-        fn select_credential(&self, _rp_id: &str, _user_names: &[String]) -> crate::status::Result<usize> {
+        fn select_credential(
+            &self,
+            _rp_id: &str,
+            _user_names: &[String],
+        ) -> crate::status::Result<usize> {
             Ok(0)
         }
     }
@@ -199,7 +218,11 @@ mod tests {
             Ok(())
         }
 
-        fn read_credentials(&self, _rp_id: &str, _user_id: Option<&[u8]>) -> crate::status::Result<Vec<Credential>> {
+        fn read_credentials(
+            &self,
+            _rp_id: &str,
+            _user_id: Option<&[u8]>,
+        ) -> crate::status::Result<Vec<Credential>> {
             Ok(Vec::new())
         }
 
@@ -262,8 +285,7 @@ mod tests {
 
     #[test]
     fn test_get_info_with_algorithms() {
-        let config = AuthenticatorConfig::new()
-            .with_algorithms(vec![-7, -8]); // ES256, EdDSA
+        let config = AuthenticatorConfig::new().with_algorithms(vec![-7, -8]); // ES256, EdDSA
         let callbacks = MockCallbacks::new();
         let auth = Authenticator::new(config, callbacks);
 

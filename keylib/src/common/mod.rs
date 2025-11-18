@@ -8,9 +8,9 @@ pub mod credential;
 pub mod error;
 
 // Re-export commonly used types
-pub use error::{Error, Result};
-pub use credential::{Credential, CredentialRef, Extensions, RelyingParty, User};
 pub use client::{
     ClientDataHash, CredentialDescriptor, CredentialType, GetAssertionRequest,
     MakeCredentialRequest, PinUvAuth, PinUvAuthProtocol,
 };
+pub use credential::{Credential, CredentialRef, Extensions, RelyingParty, User};
+pub use error::{Error, Result};

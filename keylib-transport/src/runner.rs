@@ -63,11 +63,7 @@ impl<H: CommandHandler> AuthenticatorRunner<H> {
     /// * `api` - HID API instance
     /// * `path` - Device path to open
     /// * `command_handler` - Handler for CTAP commands
-    pub fn new(
-        api: &hidapi::HidApi,
-        path: &str,
-        command_handler: H,
-    ) -> Result<Self> {
+    pub fn new(api: &hidapi::HidApi, path: &str, command_handler: H) -> Result<Self> {
         let transport = UsbTransport::open(api, path)?;
         let handler = CtapHidHandler::new(command_handler);
 

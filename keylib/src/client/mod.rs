@@ -375,10 +375,7 @@ impl Client {
             Value::Bytes(request.user.id.clone()),
         ));
         if let Some(name) = &request.user.name {
-            user_map.push((
-                Value::Text("name".to_string()),
-                Value::Text(name.clone()),
-            ));
+            user_map.push((Value::Text("name".to_string()), Value::Text(name.clone())));
         }
         if let Some(display_name) = &request.user.display_name {
             user_map.push((

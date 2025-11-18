@@ -1,3 +1,14 @@
+//! Authenticator Example
+//!
+//! This example demonstrates creating a virtual FIDO2 authenticator using UHID.
+//!
+//! **Requires**: `zig-ffi` feature (currently not compatible with `pure-rust`)
+//!
+//! # Usage
+//! ```bash
+//! cargo run --example authenticator --features zig-ffi
+//! ```
+
 use keylib::ctaphid::{self, Ctaphid};
 use keylib::error::Result;
 use keylib::uhid::Uhid;

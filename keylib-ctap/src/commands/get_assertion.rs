@@ -68,11 +68,12 @@ pub fn handle<C: AuthenticatorCallbacks>(
     let options = parse_options(&parser)?;
 
     // Parse extensions
-    let extensions = if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
-        GetAssertionExtensions::from_cbor(&ext_value)?
-    } else {
-        GetAssertionExtensions::new()
-    };
+    let extensions =
+        if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
+            GetAssertionExtensions::from_cbor(&ext_value)?
+        } else {
+            GetAssertionExtensions::new()
+        };
 
     // 3. Verify PIN/UV auth if present
     if let Some(_pin_auth) = &pin_uv_auth_param {
@@ -89,9 +90,10 @@ pub fn handle<C: AuthenticatorCallbacks>(
         let mut creds = Vec::new();
         for desc in allow_list {
             if let Ok(cred) = auth.callbacks().get_credential(&desc.id)
-                && cred.rp_id == rp_id {
-                    creds.push(cred);
-                }
+                && cred.rp_id == rp_id
+            {
+                creds.push(cred);
+            }
         }
         creds
     } else {
@@ -110,9 +112,7 @@ pub fn handle<C: AuthenticatorCallbacks>(
             .map(|c| c.user_name.clone().unwrap_or_else(|| "Unknown".to_string()))
             .collect();
 
-        let index = auth
-            .callbacks()
-            .select_credential(&rp_id, &user_names)?;
+        let index = auth.callbacks().select_credential(&rp_id, &user_names)?;
 
         if index >= credentials.len() {
             return Err(StatusCode::InvalidParameter);
@@ -271,8 +271,7 @@ fn build_authenticator_data(
     // Extensions (CBOR-encoded)
     if let Some(ext_value) = extensions {
         let mut ext_bytes = Vec::new();
-        ciborium::into_writer(ext_value, &mut ext_bytes)
-            .map_err(|_| StatusCode::InvalidCbor)?;
+        ciborium::into_writer(ext_value, &mut ext_bytes).map_err(|_| StatusCode::InvalidCbor)?;
         auth_data.extend_from_slice(&ext_bytes);
     }
 
@@ -294,7 +293,8 @@ mod tests {
         assert_eq!(auth_data[32], 0x01);
 
         // Check sign count
-        let count = u32::from_be_bytes([auth_data[33], auth_data[34], auth_data[35], auth_data[36]]);
+        let count =
+            u32::from_be_bytes([auth_data[33], auth_data[34], auth_data[35], auth_data[36]]);
         assert_eq!(count, 42);
     }
 

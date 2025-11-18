@@ -9,7 +9,9 @@ use crate::callbacks::AuthenticatorCallbacks;
 use crate::cbor::{MapBuilder, MapParser};
 use crate::extensions::MakeCredentialExtensions;
 use crate::status::{Result, StatusCode};
-use crate::types::{PublicKeyCredentialDescriptor, PublicKeyCredentialParameters, RelyingParty, User};
+use crate::types::{
+    PublicKeyCredentialDescriptor, PublicKeyCredentialParameters, RelyingParty, User,
+};
 use crate::{CredProtect, UpResult, UvResult};
 use keylib_crypto::ecdsa;
 use sha2::{Digest, Sha256};
@@ -78,11 +80,12 @@ pub fn handle<C: AuthenticatorCallbacks>(
     let options = parse_options(&parser)?;
 
     // Parse extensions
-    let extensions = if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
-        MakeCredentialExtensions::from_cbor(&ext_value)?
-    } else {
-        MakeCredentialExtensions::new()
-    };
+    let extensions =
+        if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
+            MakeCredentialExtensions::from_cbor(&ext_value)?
+        } else {
+            MakeCredentialExtensions::new()
+        };
 
     // 3. Check if algorithm is supported
     let alg = pub_key_cred_params
@@ -113,7 +116,10 @@ pub fn handle<C: AuthenticatorCallbacks>(
     let mut up_performed = false;
     if options.up {
         let info = format!("Register with {}", rp.id);
-        match auth.callbacks().request_up(&info, user.name.as_deref(), &rp.id)? {
+        match auth
+            .callbacks()
+            .request_up(&info, user.name.as_deref(), &rp.id)?
+        {
             UpResult::Accepted => up_performed = true,
             UpResult::Denied => return Err(StatusCode::OperationDenied),
             UpResult::Timeout => return Err(StatusCode::UserActionTimeout),
@@ -124,7 +130,10 @@ pub fn handle<C: AuthenticatorCallbacks>(
     let mut uv_performed = false;
     if options.uv {
         let info = format!("Verify for {}", rp.id);
-        match auth.callbacks().request_uv(&info, user.name.as_deref(), &rp.id)? {
+        match auth
+            .callbacks()
+            .request_uv(&info, user.name.as_deref(), &rp.id)?
+        {
             UvResult::Accepted => uv_performed = true,
             UvResult::AcceptedWithUp => {
                 uv_performed = true;
@@ -144,7 +153,8 @@ pub fn handle<C: AuthenticatorCallbacks>(
     // 10. Store credential if resident key
     if options.rk {
         // Use cred_protect from extensions, or default
-        let cred_protect_value = extensions.cred_protect
+        let cred_protect_value = extensions
+            .cred_protect
             .map(|p| p.to_u8())
             .unwrap_or(CredProtect::UserVerificationOptional as u8);
 
@@ -292,8 +302,7 @@ fn build_authenticator_data(
     // Extensions (CBOR-encoded)
     if let Some(ext_value) = extensions {
         let mut ext_bytes = Vec::new();
-        ciborium::into_writer(ext_value, &mut ext_bytes)
-            .map_err(|_| StatusCode::InvalidCbor)?;
+        ciborium::into_writer(ext_value, &mut ext_bytes).map_err(|_| StatusCode::InvalidCbor)?;
         auth_data.extend_from_slice(&ext_bytes);
     }
 

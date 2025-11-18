@@ -12,27 +12,23 @@ use std::io::Cursor;
 /// Encode a value to CBOR bytes
 pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     let mut buffer = Vec::new();
-    ciborium::into_writer(value, &mut buffer)
-        .map_err(|_| StatusCode::InvalidCbor)?;
+    ciborium::into_writer(value, &mut buffer).map_err(|_| StatusCode::InvalidCbor)?;
     Ok(buffer)
 }
 
 /// Decode CBOR bytes to a value
 pub fn decode<T: for<'de> Deserialize<'de>>(data: &[u8]) -> Result<T> {
-    ciborium::from_reader(data)
-        .map_err(|_| StatusCode::InvalidCbor)
+    ciborium::from_reader(data).map_err(|_| StatusCode::InvalidCbor)
 }
 
 /// Encode value to CBOR Value for manual map construction
 pub fn to_value<T: Serialize>(value: &T) -> Result<Value> {
-    ciborium::value::Value::serialized(value)
-        .map_err(|_| StatusCode::InvalidCbor)
+    ciborium::value::Value::serialized(value).map_err(|_| StatusCode::InvalidCbor)
 }
 
 /// Decode CBOR Value to typed value
 pub fn from_value<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T> {
-    ciborium::value::Value::deserialized(&value)
-        .map_err(|_| StatusCode::InvalidCbor)
+    ciborium::value::Value::deserialized(&value).map_err(|_| StatusCode::InvalidCbor)
 }
 
 /// Build a CBOR map with integer keys (common in CTAP)
@@ -72,7 +68,8 @@ impl MapBuilder {
 
     /// Build the map and encode to CBOR bytes
     pub fn build(self) -> Result<Vec<u8>> {
-        let map: Vec<(Value, Value)> = self.entries
+        let map: Vec<(Value, Value)> = self
+            .entries
             .into_iter()
             .map(|(k, v)| (Value::Integer(k.into()), v))
             .collect();
@@ -81,7 +78,8 @@ impl MapBuilder {
 
     /// Build the map as a CBOR Value
     pub fn build_value(self) -> Value {
-        let map: Vec<(Value, Value)> = self.entries
+        let map: Vec<(Value, Value)> = self
+            .entries
             .into_iter()
             .map(|(k, v)| (Value::Integer(k.into()), v))
             .collect();
@@ -103,8 +101,8 @@ pub struct MapParser {
 impl MapParser {
     /// Parse from CBOR bytes
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
-        let value: Value = ciborium::from_reader(Cursor::new(data))
-            .map_err(|_| StatusCode::InvalidCbor)?;
+        let value: Value =
+            ciborium::from_reader(Cursor::new(data)).map_err(|_| StatusCode::InvalidCbor)?;
 
         Self::from_value(value)
     }
@@ -129,7 +127,8 @@ impl MapParser {
 
     /// Get a required value by key
     pub fn get<T: for<'de> Deserialize<'de>>(&self, key: i32) -> Result<T> {
-        let value = self.map
+        let value = self
+            .map
             .get(&(key as i128))
             .ok_or(StatusCode::MissingParameter)?;
 
@@ -159,7 +158,8 @@ impl MapParser {
     /// This is needed because Value::Bytes doesn't automatically deserialize
     /// to Vec<u8> via the generic get() method.
     pub fn get_bytes(&self, key: i32) -> Result<Vec<u8>> {
-        let value = self.map
+        let value = self
+            .map
             .get(&(key as i128))
             .ok_or(StatusCode::MissingParameter)?;
 
@@ -201,9 +201,12 @@ mod tests {
     #[test]
     fn test_map_builder() {
         let cbor = MapBuilder::new()
-            .insert(1, "test").unwrap()
-            .insert(2, 42i32).unwrap()
-            .insert(3, vec![1u8, 2, 3]).unwrap()
+            .insert(1, "test")
+            .unwrap()
+            .insert(2, 42i32)
+            .unwrap()
+            .insert(3, vec![1u8, 2, 3])
+            .unwrap()
             .build()
             .unwrap();
 
@@ -220,9 +223,12 @@ mod tests {
     #[test]
     fn test_map_builder_optional() {
         let cbor = MapBuilder::new()
-            .insert(1, "required").unwrap()
-            .insert_opt(2, Some(42i32)).unwrap()
-            .insert_opt::<i32>(3, None).unwrap()
+            .insert(1, "required")
+            .unwrap()
+            .insert_opt(2, Some(42i32))
+            .unwrap()
+            .insert_opt::<i32>(3, None)
+            .unwrap()
             .build()
             .unwrap();
 
@@ -235,7 +241,8 @@ mod tests {
     #[test]
     fn test_map_parser_missing_key() {
         let cbor = MapBuilder::new()
-            .insert(1, "test").unwrap()
+            .insert(1, "test")
+            .unwrap()
             .build()
             .unwrap();
 
@@ -247,7 +254,8 @@ mod tests {
     #[test]
     fn test_map_parser_optional() {
         let cbor = MapBuilder::new()
-            .insert(1, "test").unwrap()
+            .insert(1, "test")
+            .unwrap()
             .build()
             .unwrap();
 
