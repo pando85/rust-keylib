@@ -434,7 +434,12 @@ fn process_message(
                 response_data.push(0); // Minor device version
                 response_data.push(0); // Build device version
 
-                let capabilities = 0x04 | 0x08; // CBOR (0x04) + NMSG (0x08, no U2F)
+                // Only advertise CBOR support. Do NOT set NMSG flag.
+                // Many WebAuthn clients have bugs where they won't properly fall back
+                // to CTAP2 when NMSG is set, even though the spec says they should.
+                // By not setting NMSG, we appear to support U2F (even though we don't),
+                // which makes clients more likely to try CTAP2.
+                let capabilities = 0x04; // CBOR only (0x04)
                 response_data.push(capabilities);
 
                 println!(
@@ -471,14 +476,18 @@ fn process_message(
             send_message(uhid, &response_msg)?;
         }
         Cmd::Msg => {
-            // U2F/CTAP1 message - not supported (we advertised NMSG capability)
-            println!("[CTAP] ⚠ Received CTAP1/U2F Msg command");
-            println!("[CTAP]   This authenticator advertised NMSG (no U2F support)");
+            // U2F/CTAP1 message - not supported, but we don't advertise NMSG
+            // to work around buggy WebAuthn clients.
+            //
+            // IMPORTANT: We silently ignore U2F messages (no response) to force
+            // clients to timeout and fall back to CTAP2. Sending an error response
+            // causes some buggy clients to give up entirely instead of trying CTAP2.
+            println!("[CTAP] ⚠ Received CTAP1/U2F Msg command (ignoring, no response)");
             println!("[CTAP]   Payload: {} bytes: {}",
                 message.data.len(),
                 hex::encode(&message.data[..message.data.len().min(32)]));
 
-            // Decode U2F command type if present
+            // Decode U2F command type if present (for debugging)
             if !message.data.is_empty() {
                 let u2f_cmd = message.data[0];
                 let u2f_cmd_name = match u2f_cmd {
@@ -490,12 +499,8 @@ fn process_message(
                 println!("[CTAP]   U2F command: 0x{:02x} ({})", u2f_cmd, u2f_cmd_name);
             }
 
-            println!("[CTAP]   Sending CTAPHID_ERR_INVALID_CMD error");
-
-            // Send CTAPHID error: ERR_INVALID_CMD (0x01)
-            let error_data = vec![0x01]; // ERR_INVALID_CMD
-            let response_msg = Message::new(cid, Cmd::Error, error_data);
-            send_message(uhid, &response_msg)?;
+            println!("[CTAP]   No response sent - client should timeout and try CTAP2");
+            // Do NOT send any response - let it timeout
         }
         _ => {
             println!("[CTAP] ⚠ Unknown command: {:?}", cmd);
