@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use sha2::{Digest, Sha256};
+use hex;
 
 const UHID_ERROR_MESSAGE: &str = "Make sure you have the uhid kernel module loaded and proper permissions.\n\
 Run the following commands as root:\n\
@@ -141,8 +142,10 @@ fn main() -> Result<()> {
     // PIN: "123456" (same as pin_protocol example uses)
     println!("Configuring authenticator with PIN: 123456");
     let pin_hash = get_pin_hash();
+    println!("[PIN-DEBUG] Full SHA-256(\"123456\"): {}", hex::encode(&pin_hash));
+    println!("[PIN-DEBUG] First 16 bytes (used by CTAP): {}", hex::encode(&pin_hash[..16]));
     Authenticator::set_pin_hash(&pin_hash);
-    println!("PIN hash configured: {:02x?}...\n", &pin_hash[0..8]);
+    println!("PIN hash configured\n");
 
     let up_callback = Arc::new(
         |_info: &str, _user: Option<&str>, _rp: Option<&str>| -> Result<UpResult> {

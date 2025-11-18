@@ -25,10 +25,10 @@ aes = "0.8"
 cbc = { version = "0.1", features = ["alloc"] }
 hmac = "0.12"
 hkdf = "0.12"
+hex = "0.4"
 
 [dev-dependencies]
 lazy_static = "1.4"
 base64 = "0.22"
 serial_test = "3.0"
-hex = "0.4"
 serde_cbor = "0.11"

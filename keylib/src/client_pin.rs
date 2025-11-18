@@ -2,6 +2,10 @@ use crate::client::Transport;
 use crate::error::{Error, Result};
 use keylib_sys::raw::*;
 
+// Debug utilities
+use hex;
+use sha2;
+
 /// PIN protocol versions
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PinProtocol {
@@ -154,6 +158,17 @@ impl PinUvAuthEncapsulation {
         permissions: u8,
         rp_id: Option<&str>,
     ) -> Result<Vec<u8>> {
+        eprintln!("[PIN-DEBUG-CLIENT] Getting PIN token with permissions: 0x{:02x}", permissions);
+        eprintln!("[PIN-DEBUG-CLIENT] PIN: {:?}", pin);
+        eprintln!("[PIN-DEBUG-CLIENT] RP ID: {:?}", rp_id);
+
+        // Compute expected PIN hash for debugging
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(pin.as_bytes());
+        let pin_hash: [u8; 32] = hasher.finalize().into();
+        eprintln!("[PIN-DEBUG-CLIENT] Expected PIN hash (first 16): {}", hex::encode(&pin_hash[..16]));
+
         let pin_bytes = pin.as_bytes();
         let mut token_ptr: *mut u8 = std::ptr::null_mut();
         let mut token_len: usize = 0;
