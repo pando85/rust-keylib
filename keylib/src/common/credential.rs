@@ -196,8 +196,30 @@ impl From<Credential> for keylib_ctap::types::Credential {
 #[cfg(feature = "zig-ffi")]
 impl From<crate::credential::Credential> for Credential {
     fn from(cred: crate::credential::Credential) -> Self {
-        // Already the same type, just alias
-        cred
+        // Convert between zig-ffi and common credential types
+        // The main difference is Extensions.hmac_secret: Option<Vec<u8>> vs Option<bool>
+        Credential {
+            id: cred.id,
+            rp: RelyingParty {
+                id: cred.rp.id,
+                name: cred.rp.name,
+            },
+            user: User {
+                id: cred.user.id,
+                name: cred.user.name,
+                display_name: cred.user.display_name,
+            },
+            sign_count: cred.sign_count,
+            alg: cred.alg,
+            private_key: cred.private_key,
+            created: cred.created,
+            discoverable: cred.discoverable,
+            extensions: Extensions {
+                cred_protect: cred.extensions.cred_protect,
+                // Convert Option<Vec<u8>> to Option<bool> - true if non-empty
+                hmac_secret: cred.extensions.hmac_secret.map(|v| !v.is_empty()),
+            },
+        }
     }
 }
 
@@ -205,7 +227,35 @@ impl From<crate::credential::Credential> for Credential {
 #[cfg(feature = "zig-ffi")]
 impl From<Credential> for crate::credential::Credential {
     fn from(cred: Credential) -> Self {
-        // Already the same type, just alias
-        cred
+        // Convert between common and zig-ffi credential types
+        // The main difference is Extensions.hmac_secret: Option<bool> vs Option<Vec<u8>>
+        crate::credential::Credential {
+            id: cred.id,
+            rp: crate::credential::RelyingParty {
+                id: cred.rp.id,
+                name: cred.rp.name,
+            },
+            user: crate::credential::User {
+                id: cred.user.id,
+                name: cred.user.name,
+                display_name: cred.user.display_name,
+            },
+            sign_count: cred.sign_count,
+            alg: cred.alg,
+            private_key: cred.private_key,
+            created: cred.created,
+            discoverable: cred.discoverable,
+            extensions: crate::credential::Extensions {
+                cred_protect: cred.extensions.cred_protect,
+                // Convert Option<bool> to Option<Vec<u8>> - empty vec if false, single byte if true
+                hmac_secret: cred.extensions.hmac_secret.map(|enabled| {
+                    if enabled {
+                        vec![1]
+                    } else {
+                        vec![]
+                    }
+                }),
+            },
+        }
     }
 }
