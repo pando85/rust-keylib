@@ -434,12 +434,10 @@ fn process_message(
                 response_data.push(0); // Minor device version
                 response_data.push(0); // Build device version
 
-                // Only advertise CBOR support. Do NOT set NMSG flag.
-                // Many WebAuthn clients have bugs where they won't properly fall back
-                // to CTAP2 when NMSG is set, even though the spec says they should.
-                // By not setting NMSG, we appear to support U2F (even though we don't),
-                // which makes clients more likely to try CTAP2.
-                let capabilities = 0x04; // CBOR only (0x04)
+                // Advertise CBOR + NMSG (no U2F support)
+                // This is what real FIDO2 authenticators do - explicitly state they don't support U2F.
+                // If buggy clients still send MSG commands, we'll handle them with proper U2F errors.
+                let capabilities = 0x04 | 0x08; // CBOR (0x04) + NMSG (0x08 = no MSG support)
                 response_data.push(capabilities);
 
                 println!(
@@ -476,13 +474,11 @@ fn process_message(
             send_message(uhid, &response_msg)?;
         }
         Cmd::Msg => {
-            // U2F/CTAP1 message - not supported, but we don't advertise NMSG
-            // to work around buggy WebAuthn clients.
+            // U2F/CTAP1 message - not supported (we advertised NMSG).
             //
-            // IMPORTANT: Echo the U2F request back unchanged (matching Zig behavior).
-            // The Zig implementation (keylib-sys/keylib/example/authenticator.zig:144)
-            // doesn't process MSG commands - it just echoes them back.
-            // This causes clients to receive garbage and fall back to CTAP2.
+            // Send proper U2F error response. U2F uses APDU status words (SW1 SW2):
+            // 0x6985 = Conditions not satisfied (user interaction required but not provided)
+            // This tells the client we received the command but can't process it as U2F.
             println!("[CTAP] ⚠ Received CTAP1/U2F Msg command");
             println!("[CTAP]   Payload: {} bytes: {}",
                 message.data.len(),
@@ -500,9 +496,10 @@ fn process_message(
                 println!("[CTAP]   U2F command: 0x{:02x} ({})", u2f_cmd, u2f_cmd_name);
             }
 
-            println!("[CTAP]   Echoing request back unchanged (not processing as U2F)");
-            // Echo the U2F request back unchanged - matches Zig implementation
-            let response_msg = Message::new(cid, Cmd::Msg, message.data);
+            println!("[CTAP]   Sending U2F error: SW=0x6985 (conditions not satisfied)");
+            // U2F APDU status word: 0x6985 = Conditions not satisfied
+            let error_data = vec![0x69, 0x85];
+            let response_msg = Message::new(cid, Cmd::Msg, error_data);
             send_message(uhid, &response_msg)?;
         }
         _ => {
