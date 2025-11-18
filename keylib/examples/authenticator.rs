@@ -269,10 +269,7 @@ fn process_message(
     packets: &[Packet],
     response_buffer: &mut Vec<u8>,
 ) -> Result<()> {
-    println!(
-        "[CTAP] Processing message from {} packet(s)",
-        packets.len()
-    );
+    println!("[CTAP] Processing message from {} packet(s)", packets.len());
 
     let message = Message::from_packets(packets).map_err(|e| {
         println!("[CTAP] ✗ Failed to parse message from packets: {:?}", e);
@@ -328,7 +325,10 @@ fn process_message(
                 response_data.push(0); // Build device version
                 response_data.push(0x01); // Capabilities: CBOR
 
-                println!("[CTAP] INIT command processed (assigned CID: 0x{:08x})", cid);
+                println!(
+                    "[CTAP] INIT command processed (assigned CID: 0x{:08x})",
+                    cid
+                );
                 let response_msg = Message::new(cid, Cmd::Init, response_data);
                 send_message(uhid, &response_msg)?;
             } else {
@@ -340,7 +340,10 @@ fn process_message(
         }
         Cmd::Ping => {
             // Echo ping data
-            println!("[CTAP] PING command processed ({} bytes)", message.data.len());
+            println!(
+                "[CTAP] PING command processed ({} bytes)",
+                message.data.len()
+            );
             let response_msg = Message::new(cid, Cmd::Ping, message.data);
             send_message(uhid, &response_msg)?;
         }
@@ -354,12 +357,10 @@ fn process_message(
 
 /// Send a CTAP HID message via UHID
 fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
-    let packets = message
-        .to_packets()
-        .map_err(|e| {
-            println!("[CTAP] ✗ Failed to create packets from message: {:?}", e);
-            keylib::common::Error::Other
-        })?;
+    let packets = message.to_packets().map_err(|e| {
+        println!("[CTAP] ✗ Failed to create packets from message: {:?}", e);
+        keylib::common::Error::Other
+    })?;
 
     println!(
         "[CTAP] Sending response: {} packet(s), {} bytes total",
@@ -373,7 +374,12 @@ fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
                 println!("[UHID] ✓ Sent packet {}/{}", i + 1, packets.len());
             }
             Err(e) => {
-                println!("[UHID] ✗ Failed to send packet {}/{}: {:?}", i + 1, packets.len(), e);
+                println!(
+                    "[UHID] ✗ Failed to send packet {}/{}: {:?}",
+                    i + 1,
+                    packets.len(),
+                    e
+                );
                 return Err(e);
             }
         }

@@ -12,6 +12,7 @@ use keylib_transport::UhidDevice;
 
 use keylib_transport::{ChannelManager, Message, Packet};
 
+use rand::Rng;
 use std::sync::{Arc, Mutex};
 
 /// Safe Rust wrapper for Transport
@@ -28,6 +29,7 @@ enum TransportInner {
         transport: RawUsbTransport,
         #[allow(dead_code)]
         channel_manager: ChannelManager,
+        channel_id: Option<u32>,
     },
     #[cfg(all(feature = "pure-rust", target_os = "linux"))]
     Uhid {
@@ -36,6 +38,7 @@ enum TransportInner {
         channel_manager: ChannelManager,
         #[allow(dead_code)]
         opened: bool,
+        channel_id: Option<u32>,
     },
 }
 
@@ -46,6 +49,7 @@ impl Transport {
             inner: Arc::new(Mutex::new(TransportInner::Usb {
                 transport,
                 channel_manager: ChannelManager::new(),
+                channel_id: None,
             })),
         }
     }
@@ -58,6 +62,7 @@ impl Transport {
                 device,
                 channel_manager: ChannelManager::new(),
                 opened: false,
+                channel_id: None,
             })),
         }
     }
@@ -175,6 +180,96 @@ impl Transport {
         }
     }
 
+    /// Initialize CTAP HID channel
+    ///
+    /// Sends an INIT command to allocate a channel ID from the authenticator.
+    /// This must be called before sending any CTAP commands.
+    ///
+    /// Returns the allocated channel ID.
+    fn init_channel(&mut self) -> Result<u32> {
+        use keylib_transport::Cmd;
+
+        // Generate 8-byte nonce for INIT
+        let nonce: [u8; 8] = rand::random();
+
+        // Build INIT message on broadcast channel
+        let init_message = Message::new(0xffffffff, Cmd::Init, nonce.to_vec());
+
+        // Fragment into packets
+        let packets = init_message.to_packets().map_err(|_| Error::Other)?;
+
+        // Send INIT packets
+        for packet in &packets {
+            self.write(packet.as_bytes())?;
+        }
+
+        // Read INIT response
+        let mut response_packets = Vec::new();
+
+        loop {
+            let mut buffer = [0u8; 64];
+            let bytes_read = self.read(&mut buffer, 5000)?;
+
+            if bytes_read == 0 {
+                return Err(Error::Timeout);
+            }
+
+            let packet = Packet::from_bytes(buffer);
+
+            // INIT response should be on broadcast channel
+            if packet.cid() != 0xffffffff {
+                continue;
+            }
+
+            response_packets.push(packet);
+
+            // Check if we have complete response
+            if let Some(first) = response_packets.first() {
+                if let Some(total_len) = first.payload_len() {
+                    let mut received_len = first.payload().len();
+                    for pkt in &response_packets[1..] {
+                        received_len += pkt.payload().len();
+                    }
+                    if received_len >= total_len as usize {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Parse INIT response
+        let response_message =
+            Message::from_packets(&response_packets).map_err(|_| Error::Other)?;
+
+        // INIT response format:
+        // - 8 bytes: nonce (echo)
+        // - 4 bytes: channel ID (big-endian)
+        // - 1 byte: protocol version
+        // - 1 byte: major device version
+        // - 1 byte: minor device version
+        // - 1 byte: build device version
+        // - 1 byte: capabilities
+
+        if response_message.data.len() < 12 {
+            return Err(Error::Other);
+        }
+
+        // Verify nonce matches
+        if &response_message.data[0..8] != &nonce {
+            return Err(Error::Other);
+        }
+
+        // Extract channel ID (bytes 8-11, big-endian)
+        let channel_id = u32::from_be_bytes([
+            response_message.data[8],
+            response_message.data[9],
+            response_message.data[10],
+            response_message.data[11],
+        ]);
+
+        Ok(channel_id)
+    }
+
     /// Send a CTAP command and receive response
     ///
     /// This handles CTAP HID framing automatically.
@@ -194,25 +289,53 @@ impl Transport {
 
         // Get or allocate channel
         let mut inner = self.inner.lock().unwrap();
-        let channel_id = match &mut *inner {
+
+        // Initialize channel if needed (except for INIT command itself)
+        let needs_init = match &*inner {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]
-            TransportInner::Usb { .. } => {
-                // Use broadcast channel for INIT, otherwise allocate
+            TransportInner::Usb { channel_id, .. } => channel_id.is_none() && cmd != 0x06,
+            #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+            TransportInner::Uhid { channel_id, .. } => channel_id.is_none() && cmd != 0x06,
+        };
+
+        if needs_init {
+            drop(inner); // Release lock before calling init_channel
+            let allocated_channel = self.init_channel()?;
+            inner = self.inner.lock().unwrap();
+
+            // Store the allocated channel
+            match &mut *inner {
+                #[cfg(all(feature = "pure-rust", feature = "usb"))]
+                TransportInner::Usb { channel_id, .. } => {
+                    *channel_id = Some(allocated_channel);
+                }
+                #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+                TransportInner::Uhid { channel_id, .. } => {
+                    *channel_id = Some(allocated_channel);
+                }
+            }
+        }
+
+        // Get the channel ID to use
+        let channel_id = match &*inner {
+            #[cfg(all(feature = "pure-rust", feature = "usb"))]
+            TransportInner::Usb { channel_id, .. } => {
                 if cmd == 0x06 {
-                    // CTAPHID_INIT
+                    // INIT command uses broadcast channel
                     0xffffffff
                 } else {
-                    // For this simplified implementation, use a fixed channel
-                    // In a full implementation, would do INIT handshake first
-                    0x01000000
+                    // Use allocated channel
+                    channel_id.ok_or(Error::Other)?
                 }
             }
             #[cfg(all(feature = "pure-rust", target_os = "linux"))]
-            TransportInner::Uhid { .. } => {
+            TransportInner::Uhid { channel_id, .. } => {
                 if cmd == 0x06 {
+                    // INIT command uses broadcast channel
                     0xffffffff
                 } else {
-                    0x01000000
+                    // Use allocated channel
+                    channel_id.ok_or(Error::Other)?
                 }
             }
         };
