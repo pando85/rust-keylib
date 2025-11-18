@@ -148,6 +148,11 @@ impl MapParser {
     pub fn contains_key(&self, key: i32) -> bool {
         self.map.contains_key(&(key as i128))
     }
+
+    /// Get raw value for debugging
+    pub fn get_raw(&self, key: i32) -> Option<&Value> {
+        self.map.get(&(key as i128))
+    }
 }
 
 #[cfg(test)]

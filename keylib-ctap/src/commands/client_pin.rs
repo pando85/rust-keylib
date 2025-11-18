@@ -60,9 +60,13 @@ pub fn handle<C: AuthenticatorCallbacks>(
     auth: &mut Authenticator<C>,
     data: &[u8],
 ) -> Result<Vec<u8>> {
+    eprintln!("[AUTH-DEBUG] clientPin handler - request data len={}", data.len());
+    eprintln!("[AUTH-DEBUG] Request data: {:02x?}", &data[..data.len().min(200)]);
+
     let parser = MapParser::from_bytes(data)?;
 
     let subcommand: u8 = parser.get(req_keys::SUBCOMMAND)?;
+    eprintln!("[AUTH-DEBUG] subcommand={:02x}", subcommand);
 
     match subcommand {
         0x01 => handle_get_pin_retries(auth),
@@ -376,6 +380,10 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     eprintln!("[AUTH-DEBUG] protocol={}", protocol);
 
     eprintln!("[AUTH-DEBUG] Parsing pin_hash_enc...");
+    eprintln!("[AUTH-DEBUG] Checking if key 0x06 exists: {}", parser.contains_key(req_keys::PIN_HASH_ENC));
+    if let Some(raw_value) = parser.get_raw(req_keys::PIN_HASH_ENC) {
+        eprintln!("[AUTH-DEBUG] Raw value for key 0x06: {:?}", raw_value);
+    }
     let pin_hash_enc: Vec<u8> = parser.get(req_keys::PIN_HASH_ENC).map_err(|e| {
         eprintln!("[AUTH-DEBUG] Failed to parse pin_hash_enc: {:?}", e);
         e
