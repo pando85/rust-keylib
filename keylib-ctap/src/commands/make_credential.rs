@@ -90,9 +90,41 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // 1. Parse required parameters
     eprintln!("[DEBUG][makeCredential] Parsing clientDataHash (key 0x01)...");
+
+    // Debug: show what type clientDataHash actually is
+    if let Some(raw_value) = parser.get_raw(req_keys::CLIENT_DATA_HASH) {
+        let value_type = match raw_value {
+            ciborium::Value::Integer(_) => "Integer",
+            ciborium::Value::Bytes(_) => "Bytes",
+            ciborium::Value::Text(_) => "Text",
+            ciborium::Value::Array(_) => "Array",
+            ciborium::Value::Map(_) => "Map",
+            ciborium::Value::Bool(_) => "Bool",
+            ciborium::Value::Null => "Null",
+            _ => "Other",
+        };
+        eprintln!("[DEBUG][makeCredential]   CBOR type of clientDataHash: {}", value_type);
+
+        if let ciborium::Value::Bytes(bytes) = raw_value {
+            eprintln!("[DEBUG][makeCredential]   clientDataHash is Bytes, length: {}", bytes.len());
+        } else if let ciborium::Value::Array(arr) = raw_value {
+            eprintln!("[DEBUG][makeCredential]   clientDataHash is Array, length: {}", arr.len());
+            if !arr.is_empty() {
+                eprintln!("[DEBUG][makeCredential]   First element type: {:?}",
+                    match &arr[0] {
+                        ciborium::Value::Integer(i) => format!("Integer({:?})", i),
+                        _ => format!("{:?}", arr[0]),
+                    }
+                );
+            }
+        }
+    }
+
     let client_data_hash: Vec<u8> = parser.get(req_keys::CLIENT_DATA_HASH).map_err(|e| {
         eprintln!("[DEBUG][makeCredential] ✗ Failed to parse clientDataHash: {:?}", e);
         eprintln!("[DEBUG][makeCredential]   This usually means the key is missing or wrong type");
+        eprintln!("[DEBUG][makeCredential]   Expected: CBOR Bytes type (major type 2)");
+        eprintln!("[DEBUG][makeCredential]   Zig client may be sending Array of integers instead");
         e
     })?;
     if client_data_hash.len() != 32 {
