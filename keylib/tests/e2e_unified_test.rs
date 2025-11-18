@@ -30,27 +30,34 @@
 
 #![cfg(any(feature = "zig-ffi", feature = "pure-rust"))]
 
-// Common imports for both implementations
-use keylib::{
-    Authenticator, AuthenticatorConfig, Callbacks, ClientDataHash, Credential, CredentialRef,
-    Error, PinUvAuth, PinUvAuthProtocol, RelyingParty, Result, UpResult, User, UvResult,
-};
-
 // Feature-specific imports for zig-ffi
 #[cfg(feature = "zig-ffi")]
-use keylib::{AuthenticatorOptions, CtapCommand, TransportList};
+use keylib::{
+    Authenticator, AuthenticatorConfig, AuthenticatorOptions, Callbacks, Credential, CredentialRef,
+    CtapCommand, Error, Result, UpResult, UvResult,
+};
 
 #[cfg(feature = "zig-ffi")]
-use keylib::client::{GetAssertionRequest, MakeCredentialRequest};
+use keylib::client::{
+    ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth, PinUvAuthProtocol,
+    TransportList, User,
+};
+
+#[cfg(feature = "zig-ffi")]
+use keylib::credential::RelyingParty;
 
 // Feature-specific imports for pure-rust
 #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-use keylib::{GetAssertionRequest, MakeCredentialRequest};
+use keylib::{
+    Authenticator, AuthenticatorConfig, ClientDataHash, Credential, CredentialRef, Error,
+    GetAssertionRequest, MakeCredentialRequest, PinUvAuth, PinUvAuthProtocol, RelyingParty,
+    Result, UpResult, User, UvResult,
+};
 
 #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
 use keylib::rust_impl::{
-    authenticator_options::AuthenticatorOptions, ctap_command::CtapCommand,
-    transport::TransportList,
+    authenticator_options::AuthenticatorOptions, callbacks::Callbacks,
+    ctap_command::CtapCommand, transport::TransportList,
 };
 
 // CTAP HID layer - conditional imports

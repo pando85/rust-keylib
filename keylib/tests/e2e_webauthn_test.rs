@@ -837,6 +837,7 @@ fn test_registration_without_pin() -> Result<()> {
 #[test]
 #[ignore] // Requires UHID permissions
 #[serial] // Run serially to avoid UHID/CID conflicts
+#[cfg(feature = "zig-ffi")] // Dynamic PIN change only supported in zig-ffi
 fn test_pin_change_flow() -> Result<()> {
     println!("\n╔════════════════════════════════════════════════╗");
     println!("║     PIN Change Flow Test                       ║");
