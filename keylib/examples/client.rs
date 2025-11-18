@@ -2,26 +2,16 @@
 //!
 //! This example demonstrates basic client operations with a FIDO2 authenticator.
 //!
-//! **Requires**: `zig-ffi` feature (currently not compatible with `pure-rust`)
-//!
 //! # Usage
 //! ```bash
-//! cargo run --example client --features zig-ffi [timeout_ms]
+//! cargo run --example client --features pure-rust
 //! ```
 
-use keylib::client::{Client, TransportList};
-
-use std::env;
+use keylib::rust_impl::client::Client;
+use keylib::rust_impl::transport::TransportList;
 
 fn main() {
     println!("Keylib Rust Client Example");
-    let args: Vec<String> = env::args().collect();
-    let timeout_ms = if args.len() > 1 {
-        args[1].parse::<i32>().unwrap_or(5000)
-    } else {
-        5000
-    };
-    println!("Using timeout: {}ms", timeout_ms);
 
     // Enumerate available transports
     println!("Enumerating available transports...");
@@ -66,77 +56,50 @@ fn main() {
 
     // Send authenticatorGetInfo command
     println!("Sending authenticatorGetInfo command...");
-    let mut command = match Client::authenticator_get_info(&mut transport) {
-        Ok(cmd) => cmd,
+    let info_data = match Client::authenticator_get_info(&mut transport) {
+        Ok(data) => data,
         Err(e) => {
-            eprintln!("Failed to create authenticatorGetInfo command: {:?}", e);
+            eprintln!("Failed to get authenticator info: {:?}", e);
             return;
         }
     };
 
-    let result = match command.get_result(timeout_ms) {
-        Ok(result) => result,
-        Err(e) => {
-            eprintln!("Failed to get command result: {:?}", e);
-            return;
-        }
-    };
+    println!("Received authenticator info: {} bytes", info_data.len());
 
-    // Process the result
-    if result.is_fulfilled() {
-        if let Some(data) = result.get_data() {
-            println!("Received authenticator info: {} bytes", data.len());
+    // Parse CBOR data
+    match ciborium::from_reader::<ciborium::value::Value, _>(info_data.as_slice()) {
+        Ok(info) => {
+            println!("Parsed authenticator info successfully");
 
-            // Parse CBOR data
-            match ciborium::from_reader::<ciborium::value::Value, _>(data) {
-                Ok(info) => {
-                    println!("Parsed authenticator info successfully");
-
-                    // Extract and display key information
-                    if let ciborium::value::Value::Map(map) = info {
-                        for (key, value) in map {
-                            if let (ciborium::value::Value::Text(k), v) = (key, value) {
-                                match k.as_str() {
-                                    "versions" => println!("  Versions: {:?}", v),
-                                    "extensions" => println!("  Extensions: {:?}", v),
-                                    "options" => {
-                                        println!("  Options: {:?}", v);
-                                        // Check for credMgmt support
-                                        if let ciborium::value::Value::Map(opts) = &v {
-                                            let has_cred_mgmt = opts.iter().any(|(opt_key, opt_val)| {
-                                                    matches!(opt_key, ciborium::value::Value::Text(k) if k == "credMgmt" || k == "credentialMgmtPreview")
-                                                    && matches!(opt_val, ciborium::value::Value::Bool(true))
-                                                });
-                                            println!(
-                                                "  Supports credential management: {}",
-                                                has_cred_mgmt
-                                            );
-                                        }
-                                    }
-                                    "pinUvAuthProtocols" => {
-                                        println!("  PIN/UV protocols: {:?}", v)
-                                    }
-                                    _ => println!("  {}: {:?}", k, v),
+            // Extract and display key information
+            if let ciborium::value::Value::Map(map) = info {
+                for (key, value) in map {
+                    if let (ciborium::value::Value::Integer(k), v) = (key, value) {
+                        match k.into() {
+                            1 => println!("  Versions: {:?}", v),
+                            2 => println!("  Extensions: {:?}", v),
+                            3 => println!("  AAGUID: {:?}", v),
+                            4 => {
+                                println!("  Options: {:?}", v);
+                                // Check for credMgmt support
+                                if let ciborium::value::Value::Map(opts) = &v {
+                                    let has_cred_mgmt = opts.iter().any(|(opt_key, opt_val)| {
+                                        matches!(opt_key, ciborium::value::Value::Text(k) if k == "credMgmt" || k == "credentialMgmtPreview")
+                                            && matches!(opt_val, ciborium::value::Value::Bool(true))
+                                    });
+                                    println!("  Supports credential management: {}", has_cred_mgmt);
                                 }
                             }
+                            6 => println!("  PIN/UV protocols: {:?}", v),
+                            _ => println!("  {}: {:?}", k, v),
                         }
                     }
                 }
-                Err(e) => {
-                    eprintln!("Failed to parse CBOR: {:?}", e);
-                }
             }
-        } else {
-            println!("No data in response");
         }
-    } else if result.is_rejected() {
-        if let Some(error_code) = result.get_error() {
-            eprintln!("Command failed with error code: {}", error_code);
-        } else {
-            eprintln!("Command failed");
+        Err(e) => {
+            eprintln!("Failed to parse CBOR: {:?}", e);
         }
-    } else {
-        println!("Command is still pending");
     }
 
     // Close the transport
