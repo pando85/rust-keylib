@@ -185,6 +185,14 @@ fn main() -> Result<()> {
                     packet.payload().len()
                 );
 
+                // Debug: Show raw packet bytes
+                if packet.is_init() && packet.payload().len() > 0 {
+                    let cmd_byte = buffer[4]; // Command byte is at offset 4
+                    println!("[UHID] Raw command byte in packet: 0x{:02x}", cmd_byte);
+                    println!("[UHID]   INIT flag (0x80): {}", if cmd_byte & 0x80 != 0 { "set" } else { "clear" });
+                    println!("[UHID]   Command (lower 7 bits): 0x{:02x}", cmd_byte & 0x7F);
+                }
+
                 // Handle initialization packets
                 if packet.is_init() {
                     current_channel = packet.cid();
@@ -290,6 +298,16 @@ fn process_message(
         cid,
         message.data.len()
     );
+
+    // Debug: show raw command byte
+    if !packets.is_empty() {
+        let first_packet = &packets[0];
+        let payload = first_packet.payload();
+        if !payload.is_empty() {
+            let cmd_byte = payload[0];
+            println!("[CTAP] Raw command byte from packet: 0x{:02x}", cmd_byte);
+        }
+    }
 
     match cmd {
         Cmd::Cbor => {
@@ -415,12 +433,24 @@ fn process_message(
                 response_data.push(0); // Major device version
                 response_data.push(0); // Minor device version
                 response_data.push(0); // Build device version
-                response_data.push(0x04 | 0x08); // Capabilities: CBOR (0x04) + NMSG (0x08, no U2F)
+
+                let capabilities = 0x04 | 0x08; // CBOR (0x04) + NMSG (0x08, no U2F)
+                response_data.push(capabilities);
 
                 println!(
                     "[CTAP] INIT command processed (allocated NEW CID: 0x{:08x})",
                     allocated_cid
                 );
+                println!("[CTAP] INIT response details:");
+                println!("[CTAP]   Nonce: {}", hex::encode(&response_data[0..8]));
+                println!("[CTAP]   New CID: 0x{:08x}", allocated_cid);
+                println!("[CTAP]   Protocol version: {}", response_data[12]);
+                println!("[CTAP]   Device version: {}.{}.{}", response_data[13], response_data[14], response_data[15]);
+                println!("[CTAP]   Capabilities: 0x{:02x}", capabilities);
+                println!("[CTAP]     - WINK: {}", if capabilities & 0x01 != 0 { "yes" } else { "no" });
+                println!("[CTAP]     - CBOR: {}", if capabilities & 0x04 != 0 { "yes" } else { "no" });
+                println!("[CTAP]     - NMSG: {}", if capabilities & 0x08 != 0 { "yes" } else { "no" });
+                println!("[CTAP]   Total response: {} bytes: {}", response_data.len(), hex::encode(&response_data));
                 // Respond on broadcast channel with new CID in payload
                 let response_msg = Message::new(0xffffffff, Cmd::Init, response_data);
                 send_message(uhid, &response_msg)?;
