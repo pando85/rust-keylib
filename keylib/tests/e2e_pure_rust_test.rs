@@ -170,6 +170,8 @@ impl TestAuthenticator {
             match uhid.read_packet(&mut buffer) {
                 Ok(len) if len > 0 => {
                     let packet = Packet::from_bytes(buffer);
+                    eprintln!("[Authenticator] Received packet: cid=0x{:08x}, cmd={:?}, len={}",
+                             packet.cid(), packet.cmd(), len);
 
                     // Handle initialization packets
                     if packet.is_init() {
@@ -252,6 +254,9 @@ impl TestAuthenticator {
         let cid = message.cid;
         let cmd = message.cmd;
 
+        eprintln!("[Authenticator] Processing message: cid=0x{:08x}, cmd={:?}, data_len={}",
+                 cid, cmd, message.data.len());
+
         // Handle CTAP commands
         match cmd {
             Cmd::Cbor => {
@@ -301,15 +306,21 @@ impl TestAuthenticator {
 
     /// Send a CTAP HID message via UHID
     fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
+        eprintln!("[Authenticator] Sending response: cid=0x{:08x}, cmd={:?}, data_len={}",
+                 message.cid, message.cmd, message.data.len());
+
         let packets = message.to_packets().map_err(|e| {
             eprintln!("[Authenticator] Failed to create packets: {:?}", e);
             keylib::common::Error::Other
         })?;
 
-        for packet in &packets {
+        eprintln!("[Authenticator] Sending {} packet(s)", packets.len());
+        for (i, packet) in packets.iter().enumerate() {
+            eprintln!("[Authenticator] Writing packet {}/{}", i + 1, packets.len());
             uhid.write_packet(packet.as_bytes())?;
         }
 
+        eprintln!("[Authenticator] Response sent successfully");
         Ok(())
     }
 
