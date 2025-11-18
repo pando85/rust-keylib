@@ -5,7 +5,7 @@
 use crate::common::{Error, Result};
 
 #[cfg(all(feature = "pure-rust", feature = "usb"))]
-use keylib_transport::{enumerate_devices, init_usb, UsbDeviceInfo, UsbTransport as RawUsbTransport};
+use keylib_transport::{enumerate_devices, init_usb, UsbTransport as RawUsbTransport};
 
 #[cfg(all(feature = "pure-rust", target_os = "linux"))]
 use keylib_transport::UhidDevice;
@@ -26,7 +26,6 @@ enum TransportInner {
     Usb {
         transport: RawUsbTransport,
         channel_manager: ChannelManager,
-        opened: bool,
     },
     #[cfg(all(feature = "pure-rust", target_os = "linux"))]
     Uhid {
@@ -43,7 +42,6 @@ impl Transport {
             inner: Arc::new(Mutex::new(TransportInner::Usb {
                 transport,
                 channel_manager: ChannelManager::new(),
-                opened: false,
             })),
         }
     }
@@ -64,12 +62,8 @@ impl Transport {
         let mut inner = self.inner.lock().unwrap();
         match &mut *inner {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]
-            TransportInner::Usb { transport, opened, .. } => {
-                if *opened {
-                    return Ok(());
-                }
-                transport.open().map_err(|e| Error::IoError(e.to_string()))?;
-                *opened = true;
+            TransportInner::Usb { .. } => {
+                // USB transports are opened on construction, nothing to do
                 Ok(())
             }
             #[cfg(all(feature = "pure-rust", target_os = "linux"))]
@@ -86,11 +80,8 @@ impl Transport {
         let mut inner = self.inner.lock().unwrap();
         match &mut *inner {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]
-            TransportInner::Usb { transport, opened, .. } => {
-                if *opened {
-                    let _ = transport.close();
-                    *opened = false;
-                }
+            TransportInner::Usb { .. } => {
+                // USB transports use Drop for cleanup, nothing to do
             }
             #[cfg(all(feature = "pure-rust", target_os = "linux"))]
             TransportInner::Uhid { opened, .. } => {
@@ -103,12 +94,19 @@ impl Transport {
     ///
     /// This sends raw packets. For CTAP commands, use send_ctap_command instead.
     pub fn write(&mut self, data: &[u8]) -> Result<()> {
-        let mut inner = self.inner.lock().unwrap();
-        match &mut *inner {
+        let inner = self.inner.lock().unwrap();
+        match &*inner {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]
             TransportInner::Usb { transport, .. } => {
+                // USB transport expects Packet, convert from raw bytes
+                if data.len() != 64 {
+                    return Err(Error::Other);
+                }
+                let mut buf = [0u8; 64];
+                buf.copy_from_slice(data);
+                let packet = Packet::from_slice(&buf).map_err(|e| Error::IoError(e.to_string()))?;
                 transport
-                    .write(data)
+                    .write_packet(&packet)
                     .map_err(|e| Error::IoError(e.to_string()))?;
                 Ok(())
             }
@@ -129,15 +127,26 @@ impl Transport {
     }
 
     /// Read data from the transport with timeout
-    pub fn read(&mut self, buffer: &mut [u8], _timeout_ms: i32) -> Result<usize> {
-        let mut inner = self.inner.lock().unwrap();
-        match &mut *inner {
+    pub fn read(&mut self, buffer: &mut [u8], timeout_ms: i32) -> Result<usize> {
+        let inner = self.inner.lock().unwrap();
+        match &*inner {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]
             TransportInner::Usb { transport, .. } => {
-                let result = transport
-                    .read(buffer, timeout_ms as u64)
-                    .map_err(|e| Error::IoError(e.to_string()))?;
-                Ok(result)
+                // USB transport uses packet-based API with timeout
+                match transport
+                    .read_packet_timeout(timeout_ms)
+                    .map_err(|e| Error::IoError(e.to_string()))? {
+                    Some(packet) => {
+                        let packet_bytes = packet.as_bytes();
+                        let len = packet_bytes.len().min(buffer.len());
+                        buffer[..len].copy_from_slice(&packet_bytes[..len]);
+                        Ok(len)
+                    }
+                    None => {
+                        // Timeout
+                        Ok(0)
+                    }
+                }
             }
             #[cfg(all(feature = "pure-rust", target_os = "linux"))]
             TransportInner::Uhid { device, .. } => {
@@ -295,11 +304,12 @@ impl TransportList {
         #[cfg(all(feature = "pure-rust", feature = "usb"))]
         {
             // Initialize USB library
-            if let Ok(()) = init_usb() {
+            if let Ok(api) = init_usb() {
                 // Enumerate USB FIDO devices
-                if let Ok(devices) = enumerate_devices() {
+                if let Ok(devices) = enumerate_devices(&api) {
                     for device_info in devices {
-                        if let Ok(transport) = RawUsbTransport::new(device_info) {
+                        // Open the device using its path
+                        if let Ok(transport) = RawUsbTransport::open(&api, &device_info.path) {
                             transports.push(Transport::from_usb(transport));
                         }
                     }
