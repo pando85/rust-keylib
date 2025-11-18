@@ -37,6 +37,7 @@ const UHID_CREATE2: u32 = 11;
 const UHID_DESTROY: u32 = 1;
 const UHID_INPUT2: u32 = 12;
 const UHID_OUTPUT: u32 = 6;
+const UHID_OPEN: u32 = 2; // Device opened by kernel
 const UHID_START: u32 = 4;
 #[allow(dead_code)]
 const UHID_STOP: u32 = 5;
@@ -246,36 +247,47 @@ impl UhidDevice {
                 Error::Other(format!("Failed to create UHID device: {}", e))
             })?;
 
-        eprintln!("[UHID DEBUG] CREATE2 event sent successfully, waiting for START event...");
+        eprintln!("[UHID DEBUG] CREATE2 event sent successfully, waiting for device ready event...");
 
-        // Wait for START event
+        // Wait for OPEN or START event indicating device is ready
         self.wait_for_start()?;
 
         Ok(())
     }
 
-    /// Wait for UHID_START event
+    /// Wait for UHID_START or UHID_OPEN event
+    ///
+    /// Different kernel versions send different events:
+    /// - UHID_OPEN (2): Device opened by kernel (common on newer kernels)
+    /// - UHID_START (4): Device started (common on older kernels)
+    /// Both indicate the device is ready to use.
     fn wait_for_start(&mut self) -> Result<()> {
         let mut buffer = vec![0u8; 4096];
 
-        eprintln!("[UHID DEBUG] Waiting for START event (timeout: 5s)...");
+        eprintln!("[UHID DEBUG] Waiting for OPEN or START event (timeout: 5s)...");
 
         // Try to read events with a timeout
         for i in 0..50 {
             // 5 second timeout (50 * 100ms)
             if i > 0 && i % 10 == 0 {
-                eprintln!("[UHID DEBUG] Still waiting for START event... ({:.1}s elapsed)", i as f32 * 0.1);
+                eprintln!("[UHID DEBUG] Still waiting for device ready event... ({:.1}s elapsed)", i as f32 * 0.1);
             }
 
             match self.read_event(&mut buffer) {
+                Ok(Some(UHID_OPEN)) => {
+                    eprintln!("[UHID DEBUG] ✓ Received OPEN event (device ready)!");
+                    self.started = true;
+                    return Ok(());
+                }
                 Ok(Some(UHID_START)) => {
-                    eprintln!("[UHID DEBUG] ✓ Received START event!");
+                    eprintln!("[UHID DEBUG] ✓ Received START event (device ready)!");
                     self.started = true;
                     return Ok(());
                 }
                 Ok(Some(event_type)) => {
                     // Other event, continue waiting
-                    eprintln!("[UHID DEBUG] Received event type: {} (waiting for START={})", event_type, UHID_START);
+                    eprintln!("[UHID DEBUG] Received event type: {} (waiting for OPEN={} or START={})",
+                             event_type, UHID_OPEN, UHID_START);
                     continue;
                 }
                 Ok(None) => {
@@ -290,7 +302,7 @@ impl UhidDevice {
             }
         }
 
-        eprintln!("[UHID DEBUG] ✗ Timeout waiting for START event after 5s");
+        eprintln!("[UHID DEBUG] ✗ Timeout waiting for device ready event after 5s");
         Err(Error::Timeout)
     }
 
