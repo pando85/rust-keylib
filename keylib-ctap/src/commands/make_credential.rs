@@ -120,11 +120,10 @@ pub fn handle<C: AuthenticatorCallbacks>(
         }
     }
 
-    let client_data_hash: Vec<u8> = parser.get(req_keys::CLIENT_DATA_HASH).map_err(|e| {
+    let client_data_hash: Vec<u8> = parser.get_bytes(req_keys::CLIENT_DATA_HASH).map_err(|e| {
         eprintln!("[DEBUG][makeCredential] ✗ Failed to parse clientDataHash: {:?}", e);
         eprintln!("[DEBUG][makeCredential]   This usually means the key is missing or wrong type");
         eprintln!("[DEBUG][makeCredential]   Expected: CBOR Bytes type (major type 2)");
-        eprintln!("[DEBUG][makeCredential]   Zig client may be sending Array of integers instead");
         e
     })?;
     if client_data_hash.len() != 32 {
@@ -166,10 +165,15 @@ pub fn handle<C: AuthenticatorCallbacks>(
             eprintln!("[DEBUG][makeCredential] ✗ Failed to parse excludeList: {:?}", e);
             e
         })?;
-    let pin_uv_auth_param: Option<Vec<u8>> = parser.get_opt(req_keys::PIN_UV_AUTH_PARAM).map_err(|e| {
-        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse pinUvAuthParam: {:?}", e);
-        e
-    })?;
+    // Parse pinUvAuthParam as bytes (use get_bytes for CBOR Bytes type)
+    let pin_uv_auth_param: Option<Vec<u8>> = if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {
+        Some(parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM).map_err(|e| {
+            eprintln!("[DEBUG][makeCredential] ✗ Failed to parse pinUvAuthParam: {:?}", e);
+            e
+        })?)
+    } else {
+        None
+    };
     let pin_uv_auth_protocol: Option<u8> = parser.get_opt(req_keys::PIN_UV_AUTH_PROTOCOL).map_err(|e| {
         eprintln!("[DEBUG][makeCredential] ✗ Failed to parse pinUvAuthProtocol: {:?}", e);
         e

@@ -53,7 +53,7 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // 1. Parse required parameters
     let rp_id: String = parser.get(req_keys::RP_ID)?;
-    let client_data_hash: Vec<u8> = parser.get(req_keys::CLIENT_DATA_HASH)?;
+    let client_data_hash: Vec<u8> = parser.get_bytes(req_keys::CLIENT_DATA_HASH)?;
     if client_data_hash.len() != 32 {
         return Err(StatusCode::InvalidParameter);
     }
@@ -61,7 +61,11 @@ pub fn handle<C: AuthenticatorCallbacks>(
     // 2. Parse optional parameters
     let allow_list: Option<Vec<PublicKeyCredentialDescriptor>> =
         parser.get_opt(req_keys::ALLOW_LIST)?;
-    let pin_uv_auth_param: Option<Vec<u8>> = parser.get_opt(req_keys::PIN_UV_AUTH_PARAM)?;
+    let pin_uv_auth_param: Option<Vec<u8>> = if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {
+        Some(parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?)
+    } else {
+        None
+    };
     let pin_uv_auth_protocol: Option<u8> = parser.get_opt(req_keys::PIN_UV_AUTH_PROTOCOL)?;
 
     // Parse options
