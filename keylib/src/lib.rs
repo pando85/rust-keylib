@@ -80,6 +80,6 @@ pub use rust_impl::uhid::Uhid;
 
 // Re-export common types (always available)
 pub use common::{
-    ClientDataHash, Credential, CredentialRef, Error, GetAssertionRequest, MakeCredentialRequest,
-    PinUvAuth, PinUvAuthProtocol, RelyingParty, Result, User,
+    ClientDataHash, Credential, CredentialRef, Error, Extensions, GetAssertionRequest,
+    MakeCredentialRequest, PinUvAuth, PinUvAuthProtocol, RelyingParty, Result, User,
 };

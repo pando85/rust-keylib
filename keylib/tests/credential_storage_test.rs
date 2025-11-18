@@ -1,15 +1,12 @@
-/// Test for credential storage and retrieval
-/// This tests the full cycle: create credential -> store -> retrieve -> authenticate
-///
-/// TODO: Adapt this test to work with both zig-ffi and pure-rust implementations
+// Compile with either feature
+#![cfg(any(feature = "zig-ffi", feature = "pure-rust"))]
 
-// Only compile with zig-ffi for now
-#[cfg(feature = "zig-ffi")]
+//! Test for credential storage and retrieval
+//!
+//! This tests the full cycle: create credential -> store -> retrieve -> authenticate
+//! Works with both zig-ffi and pure-rust implementations
 
-use keylib::{Credential, Error, RelyingParty, Result, User};
-
-#[cfg(feature = "zig-ffi")]
-use keylib::credential::Extensions;
+use keylib::{Credential, Extensions, RelyingParty, Result, User};
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
