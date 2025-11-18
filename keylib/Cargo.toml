@@ -10,12 +10,30 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-default = []
-bundled = ["keylib-sys/bundled"]
+default = ["zig-ffi"]
+# Zig FFI implementation (legacy, will be removed)
+zig-ffi = ["dep:keylib-sys"]
+bundled = ["keylib-sys?/bundled"]
 integration-tests = []
+# Pure Rust implementation (alternative to Zig FFI)
+pure-rust = [
+    "dep:keylib-crypto",
+    "dep:keylib-ctap",
+    "dep:keylib-transport",
+]
+# Enable USB HID transport (requires libudev on Linux)
+usb = ["keylib-transport?/usb"]
 
 [dependencies]
-keylib-sys = { workspace = true }
+# Zig FFI implementation (legacy, optional)
+keylib-sys = { workspace = true, optional = true }
+
+# Pure Rust implementation (optional, enabled with pure-rust feature)
+keylib-crypto = { path = "../keylib-crypto", optional = true }
+keylib-ctap = { path = "../keylib-ctap", optional = true, features = ["transport"] }
+keylib-transport = { path = "../keylib-transport", optional = true }
+
+# Common dependencies used by both implementations
 ciborium = "0.2"
 p256 = { version = "0.13", features = ["ecdh"] }
 rand = "0.8"
