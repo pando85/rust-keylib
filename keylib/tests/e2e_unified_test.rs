@@ -30,17 +30,24 @@
 
 #![cfg(any(feature = "zig-ffi", feature = "pure-rust"))]
 
-// Unified imports - these work for both implementations thanks to re-exports
+// Common imports for both implementations
 use keylib::{
     Authenticator, AuthenticatorConfig, Callbacks, ClientDataHash, Credential, CredentialRef,
-    Error, GetAssertionRequest, MakeCredentialRequest, PinUvAuth, PinUvAuthProtocol, RelyingParty,
-    Result, UpResult, User, UvResult,
+    Error, PinUvAuth, PinUvAuthProtocol, RelyingParty, Result, UpResult, User, UvResult,
 };
 
+// Feature-specific imports for zig-ffi
 #[cfg(feature = "zig-ffi")]
 use keylib::{AuthenticatorOptions, CtapCommand, TransportList};
 
-#[cfg(feature = "pure-rust")]
+#[cfg(feature = "zig-ffi")]
+use keylib::client::{GetAssertionRequest, MakeCredentialRequest};
+
+// Feature-specific imports for pure-rust
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+use keylib::{GetAssertionRequest, MakeCredentialRequest};
+
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
 use keylib::rust_impl::{
     authenticator_options::AuthenticatorOptions, ctap_command::CtapCommand,
     transport::TransportList,

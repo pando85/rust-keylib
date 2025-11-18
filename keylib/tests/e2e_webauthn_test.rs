@@ -9,6 +9,7 @@
 //! - Linux with UHID kernel module loaded
 //! - Proper permissions to access /dev/uhid
 //! - Run with: cargo test --test e2e_webauthn_test --features zig-ffi
+//!   or: cargo test --test e2e_webauthn_test --features pure-rust
 //!
 //! # Test Flow
 //!
@@ -16,29 +17,54 @@
 //! 2. Use the Client API to perform registration (makeCredential)
 //! 3. Use the Client API to perform authentication (getAssertion)
 //! 4. Verify the complete flow succeeds
-//!
-//! # TODO
-//!
-//! These tests currently only work with the zig-ffi feature because they use
-//! zig-ffi specific types like Ctaphid, CtapCommand, and AuthenticatorOptions.
-//! Future work will adapt these tests to work with both implementations.
 
-// Only compile these tests with zig-ffi feature
-#![cfg(feature = "zig-ffi")]
+// Compile with either feature
+#![cfg(any(feature = "zig-ffi", feature = "pure-rust"))]
 
+// Feature-specific imports for zig-ffi
+#[cfg(feature = "zig-ffi")]
 use keylib::{
     Authenticator, AuthenticatorConfig, AuthenticatorOptions, Callbacks, CtapCommand, UpResult,
     UvResult,
 };
+#[cfg(feature = "zig-ffi")]
 use keylib::client::{
     Client, ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth,
     PinUvAuthProtocol, TransportList, User,
 };
+#[cfg(feature = "zig-ffi")]
 use keylib::client_pin::{PinProtocol, PinUvAuthEncapsulation};
+#[cfg(feature = "zig-ffi")]
 use keylib::credential::RelyingParty;
+#[cfg(feature = "zig-ffi")]
 use keylib::ctaphid::Ctaphid;
+#[cfg(feature = "zig-ffi")]
 use keylib::error::Result;
+#[cfg(feature = "zig-ffi")]
 use keylib::uhid::Uhid;
+
+// Feature-specific imports for pure-rust
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+use keylib::common::{
+    ClientDataHash, Credential, CredentialRef, GetAssertionRequest, MakeCredentialRequest,
+    PinUvAuth, PinUvAuthProtocol, RelyingParty, Result, User,
+};
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+use keylib::rust_impl::authenticator::{
+    Authenticator, AuthenticatorConfig, Callbacks, CallbacksBuilder, UpResult, UvResult,
+};
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+use keylib::rust_impl::client::Client;
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+use keylib::rust_impl::client_pin::{PinProtocol, PinUvAuthEncapsulation};
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+use keylib::rust_impl::transport::TransportList;
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+use keylib::rust_impl::uhid::Uhid;
+
+// CTAP transport types for pure-rust
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+use keylib_transport::{Cmd, Message, Packet};
 
 use base64::prelude::*;
 use serial_test::serial;
@@ -114,7 +140,11 @@ impl Drop for TestAuthenticator {
 /// Run the virtual authenticator
 fn run_test_authenticator(stop_flag: Arc<Mutex<bool>>, use_pin: bool) -> Result<()> {
     // Create credential storage
+    #[cfg(feature = "zig-ffi")]
     let credentials = Arc::new(Mutex::new(HashMap::<Vec<u8>, keylib::Credential>::new()));
+
+    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+    let credentials = Arc::new(Mutex::new(HashMap::<Vec<u8>, Credential>::new()));
 
     // Setup PIN (SHA-256 hash of "123456") - only if use_pin is true
     if use_pin {
@@ -132,6 +162,7 @@ fn run_test_authenticator(stop_flag: Arc<Mutex<bool>>, use_pin: bool) -> Result<
         println!("[Authenticator] UV-only mode (no PIN required)");
     }
     let credentials_clone = credentials.clone();
+    #[cfg(feature = "zig-ffi")]
     let write_callback = Arc::new(
         move |id: &str, rp: &str, cred: keylib::CredentialRef| -> Result<()> {
             let mut store = credentials_clone.lock().unwrap();
@@ -142,186 +173,428 @@ fn run_test_authenticator(stop_flag: Arc<Mutex<bool>>, use_pin: bool) -> Result<
         },
     );
 
-    let credentials_clone = credentials.clone();
-    let read_callback = Arc::new(move |id: &str, _rp: &str| -> Result<Vec<u8>> {
-        let store = credentials_clone.lock().unwrap();
-
-        // Simple lookup by credential ID
-        let key = id.as_bytes().to_vec();
-        if let Some(cred) = store.get(&key) {
-            return cred.to_bytes();
-        }
-
-        Err(keylib::Error::DoesNotExist)
-    });
-
-    let credentials_clone = credentials.clone();
-    let delete_callback = Arc::new(move |id: &str| -> Result<()> {
-        let mut store = credentials_clone.lock().unwrap();
-        let key = id.as_bytes().to_vec();
-        store.remove(&key);
-        println!("[Authenticator] Deleted credential: {}", id);
-        Ok(())
-    });
-
-    let up_callback = Arc::new(
-        |_info: &str, _user: Option<&str>, _rp: Option<&str>| -> Result<UpResult> {
-            println!("[Authenticator] User presence check: approved");
-            Ok(UpResult::Accepted)
+    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+    let write_callback = Arc::new(
+        move |_id: &str, _rp: &str, cred: CredentialRef| -> Result<()> {
+            let mut store = credentials_clone.lock().unwrap();
+            store.insert(cred.id.to_vec(), cred.to_owned());
+            println!("[Authenticator] Stored credential for RP: {}", cred.rp.id);
+            Ok(())
         },
     );
 
-    let uv_callback = Arc::new(
-        |_info: &str, _user: Option<&str>, _rp: Option<&str>| -> Result<UvResult> {
-            println!("[Authenticator] User verification check: approved");
-            Ok(UvResult::Accepted)
-        },
-    );
-
-    let credentials_clone = credentials.clone();
-    let read_first_callback = Arc::new(
-        move |id: Option<&str>,
-              rp: Option<&str>,
-              _hash: Option<[u8; 32]>|
-              -> Result<keylib::Credential> {
+    // Build callbacks - zig-ffi version
+    #[cfg(feature = "zig-ffi")]
+    let callbacks = {
+        let credentials_clone = credentials.clone();
+        let read_callback = Arc::new(move |id: &str, _rp: &str| -> Result<Vec<u8>> {
             let store = credentials_clone.lock().unwrap();
 
-            // Find matching credential
-            for (cred_id, cred) in store.iter() {
-                if let Some(search_id) = id {
-                    if cred_id == search_id.as_bytes() {
-                        return Ok(cred.clone());
-                    }
-                } else if let Some(search_rp) = rp {
-                    if cred.rp.id == search_rp {
-                        return Ok(cred.clone());
-                    }
-                } else {
-                    // Return first credential if no specific search
-                    return Ok(cred.clone());
-                }
+            // Simple lookup by credential ID
+            let key = id.as_bytes().to_vec();
+            if let Some(cred) = store.get(&key) {
+                return cred.to_bytes();
             }
 
             Err(keylib::Error::DoesNotExist)
-        },
-    );
+        });
 
-    let read_next_callback = Arc::new(|| -> Result<keylib::Credential> {
-        // For simplicity, we don't support iteration in tests
-        Err(keylib::Error::DoesNotExist)
-    });
+        let credentials_clone = credentials.clone();
+        let delete_callback = Arc::new(move |id: &str| -> Result<()> {
+            let mut store = credentials_clone.lock().unwrap();
+            let key = id.as_bytes().to_vec();
+            store.remove(&key);
+            println!("[Authenticator] Deleted credential: {}", id);
+            Ok(())
+        });
 
-    // Build callbacks
-    let callbacks = Callbacks::new(
-        Some(up_callback),
-        Some(uv_callback),
-        None, // select
-        Some(read_callback),
-        Some(write_callback),
-        Some(delete_callback),
-        Some(read_first_callback),
-        Some(read_next_callback),
-    );
+        let up_callback = Arc::new(
+            |_info: &str, _user: Option<&str>, _rp: Option<&str>| -> Result<UpResult> {
+                println!("[Authenticator] User presence check: approved");
+                Ok(UpResult::Accepted)
+            },
+        );
 
-    // Configure authenticator explicitly
-    let options = AuthenticatorOptions::new()
-        .with_resident_keys(true)
-        .with_user_presence(true)
-        .with_user_verification(Some(true)) // UV capable and configured
-        .with_client_pin(Some(use_pin)) // PIN capability based on use_pin
-        .with_credential_management(Some(true));
+        let uv_callback = Arc::new(
+            |_info: &str, _user: Option<&str>, _rp: Option<&str>| -> Result<UvResult> {
+                println!("[Authenticator] User verification check: approved");
+                Ok(UvResult::Accepted)
+            },
+        );
 
-    let config = AuthenticatorConfig::builder()
-        .aaguid([
-            0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d, 0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29,
-            0x7c, 0x88,
-        ])
-        .commands(vec![
-            CtapCommand::MakeCredential,
-            CtapCommand::GetAssertion,
-            CtapCommand::GetInfo,
-            CtapCommand::ClientPin,
-            CtapCommand::CredentialManagement,
-            CtapCommand::Selection,
-        ])
-        .options(options)
-        .max_credentials(25)
-        .extensions(vec!["credProtect".to_string()])
-        .build();
+        let credentials_clone = credentials.clone();
+        let read_first_callback = Arc::new(
+            move |id: Option<&str>,
+                  rp: Option<&str>,
+                  _hash: Option<[u8; 32]>|
+                  -> Result<keylib::Credential> {
+                let store = credentials_clone.lock().unwrap();
 
-    // Create authenticator with configuration
-    let mut auth = Authenticator::with_config(callbacks, config)?;
+                // Find matching credential
+                for (cred_id, cred) in store.iter() {
+                    if let Some(search_id) = id {
+                        if cred_id == search_id.as_bytes() {
+                            return Ok(cred.clone());
+                        }
+                    } else if let Some(search_rp) = rp {
+                        if cred.rp.id == search_rp {
+                            return Ok(cred.clone());
+                        }
+                    } else {
+                        // Return first credential if no specific search
+                        return Ok(cred.clone());
+                    }
+                }
+
+                Err(keylib::Error::DoesNotExist)
+            },
+        );
+
+        let read_next_callback = Arc::new(|| -> Result<keylib::Credential> {
+            // For simplicity, we don't support iteration in tests
+            Err(keylib::Error::DoesNotExist)
+        });
+
+        Callbacks::new(
+            Some(up_callback),
+            Some(uv_callback),
+            None, // select
+            Some(read_callback),
+            Some(write_callback),
+            Some(delete_callback),
+            Some(read_first_callback),
+            Some(read_next_callback),
+        )
+    };
+
+    // Build callbacks - pure-rust version
+    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+    let callbacks = {
+        let creds_read = credentials.clone();
+        let creds_get = credentials.clone();
+        let creds_delete = credentials.clone();
+
+        CallbacksBuilder::new()
+            .up(Arc::new(|_, _, _| {
+                println!("[Authenticator] User presence check: approved");
+                Ok(UpResult::Accepted)
+            }))
+            .uv(Arc::new(|_, _, _| {
+                println!("[Authenticator] User verification check: approved");
+                Ok(UvResult::Accepted)
+            }))
+            .write(write_callback)
+            .read_credentials(Arc::new(move |rp_id: &str, user_id: Option<&[u8]>| {
+                let store = creds_read.lock().unwrap();
+                let filtered: Vec<Credential> = store
+                    .values()
+                    .filter(|c| {
+                        c.rp.id == rp_id
+                            && (user_id.is_none() || user_id == Some(c.user.id.as_slice()))
+                    })
+                    .cloned()
+                    .collect();
+                Ok(filtered)
+            }))
+            .get_credential(Arc::new(move |cred_id: &[u8]| {
+                let store = creds_get.lock().unwrap();
+                store
+                    .get(cred_id)
+                    .cloned()
+                    .ok_or(keylib::common::Error::DoesNotExist)
+            }))
+            .delete(Arc::new(move |cred_id: &str| {
+                let mut store = creds_delete.lock().unwrap();
+                store.remove(cred_id.as_bytes());
+                println!("[Authenticator] Deleted credential: {}", cred_id);
+                Ok(())
+            }))
+            .build()
+    };
+
+    // Configure authenticator - zig-ffi version
+    #[cfg(feature = "zig-ffi")]
+    let mut auth = {
+        let options = AuthenticatorOptions::new()
+            .with_resident_keys(true)
+            .with_user_presence(true)
+            .with_user_verification(Some(true)) // UV capable and configured
+            .with_client_pin(Some(use_pin)) // PIN capability based on use_pin
+            .with_credential_management(Some(true));
+
+        let config = AuthenticatorConfig::builder()
+            .aaguid([
+                0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d, 0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29,
+                0x7c, 0x88,
+            ])
+            .commands(vec![
+                CtapCommand::MakeCredential,
+                CtapCommand::GetAssertion,
+                CtapCommand::GetInfo,
+                CtapCommand::ClientPin,
+                CtapCommand::CredentialManagement,
+                CtapCommand::Selection,
+            ])
+            .options(options)
+            .max_credentials(25)
+            .extensions(vec!["credProtect".to_string()])
+            .build();
+
+        Authenticator::with_config(callbacks, config)?
+    };
+
+    // Configure authenticator - pure-rust version
+    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+    let mut auth = {
+        let config = AuthenticatorConfig::builder()
+            .aaguid([
+                0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d, 0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29,
+                0x7c, 0x88,
+            ])
+            .max_credentials(25)
+            .extensions(vec!["credProtect".to_string()])
+            .build();
+
+        Authenticator::with_config(callbacks, config)?
+    };
 
     // Open UHID device
+    #[cfg(feature = "zig-ffi")]
     let uhid = Uhid::open().map_err(|_| {
         eprintln!("Failed to open UHID device.");
         eprintln!("Make sure you have the uhid kernel module loaded and proper permissions.");
         keylib::Error::Other
     })?;
 
-    // Create CTAP HID layer
-    let mut ctaphid = Ctaphid::new()?;
-    let mut response_buffer = Vec::new(); // Reusable response buffer
+    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+    let uhid = Uhid::open().map_err(|_| {
+        eprintln!("Failed to open UHID device.");
+        eprintln!("Make sure you have the uhid kernel module loaded and proper permissions.");
+        keylib::common::Error::Other
+    })?;
 
     println!("[Authenticator] Started and ready");
 
-    // Main authenticator loop
-    let mut buffer = [0u8; 64];
-    loop {
-        // Check stop flag
-        if let Ok(flag) = stop_flag.lock()
-            && *flag
-        {
-            println!("[Authenticator] Stopping");
-            break;
-        }
+    // Main authenticator loop - zig-ffi version
+    #[cfg(feature = "zig-ffi")]
+    {
+        // Create CTAP HID layer
+        let mut ctaphid = Ctaphid::new()?;
+        let mut response_buffer = Vec::new(); // Reusable response buffer
 
-        // Read packet with timeout
-        match uhid.read_packet(&mut buffer) {
-            Ok(len) if len > 0 => {
-                // Process incoming CTAP HID packet
-                if let Some(mut response) = ctaphid.handle(&buffer) {
-                    match response.command() {
-                        keylib::ctaphid::Cmd::Cbor => {
-                            // Process CBOR command through authenticator
-                            match auth.handle(response.data(), &mut response_buffer) {
-                                Ok(_) => {
-                                    if let Err(e) = response.set_data(&response_buffer) {
-                                        eprintln!(
-                                            "[Authenticator] Failed to set response data: {:?}",
-                                            e
-                                        );
+        let mut buffer = [0u8; 64];
+        loop {
+            // Check stop flag
+            if let Ok(flag) = stop_flag.lock()
+                && *flag
+            {
+                println!("[Authenticator] Stopping");
+                break;
+            }
+
+            // Read packet with timeout
+            match uhid.read_packet(&mut buffer) {
+                Ok(len) if len > 0 => {
+                    // Process incoming CTAP HID packet
+                    if let Some(mut response) = ctaphid.handle(&buffer) {
+                        match response.command() {
+                            keylib::ctaphid::Cmd::Cbor => {
+                                // Process CBOR command through authenticator
+                                match auth.handle(response.data(), &mut response_buffer) {
+                                    Ok(_) => {
+                                        if let Err(e) = response.set_data(&response_buffer) {
+                                            eprintln!(
+                                                "[Authenticator] Failed to set response data: {:?}",
+                                                e
+                                            );
+                                            continue;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("[Authenticator] Handler error: {:?}", e);
                                         continue;
                                     }
                                 }
-                                Err(e) => {
-                                    eprintln!("[Authenticator] Handler error: {:?}", e);
-                                    continue;
-                                }
+                            }
+                            _ => {
+                                // Other commands handled automatically by CTAPHID
                             }
                         }
-                        _ => {
-                            // Other commands handled automatically by CTAPHID
-                        }
-                    }
 
-                    // Send response packets back
-                    for packet in response.packets() {
-                        if let Err(e) = uhid.write_packet(&packet) {
-                            eprintln!("[Authenticator] Failed to write response: {:?}", e);
+                        // Send response packets back
+                        for packet in response.packets() {
+                            if let Err(e) = uhid.write_packet(&packet) {
+                                eprintln!("[Authenticator] Failed to write response: {:?}", e);
+                            }
                         }
                     }
                 }
-            }
-            Ok(_) => {
-                // No data, sleep briefly
-                thread::sleep(Duration::from_millis(10));
-            }
-            Err(_) => {
-                // Read error, sleep and retry
-                thread::sleep(Duration::from_millis(10));
+                Ok(_) => {
+                    // No data, sleep briefly
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(_) => {
+                    // Read error, sleep and retry
+                    thread::sleep(Duration::from_millis(10));
+                }
             }
         }
+    }
+
+    // Main authenticator loop - pure-rust version
+    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+    {
+        // CTAP HID state
+        let mut current_channel: u32 = 0xffffffff; // Broadcast channel
+        let mut pending_packets: Vec<Packet> = Vec::new();
+        let mut response_buffer = Vec::new();
+
+        let mut buffer = [0u8; 64];
+        loop {
+            // Check stop flag
+            if *stop_flag.lock().unwrap() {
+                println!("[Authenticator] Stopping");
+                break;
+            }
+
+            // Read packet with timeout
+            match uhid.read_packet(&mut buffer) {
+                Ok(len) if len > 0 => {
+                    let packet = Packet::from_bytes(buffer);
+
+                    // Handle initialization packets
+                    if packet.is_init() {
+                        // New message starting
+                        current_channel = packet.cid();
+                        pending_packets.clear();
+                        pending_packets.push(packet);
+
+                        // Check if this is a complete message
+                        if let Some(payload_len) = pending_packets[0].payload_len() {
+                            let init_data_len = pending_packets[0].payload().len();
+                            if init_data_len >= payload_len as usize {
+                                // Complete message in one packet
+                                if let Err(_e) = process_message_pure_rust(
+                                    &mut auth,
+                                    &uhid,
+                                    &pending_packets,
+                                    &mut response_buffer,
+                                ) {
+                                }
+                                pending_packets.clear();
+                            }
+                        }
+                    } else {
+                        // Continuation packet
+                        if packet.cid() == current_channel {
+                            pending_packets.push(packet);
+
+                            // Check if we have the complete message
+                            if let Some(first) = pending_packets.first() {
+                                if let Some(total_len) = first.payload_len() {
+                                    let mut received_len = first.payload().len();
+                                    for pkt in &pending_packets[1..] {
+                                        received_len += pkt.payload().len();
+                                    }
+
+                                    if received_len >= total_len as usize {
+                                        // Complete message received
+                                        if let Err(_e) = process_message_pure_rust(
+                                            &mut auth,
+                                            &uhid,
+                                            &pending_packets,
+                                            &mut response_buffer,
+                                        ) {
+                                        }
+                                        pending_packets.clear();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(_) => {
+                    // No data, sleep briefly
+                    thread::sleep(Duration::from_millis(1));
+                }
+                Err(_) => {
+                    thread::sleep(Duration::from_millis(10));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Process a complete CTAP HID message (pure-rust)
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+fn process_message_pure_rust(
+    auth: &mut Authenticator,
+    uhid: &Uhid,
+    packets: &[Packet],
+    response_buffer: &mut Vec<u8>,
+) -> Result<()> {
+    // Reassemble message
+    let message =
+        Message::from_packets(packets).map_err(|_e| keylib::common::Error::Other)?;
+
+    let cid = message.cid;
+    let cmd = message.cmd;
+
+    // Handle CTAP commands
+    match cmd {
+        Cmd::Cbor => {
+            // CTAP CBOR command - process through authenticator
+            response_buffer.clear();
+            match auth.handle(&message.data, response_buffer) {
+                Ok(_) => {
+                    // Send success response
+                    let response_msg = Message::new(cid, Cmd::Cbor, response_buffer.clone());
+                    send_message_pure_rust(uhid, &response_msg)?;
+                }
+                Err(_e) => {
+                    // Send error response
+                    let response_msg = Message::new(cid, Cmd::Cbor, vec![0x01]); // CTAP2_ERR_INVALID_CBOR
+                    send_message_pure_rust(uhid, &response_msg)?;
+                }
+            }
+        }
+        Cmd::Init => {
+            // CTAP HID INIT - return nonce + channel ID
+            if message.data.len() >= 8 {
+                let mut response_data = message.data[..8].to_vec(); // Echo nonce
+                response_data.extend_from_slice(&cid.to_be_bytes()); // Channel ID
+                response_data.push(2); // CTAP protocol version
+                response_data.push(0); // Major device version
+                response_data.push(0); // Minor device version
+                response_data.push(0); // Build device version
+                response_data.push(0x01); // Capabilities: CBOR
+
+                let response_msg = Message::new(cid, Cmd::Init, response_data);
+                send_message_pure_rust(uhid, &response_msg)?;
+            }
+        }
+        Cmd::Ping => {
+            // Echo ping data
+            let response_msg = Message::new(cid, Cmd::Ping, message.data);
+            send_message_pure_rust(uhid, &response_msg)?;
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
+/// Send a CTAP HID message via UHID (pure-rust)
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+fn send_message_pure_rust(uhid: &Uhid, message: &Message) -> Result<()> {
+    let packets = message
+        .to_packets()
+        .map_err(|_e| keylib::common::Error::Other)?;
+
+    for packet in packets.iter() {
+        uhid.write_packet(packet.as_bytes())?;
     }
 
     Ok(())

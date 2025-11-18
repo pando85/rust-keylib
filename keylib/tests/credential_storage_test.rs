@@ -6,7 +6,13 @@
 //! This tests the full cycle: create credential -> store -> retrieve -> authenticate
 //! Works with both zig-ffi and pure-rust implementations
 
-use keylib::{Credential, Extensions, RelyingParty, Result, User};
+#[cfg(feature = "zig-ffi")]
+use keylib::credential::{Credential, Extensions, RelyingParty, User};
+
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+use keylib::{Credential, Extensions, RelyingParty, User};
+
+use keylib::Result;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
