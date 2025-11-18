@@ -78,8 +78,12 @@ pub use rust_impl::transport::{Transport, TransportList};
 #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi"), target_os = "linux"))]
 pub use rust_impl::uhid::Uhid;
 
-// Re-export common types (always available)
+// Re-export common types that are always needed (not exported by zig-ffi)
 pub use common::{
-    ClientDataHash, Credential, CredentialRef, Error, Extensions, GetAssertionRequest,
-    MakeCredentialRequest, PinUvAuth, PinUvAuthProtocol, RelyingParty, Result, User,
+    ClientDataHash, Extensions, GetAssertionRequest, MakeCredentialRequest, PinUvAuth,
+    PinUvAuthProtocol, RelyingParty, User,
 };
+
+// Re-export common types that conflict with zig-ffi exports (only when zig-ffi is disabled)
+#[cfg(not(feature = "zig-ffi"))]
+pub use common::{Credential, CredentialRef, Error, Result};
