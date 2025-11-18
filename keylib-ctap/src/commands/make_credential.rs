@@ -139,7 +139,7 @@ pub fn handle<C: AuthenticatorCallbacks>(
     eprintln!("[DEBUG][makeCredential] ✓ rp.id: {:?}", rp.id);
 
     eprintln!("[DEBUG][makeCredential] Parsing user (key 0x03)...");
-    let user: User = parser.get(req_keys::USER).map_err(|e| {
+    let user = parse_user(&parser, req_keys::USER).map_err(|e| {
         eprintln!("[DEBUG][makeCredential] ✗ Failed to parse user: {:?}", e);
         e
     })?;
@@ -324,6 +324,56 @@ pub fn handle<C: AuthenticatorCallbacks>(
         .insert(resp_keys::AUTH_DATA, auth_data)?
         .insert(resp_keys::ATT_STMT, att_stmt)?
         .build()
+}
+
+/// Parse user object from the request
+///
+/// User object is a CBOR map with text keys containing:
+/// - "id" (required): CBOR Bytes
+/// - "name" (optional): CBOR Text
+/// - "displayName" (optional): CBOR Text
+fn parse_user(parser: &MapParser, key: i32) -> Result<User> {
+    let user_value: ciborium::Value = parser.get(key)?;
+
+    let user_map = match user_value {
+        ciborium::Value::Map(map) => map,
+        _ => return Err(StatusCode::InvalidCbor),
+    };
+
+    let mut user_id: Option<Vec<u8>> = None;
+    let mut user_name: Option<String> = None;
+    let mut user_display_name: Option<String> = None;
+
+    for (k, v) in user_map {
+        if let ciborium::Value::Text(key_str) = k {
+            match key_str.as_str() {
+                "id" => {
+                    if let ciborium::Value::Bytes(bytes) = v {
+                        user_id = Some(bytes);
+                    }
+                }
+                "name" => {
+                    if let ciborium::Value::Text(text) = v {
+                        user_name = Some(text);
+                    }
+                }
+                "displayName" => {
+                    if let ciborium::Value::Text(text) = v {
+                        user_display_name = Some(text);
+                    }
+                }
+                _ => {} // Ignore unknown fields
+            }
+        }
+    }
+
+    let id = user_id.ok_or(StatusCode::MissingParameter)?;
+
+    Ok(User {
+        id,
+        name: user_name,
+        display_name: user_display_name,
+    })
 }
 
 /// Parse options from the request
