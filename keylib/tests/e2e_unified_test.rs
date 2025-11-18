@@ -56,7 +56,7 @@ use keylib::{
 
 #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
 use keylib::rust_impl::{
-    authenticator_options::AuthenticatorOptions, callbacks::Callbacks,
+    authenticator::Callbacks, authenticator_options::AuthenticatorOptions,
     ctap_command::CtapCommand, transport::TransportList,
 };
 
@@ -578,6 +578,14 @@ fn test_unified_webauthn_flow() -> Result<()> {
         name: Some("Test Relying Party".to_string()),
     };
 
+    #[cfg(feature = "zig-ffi")]
+    let user = User {
+        id: TEST_USER_ID.to_vec(),
+        name: TEST_USER_NAME.to_string(),
+        display_name: Some(TEST_USER_DISPLAY_NAME.to_string()),
+    };
+
+    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
     let user = User {
         id: TEST_USER_ID.to_vec(),
         name: Some(TEST_USER_NAME.to_string()),
