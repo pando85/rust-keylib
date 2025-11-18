@@ -364,6 +364,18 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
         }
     }
 
+    /// Get stored PIN hash (for PIN protocol operations)
+    ///
+    /// Returns the full 32-byte SHA-256 hash of the PIN, if set.
+    pub(crate) fn pin_hash(&self) -> Option<[u8; 32]> {
+        self.pin_hash
+    }
+
+    /// Decrement PIN retry counter (for failed PIN attempts)
+    pub(crate) fn decrement_pin_retries(&mut self) {
+        self.pin_retries = self.pin_retries.saturating_sub(1);
+    }
+
     /// Get PIN token with permissions
     ///
     /// # Arguments

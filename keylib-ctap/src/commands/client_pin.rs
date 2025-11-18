@@ -70,6 +70,7 @@ pub fn handle<C: AuthenticatorCallbacks>(
         0x03 => handle_set_pin(auth, &parser),
         0x04 => handle_change_pin(auth, &parser),
         0x05 => handle_get_pin_token(auth, &parser),
+        0x09 => handle_get_pin_uv_auth_token_using_pin_with_permissions(auth, &parser),
         _ => Err(StatusCode::InvalidSubcommand),
     }
 }
@@ -339,6 +340,87 @@ fn handle_get_pin_token<C: AuthenticatorCallbacks>(
     use rand::RngCore;
     let mut token = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut token);
+
+    // Encrypt the token
+    let encrypted_token = match protocol {
+        1 => keylib_crypto::pin_protocol::v1::encrypt(&enc_key, &token)?,
+        2 => keylib_crypto::pin_protocol::v2::encrypt(&enc_key, &token)?,
+        _ => return Err(StatusCode::InvalidParameter),
+    };
+
+    MapBuilder::new()
+        .insert(resp_keys::PIN_UV_AUTH_TOKEN, encrypted_token)?
+        .build()
+}
+
+/// Handle getPinUvAuthTokenUsingPinWithPermissions subcommand (CTAP 2.1)
+///
+/// This is the CTAP 2.1 version that adds permissions and rpId support.
+fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallbacks>(
+    auth: &mut Authenticator<C>,
+    parser: &MapParser,
+) -> Result<Vec<u8>> {
+    if !auth.is_pin_set() {
+        return Err(StatusCode::PinNotSet);
+    }
+
+    let protocol: u8 = parser.get(req_keys::PIN_UV_AUTH_PROTOCOL)?;
+    let pin_hash_enc: Vec<u8> = parser.get(req_keys::PIN_HASH_ENC)?;
+    let permissions: u8 = parser.get(req_keys::PERMISSIONS)?;
+    let rp_id: Option<String> = parser.get_opt(req_keys::RP_ID)?;
+
+    // Get platform's key agreement key
+    let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
+    let platform_public_key = parse_cose_key(&key_agreement)?;
+
+    // Get stored keypair for this protocol
+    let keypair = auth
+        .get_pin_protocol_keypair(protocol)
+        .ok_or(StatusCode::PinAuthInvalid)?;
+
+    // Compute shared secret
+    let shared_secret = keypair.shared_secret(&platform_public_key)?;
+
+    // Derive keys based on protocol version
+    let (enc_key, _hmac_key) = match protocol {
+        1 => keylib_crypto::pin_protocol::v1::derive_keys(&shared_secret),
+        2 => {
+            let enc = keylib_crypto::pin_protocol::v2::derive_encryption_key(&shared_secret);
+            let hmac = keylib_crypto::pin_protocol::v2::derive_hmac_key(&shared_secret);
+            (enc, hmac)
+        }
+        _ => return Err(StatusCode::InvalidParameter),
+    };
+
+    // Decrypt PIN hash (first 16 bytes of SHA-256(PIN))
+    let decrypted_pin_hash = match protocol {
+        1 => keylib_crypto::pin_protocol::v1::decrypt(&enc_key, &pin_hash_enc)?,
+        2 => keylib_crypto::pin_protocol::v2::decrypt(&enc_key, &pin_hash_enc)?,
+        _ => return Err(StatusCode::InvalidParameter),
+    };
+
+    if decrypted_pin_hash.len() < 16 {
+        return Err(StatusCode::PinAuthInvalid);
+    }
+
+    // Verify PIN hash by comparing first 16 bytes with stored PIN hash
+    if let Some(stored_pin_hash) = auth.pin_hash() {
+        use subtle::ConstantTimeEq;
+        let is_valid: bool = stored_pin_hash[..16].ct_eq(&decrypted_pin_hash[..16]).into();
+        if !is_valid {
+            // Decrement retry counter
+            auth.decrement_pin_retries();
+            if auth.is_pin_blocked() {
+                return Err(StatusCode::PinBlocked);
+            }
+            return Err(StatusCode::PinInvalid);
+        }
+    } else {
+        return Err(StatusCode::PinNotSet);
+    }
+
+    // PIN verified - get PIN token with permissions
+    let token = auth.get_pin_token("", permissions, rp_id)?;
 
     // Encrypt the token
     let encrypted_token = match protocol {
