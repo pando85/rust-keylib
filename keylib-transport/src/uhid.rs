@@ -119,13 +119,16 @@ struct UhidInput2 {
     data: [u8; 4096],
 }
 
+// Note: The kernel uhid_input2_req structure has the size field first,
+// then data. This matches our definition.
+
 /// UHID OUTPUT event (device -> host)
 #[repr(C, packed)]
 struct UhidOutput {
     event_type: u32,
-    data: [u8; 4096],
-    size: u16,
     rtype: u8,
+    size: u16,
+    data: [u8; 4096],
 }
 
 /// UHID generic event header
