@@ -142,7 +142,6 @@ impl Transport {
                     .read_packet_timeout(timeout_ms)
                     .map_err(|e| Error::IoError(e.to_string()))? {
                     Some(packet) => {
-                                 packet.cid(), packet.cmd());
                         let packet_bytes = packet.as_bytes();
                         let len = packet_bytes.len().min(buffer.len());
                         buffer[..len].copy_from_slice(&packet_bytes[..len]);

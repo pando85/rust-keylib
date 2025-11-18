@@ -169,7 +169,6 @@ impl TestAuthenticator {
             match uhid.read_packet(&mut buffer) {
                 Ok(len) if len > 0 => {
                     let packet = Packet::from_bytes(buffer);
-                             packet.cid(), packet.cmd(), len);
 
                     // Handle initialization packets
                     if packet.is_init() {

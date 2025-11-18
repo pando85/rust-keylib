@@ -103,7 +103,6 @@ impl UsbTransport {
     ///
     /// The packet must be exactly 64 bytes as per CTAP HID spec.
     pub fn write_packet(&self, packet: &Packet) -> Result<()> {
-                 packet.cid(), packet.cmd());
         let data = packet.as_bytes();
         let written = self
             .device
@@ -171,7 +170,6 @@ impl UsbTransport {
         }
 
         let packet = Packet::from_slice(&buf)?;
-                 packet.cid(), packet.cmd());
         Ok(Some(packet))
     }
 
