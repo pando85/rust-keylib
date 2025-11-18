@@ -29,22 +29,15 @@ impl Uhid {
 
     /// Read a 64-byte HID packet
     ///
-    /// Returns the number of bytes read.
-    /// Blocks waiting for a packet if none is available.
+    /// Returns the number of bytes read (0 if no data available).
+    /// Non-blocking: returns immediately if no packet is available.
     pub fn read_packet(&self, out: &mut [u8; 64]) -> Result<usize> {
-        // Loop until we get a packet (blocking read)
-        loop {
-            match self.device.read_packet(out) {
-                Ok(Some(len)) => return Ok(len),
-                Ok(None) => {
-                    // No packet available, sleep briefly and try again
-                    std::thread::sleep(std::time::Duration::from_millis(1));
-                    continue;
-                }
-                Err(e) => {
-                    eprintln!("UHID read error: {:?}", e);
-                    return Err(Error::Other);
-                }
+        match self.device.read_packet(out) {
+            Ok(Some(len)) => Ok(len),
+            Ok(None) => Ok(0), // No packet available
+            Err(e) => {
+                eprintln!("UHID read error: {:?}", e);
+                Err(Error::Other)
             }
         }
     }

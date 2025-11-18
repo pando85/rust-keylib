@@ -149,17 +149,11 @@ pub struct UhidDevice {
 impl UhidDevice {
     /// Open the UHID device at `/dev/uhid`
     pub fn open() -> Result<Self> {
-        eprintln!("[UHID DEBUG] Opening /dev/uhid...");
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .open("/dev/uhid")
-            .map_err(|e| {
-                eprintln!("[UHID DEBUG] Failed to open /dev/uhid: {}", e);
-                Error::Other(format!("Failed to open /dev/uhid: {}", e))
-            })?;
-
-        eprintln!("[UHID DEBUG] Successfully opened /dev/uhid, fd={}", file.as_raw_fd());
+            .map_err(|e| Error::Other(format!("Failed to open /dev/uhid: {}", e)))?;
 
         Ok(Self {
             file,
@@ -240,18 +234,13 @@ impl UhidDevice {
             )
         };
 
-        eprintln!("[UHID DEBUG] Sending CREATE2 event ({} bytes)...", event_bytes.len());
-        eprintln!("[UHID DEBUG] Device name: {}", name);
-        eprintln!("[UHID DEBUG] Vendor: 0x{:04x}, Product: 0x{:04x}", vendor, product);
 
         self.file
             .write_all(event_bytes)
             .map_err(|e| {
-                eprintln!("[UHID DEBUG] Failed to write CREATE2 event: {}", e);
                 Error::Other(format!("Failed to create UHID device: {}", e))
             })?;
 
-        eprintln!("[UHID DEBUG] CREATE2 event sent successfully, waiting for device ready event...");
 
         // Wait for OPEN or START event indicating device is ready
         self.wait_for_start()?;
@@ -268,30 +257,24 @@ impl UhidDevice {
     fn wait_for_start(&mut self) -> Result<()> {
         let mut buffer = vec![0u8; 4096];
 
-        eprintln!("[UHID DEBUG] Waiting for OPEN or START event (timeout: 5s)...");
 
         // Try to read events with a timeout
         for i in 0..50 {
             // 5 second timeout (50 * 100ms)
             if i > 0 && i % 10 == 0 {
-                eprintln!("[UHID DEBUG] Still waiting for device ready event... ({:.1}s elapsed)", i as f32 * 0.1);
             }
 
             match self.read_event(&mut buffer) {
                 Ok(Some(UHID_OPEN)) => {
-                    eprintln!("[UHID DEBUG] ✓ Received OPEN event (device ready)!");
                     self.started = true;
                     return Ok(());
                 }
                 Ok(Some(UHID_START)) => {
-                    eprintln!("[UHID DEBUG] ✓ Received START event (device ready)!");
                     self.started = true;
                     return Ok(());
                 }
-                Ok(Some(event_type)) => {
+                Ok(Some(_event_type)) => {
                     // Other event, continue waiting
-                    eprintln!("[UHID DEBUG] Received event type: {} (waiting for OPEN={} or START={})",
-                             event_type, UHID_OPEN, UHID_START);
                     continue;
                 }
                 Ok(None) => {
@@ -300,13 +283,11 @@ impl UhidDevice {
                     continue;
                 }
                 Err(e) => {
-                    eprintln!("[UHID DEBUG] Error reading event: {:?}", e);
                     return Err(e);
                 }
             }
         }
 
-        eprintln!("[UHID DEBUG] ✗ Timeout waiting for device ready event after 5s");
         Err(Error::Timeout)
     }
 
@@ -318,11 +299,9 @@ impl UhidDevice {
         match self.file.read(buffer) {
             Ok(n) if n >= 4 => {
                 let event_type = u32::from_ne_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
-                eprintln!("[UHID DEBUG] read_event: Read {} bytes, event_type={}", n, event_type);
                 Ok(Some(event_type))
             }
             Ok(n) => {
-                eprintln!("[UHID DEBUG] read_event: Read {} bytes (too short for event)", n);
                 Ok(None)
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -330,7 +309,6 @@ impl UhidDevice {
                 Ok(None)
             }
             Err(e) => {
-                eprintln!("[UHID DEBUG] read_event: Error reading: {}", e);
                 Err(Error::Other(format!("Failed to read UHID event: {}", e)))
             }
         }
@@ -341,7 +319,6 @@ impl UhidDevice {
         let fd = self.file.as_raw_fd();
         let flags = nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_GETFL)
             .map_err(|e| {
-                eprintln!("[UHID DEBUG] Failed to get file flags: {}", e);
                 Error::Other(format!("Failed to get file flags: {}", e))
             })?;
 
@@ -354,7 +331,6 @@ impl UhidDevice {
 
         nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_SETFL(flags))
             .map_err(|e| {
-                eprintln!("[UHID DEBUG] Failed to set file flags to nonblocking={}: {}", nonblocking, e);
                 Error::Other(format!("Failed to set file flags: {}", e))
             })?;
         Ok(())
@@ -381,20 +357,15 @@ impl UhidDevice {
                 let event_type =
                     u32::from_ne_bytes([event_buffer[0], event_buffer[1], event_buffer[2], event_buffer[3]]);
 
-                eprintln!("[UHID read_packet] Received UHID event: type={}, size={}", event_type, n);
 
                 match event_type {
                     UHID_OUTPUT => {
-                        eprintln!("[UHID read_packet] UHID_OUTPUT event");
-                        eprintln!("[UHID DEBUG] sizeof(UhidOutput)={}, received bytes={}",
-                                 std::mem::size_of::<UhidOutput>(), n);
                         // Parse OUTPUT event
                         if n >= std::mem::size_of::<UhidOutput>() {
                             let output = unsafe {
                                 &*(event_buffer.as_ptr() as *const UhidOutput)
                             };
                             let size = output.size as usize;
-                            eprintln!("[UHID read_packet] OUTPUT payload size: {}", size);
                             if size <= 64 {
                                 buffer[..size].copy_from_slice(&output.data[..size]);
                                 return Ok(Some(size));
@@ -403,7 +374,6 @@ impl UhidDevice {
                         Ok(None)
                     }
                     _ => {
-                        eprintln!("[UHID read_packet] Skipping non-OUTPUT event: {}", event_type);
                         // Other event types, skip
                         Ok(None)
                     }

@@ -103,18 +103,15 @@ impl UsbTransport {
     ///
     /// The packet must be exactly 64 bytes as per CTAP HID spec.
     pub fn write_packet(&self, packet: &Packet) -> Result<()> {
-        eprintln!("[UsbTransport] write_packet: cid=0x{:08x}, cmd={:?}",
                  packet.cid(), packet.cmd());
         let data = packet.as_bytes();
         let written = self
             .device
             .write(data)
             .map_err(|e| {
-                eprintln!("[UsbTransport] write failed: {}", e);
                 Error::IoError(format!("Failed to write packet: {}", e))
             })?;
 
-        eprintln!("[UsbTransport] Wrote {} bytes via hidapi", written);
 
         if written != data.len() {
             return Err(Error::IoError(format!(
@@ -152,20 +149,16 @@ impl UsbTransport {
     ///
     /// Returns None if timeout expires, Some(Packet) if data received.
     pub fn read_packet_timeout(&self, timeout_ms: i32) -> Result<Option<Packet>> {
-        eprintln!("[UsbTransport] read_packet_timeout: timeout={}ms", timeout_ms);
         let mut buf = [0u8; 64];
         let read = self
             .device
             .read_timeout(&mut buf, timeout_ms)
             .map_err(|e| {
-                eprintln!("[UsbTransport] read_timeout failed: {}", e);
                 Error::IoError(format!("Failed to read packet: {}", e))
             })?;
 
-        eprintln!("[UsbTransport] Read {} bytes via hidapi", read);
 
         if read == 0 {
-            eprintln!("[UsbTransport] Timeout - no data received");
             // Timeout
             return Ok(None);
         }
@@ -178,7 +171,6 @@ impl UsbTransport {
         }
 
         let packet = Packet::from_slice(&buf)?;
-        eprintln!("[UsbTransport] Received packet: cid=0x{:08x}, cmd={:?}",
                  packet.cid(), packet.cmd());
         Ok(Some(packet))
     }

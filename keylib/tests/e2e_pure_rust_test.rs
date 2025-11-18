@@ -122,7 +122,6 @@ impl TestAuthenticator {
         // Spawn authenticator thread
         let handle = thread::spawn(move || {
             if let Err(e) = Self::run_authenticator(stop_flag_clone, callbacks, config) {
-                eprintln!("[Authenticator] Error: {:?}", e);
             }
         });
 
@@ -170,7 +169,6 @@ impl TestAuthenticator {
             match uhid.read_packet(&mut buffer) {
                 Ok(len) if len > 0 => {
                     let packet = Packet::from_bytes(buffer);
-                    eprintln!("[Authenticator] Received packet: cid=0x{:08x}, cmd={:?}, len={}",
                              packet.cid(), packet.cmd(), len);
 
                     // Handle initialization packets
@@ -188,7 +186,6 @@ impl TestAuthenticator {
                                 if let Err(e) =
                                     Self::process_message(&mut auth, &uhid, &pending_packets)
                                 {
-                                    eprintln!("[Authenticator] Error processing message: {:?}", e);
                                 }
                                 pending_packets.clear();
                             }
@@ -230,7 +227,6 @@ impl TestAuthenticator {
                     thread::sleep(Duration::from_millis(1));
                 }
                 Err(e) => {
-                    eprintln!("[Authenticator] Read error: {:?}", e);
                     thread::sleep(Duration::from_millis(10));
                 }
             }
@@ -247,14 +243,12 @@ impl TestAuthenticator {
     ) -> Result<()> {
         // Reassemble message
         let message = Message::from_packets(packets).map_err(|e| {
-            eprintln!("[Authenticator] Failed to reassemble message: {:?}", e);
             keylib::common::Error::Other
         })?;
 
         let cid = message.cid;
         let cmd = message.cmd;
 
-        eprintln!("[Authenticator] Processing message: cid=0x{:08x}, cmd={:?}, data_len={}",
                  cid, cmd, message.data.len());
 
         // Handle CTAP commands
@@ -269,7 +263,6 @@ impl TestAuthenticator {
                         Self::send_message(uhid, &response_msg)?;
                     }
                     Err(e) => {
-                        eprintln!("[Authenticator] Command error: {:?}", e);
                         // Send error response
                         let response_msg = Message::new(cid, Cmd::Cbor, vec![0x01]); // CTAP2_ERR_INVALID_CBOR
                         Self::send_message(uhid, &response_msg)?;
@@ -297,7 +290,6 @@ impl TestAuthenticator {
                 Self::send_message(uhid, &response_msg)?;
             }
             _ => {
-                eprintln!("[Authenticator] Unsupported command: {:?}", cmd);
             }
         }
 
@@ -306,21 +298,16 @@ impl TestAuthenticator {
 
     /// Send a CTAP HID message via UHID
     fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
-        eprintln!("[Authenticator] Sending response: cid=0x{:08x}, cmd={:?}, data_len={}",
                  message.cid, message.cmd, message.data.len());
 
         let packets = message.to_packets().map_err(|e| {
-            eprintln!("[Authenticator] Failed to create packets: {:?}", e);
             keylib::common::Error::Other
         })?;
 
-        eprintln!("[Authenticator] Sending {} packet(s)", packets.len());
         for (i, packet) in packets.iter().enumerate() {
-            eprintln!("[Authenticator] Writing packet {}/{}", i + 1, packets.len());
             uhid.write_packet(packet.as_bytes())?;
         }
 
-        eprintln!("[Authenticator] Response sent successfully");
         Ok(())
     }
 

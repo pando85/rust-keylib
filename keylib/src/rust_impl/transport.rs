@@ -103,7 +103,6 @@ impl Transport {
         match &*inner {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]
             TransportInner::Usb { transport, .. } => {
-                eprintln!("[Transport USB] Writing {} bytes", data.len());
                 // USB transport expects Packet, convert from raw bytes
                 if data.len() != 64 {
                     return Err(Error::Other);
@@ -111,11 +110,9 @@ impl Transport {
                 let mut buf = [0u8; 64];
                 buf.copy_from_slice(data);
                 let packet = Packet::from_slice(&buf).map_err(|e| Error::IoError(e.to_string()))?;
-                eprintln!("[Transport USB] Packet: cid=0x{:08x}, cmd={:?}", packet.cid(), packet.cmd());
                 transport
                     .write_packet(&packet)
                     .map_err(|e| Error::IoError(e.to_string()))?;
-                eprintln!("[Transport USB] Write successful");
                 Ok(())
             }
             #[cfg(all(feature = "pure-rust", target_os = "linux"))]
@@ -140,22 +137,18 @@ impl Transport {
         match &*inner {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]
             TransportInner::Usb { transport, .. } => {
-                eprintln!("[Transport USB] Reading with timeout {}ms", timeout_ms);
                 // USB transport uses packet-based API with timeout
                 match transport
                     .read_packet_timeout(timeout_ms)
                     .map_err(|e| Error::IoError(e.to_string()))? {
                     Some(packet) => {
-                        eprintln!("[Transport USB] Received packet: cid=0x{:08x}, cmd={:?}",
                                  packet.cid(), packet.cmd());
                         let packet_bytes = packet.as_bytes();
                         let len = packet_bytes.len().min(buffer.len());
                         buffer[..len].copy_from_slice(&packet_bytes[..len]);
-                        eprintln!("[Transport USB] Read {} bytes", len);
                         Ok(len)
                     }
                     None => {
-                        eprintln!("[Transport USB] Read timeout");
                         // Timeout
                         Ok(0)
                     }
