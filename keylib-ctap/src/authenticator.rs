@@ -349,7 +349,7 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
 
         // Compare using constant-time comparison
         use subtle::ConstantTimeEq;
-        if pin_hash.ct_eq(hash.as_slice()).into() {
+        if pin_hash.ct_eq(&hash[..]).into() {
             // PIN correct - reset retry counter
             self.pin_retries = MAX_PIN_RETRIES;
             Ok(())

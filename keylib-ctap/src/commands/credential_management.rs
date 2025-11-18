@@ -18,6 +18,7 @@ use crate::types::User;
 /// Credential Management subcommand codes
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 enum SubCommand {
     GetCredsMetadata = 0x01,
     EnumerateRPsBegin = 0x02,
@@ -37,6 +38,7 @@ mod req_keys {
 }
 
 /// Response keys
+#[allow(dead_code)]
 mod resp_keys {
     pub const EXISTING_RESIDENT_CREDENTIALS_COUNT: i32 = 0x01;
     pub const MAX_POSSIBLE_REMAINING_RESIDENTIAL_CREDENTIALS_COUNT: i32 = 0x02;

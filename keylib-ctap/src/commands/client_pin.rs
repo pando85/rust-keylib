@@ -17,6 +17,7 @@ use crate::status::{Result, StatusCode};
 /// ClientPIN subcommand codes
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 enum SubCommand {
     GetPinRetries = 0x01,
     GetKeyAgreement = 0x02,
@@ -29,6 +30,7 @@ enum SubCommand {
 }
 
 /// Request keys
+#[allow(dead_code)]
 mod req_keys {
     pub const PIN_UV_AUTH_PROTOCOL: i32 = 0x01;
     pub const SUBCOMMAND: i32 = 0x02;
@@ -41,6 +43,7 @@ mod req_keys {
 }
 
 /// Response keys
+#[allow(dead_code)]
 mod resp_keys {
     pub const KEY_AGREEMENT: i32 = 0x01;
     pub const PIN_UV_AUTH_TOKEN: i32 = 0x02;

@@ -21,16 +21,20 @@ pub struct Transport {
     inner: Arc<Mutex<TransportInner>>,
 }
 
+#[allow(dead_code)]
 enum TransportInner {
     #[cfg(all(feature = "pure-rust", feature = "usb"))]
     Usb {
         transport: RawUsbTransport,
+        #[allow(dead_code)]
         channel_manager: ChannelManager,
     },
     #[cfg(all(feature = "pure-rust", target_os = "linux"))]
     Uhid {
         device: UhidDevice,
+        #[allow(dead_code)]
         channel_manager: ChannelManager,
+        #[allow(dead_code)]
         opened: bool,
     },
 }
@@ -47,6 +51,7 @@ impl Transport {
     }
 
     #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+    #[allow(dead_code)]
     fn from_uhid(device: UhidDevice) -> Self {
         Self {
             inner: Arc::new(Mutex::new(TransportInner::Uhid {
@@ -179,11 +184,19 @@ impl Transport {
     /// Send a CTAP command and receive response
     ///
     /// This handles CTAP HID framing automatically.
+    ///
+    /// # Arguments
+    /// * `cmd` - CTAP authenticator command (0x01=makeCredential, 0x02=getAssertion, 0x04=getInfo, etc.)
+    /// * `data` - CBOR-encoded command parameters
     pub fn send_ctap_command(&mut self, cmd: u8, data: &[u8]) -> Result<Vec<u8>> {
         use keylib_transport::Cmd;
 
-        // Convert u8 to Cmd enum
-        let cmd_enum = Cmd::from_u8(cmd).ok_or(Error::Other)?;
+        // CTAP authenticator commands are sent via CTAP HID Cbor (0x10) command
+        // Payload format: [ctap_cmd, ...cbor_data]
+        let mut payload = vec![cmd];
+        payload.extend_from_slice(data);
+
+        let cmd_enum = Cmd::Cbor;
 
         // Get or allocate channel
         let mut inner = self.inner.lock().unwrap();
@@ -210,7 +223,7 @@ impl Transport {
         };
 
         // Build CTAP HID message
-        let message = Message::new(channel_id, cmd_enum, data.to_vec());
+        let message = Message::new(channel_id, cmd_enum, payload);
 
         // Fragment into packets
         let packets = message.to_packets().map_err(|_| Error::Other)?;

@@ -16,6 +16,7 @@ use crate::status::Result;
 use serde::Serialize;
 
 /// GetInfo response keys
+#[allow(dead_code)]
 mod keys {
     pub const VERSIONS: i32 = 0x01;
     pub const EXTENSIONS: i32 = 0x02;

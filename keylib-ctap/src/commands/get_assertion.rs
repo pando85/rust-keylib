@@ -26,6 +26,7 @@ mod req_keys {
 }
 
 /// GetAssertion response keys
+#[allow(dead_code)]
 mod resp_keys {
     pub const CREDENTIAL: i32 = 0x01;
     pub const AUTH_DATA: i32 = 0x02;

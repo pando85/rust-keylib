@@ -15,6 +15,7 @@ use keylib_crypto::ecdsa;
 use sha2::{Digest, Sha256};
 
 /// MakeCredential request parameter keys
+#[allow(dead_code)]
 mod req_keys {
     pub const CLIENT_DATA_HASH: i32 = 0x01;
     pub const RP: i32 = 0x02;
@@ -29,6 +30,7 @@ mod req_keys {
 }
 
 /// MakeCredential response keys
+#[allow(dead_code)]
 mod resp_keys {
     pub const FMT: i32 = 0x01;
     pub const AUTH_DATA: i32 = 0x02;
