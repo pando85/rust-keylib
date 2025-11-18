@@ -1,5 +1,8 @@
 #![warn(unused_extern_crates)]
 
+// Common types shared between implementations (always available)
+pub mod common;
+
 // Zig FFI modules (legacy, available with "zig-ffi" feature - enabled by default)
 #[cfg(feature = "zig-ffi")]
 mod authenticator;
