@@ -21,6 +21,7 @@ use keylib::rust_impl::client::Client;
 use keylib::rust_impl::client_pin::{PinProtocol, PinUvAuthEncapsulation};
 use keylib::rust_impl::transport::TransportList;
 use sha2::{Digest, Sha256};
+use base64::Engine;
 
 const PIN: &str = "123456";
 const RP_ID: &str = "example.com";

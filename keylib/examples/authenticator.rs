@@ -174,7 +174,14 @@ fn main() -> Result<()> {
     loop {
         match uhid.read_packet(&mut buffer) {
             Ok(len) if len > 0 => {
+                println!("[UHID] Received {} bytes", len);
                 let packet = Packet::from_bytes(buffer);
+                println!(
+                    "[UHID] Packet: CID=0x{:08x}, Type={}, Payload={} bytes",
+                    packet.cid(),
+                    if packet.is_init() { "INIT" } else { "CONT" },
+                    packet.payload().len()
+                );
 
                 // Handle initialization packets
                 if packet.is_init() {
@@ -182,9 +189,15 @@ fn main() -> Result<()> {
                     pending_packets.clear();
                     pending_packets.push(packet);
 
+                    println!("[CTAP] New message on channel 0x{:08x}", current_channel);
+
                     // Check if this is a complete message
                     if let Some(payload_len) = pending_packets[0].payload_len() {
                         let init_data_len = pending_packets[0].payload().len();
+                        println!(
+                            "[CTAP] Single-packet message: {} bytes (expected {})",
+                            init_data_len, payload_len
+                        );
                         if init_data_len >= payload_len as usize {
                             let _ = process_message(
                                 &mut auth,
@@ -199,6 +212,10 @@ fn main() -> Result<()> {
                     // Continuation packet
                     if packet.cid() == current_channel {
                         pending_packets.push(packet);
+                        println!(
+                            "[CTAP] Continuation packet {} received",
+                            pending_packets.len() - 1
+                        );
 
                         // Check if we have the complete message
                         if let Some(first) = pending_packets.first() {
@@ -207,6 +224,11 @@ fn main() -> Result<()> {
                                 for pkt in &pending_packets[1..] {
                                     received_len += pkt.payload().len();
                                 }
+
+                                println!(
+                                    "[CTAP] Multi-packet message: {}/{} bytes received",
+                                    received_len, total_len
+                                );
 
                                 if received_len >= total_len as usize {
                                     let _ = process_message(
@@ -219,6 +241,12 @@ fn main() -> Result<()> {
                                 }
                             }
                         }
+                    } else {
+                        println!(
+                            "[CTAP] ⚠ Ignored packet for wrong channel: 0x{:08x} (expected 0x{:08x})",
+                            packet.cid(),
+                            current_channel
+                        );
                     }
                 }
             }
@@ -226,7 +254,8 @@ fn main() -> Result<()> {
                 // No data, sleep briefly
                 std::thread::sleep(Duration::from_millis(10));
             }
-            Err(_) => {
+            Err(e) => {
+                println!("[UHID] ⚠ Read error: {:?}", e);
                 std::thread::sleep(Duration::from_millis(10));
             }
         }
@@ -240,20 +269,43 @@ fn process_message(
     packets: &[Packet],
     response_buffer: &mut Vec<u8>,
 ) -> Result<()> {
-    let message = Message::from_packets(packets).map_err(|_| keylib::common::Error::Other)?;
+    println!(
+        "[CTAP] Processing message from {} packet(s)",
+        packets.len()
+    );
+
+    let message = Message::from_packets(packets).map_err(|e| {
+        println!("[CTAP] ✗ Failed to parse message from packets: {:?}", e);
+        keylib::common::Error::Other
+    })?;
 
     let cid = message.cid;
     let cmd = message.cmd;
 
+    println!(
+        "[CTAP] Command: {:?}, CID: 0x{:08x}, Payload: {} bytes",
+        cmd,
+        cid,
+        message.data.len()
+    );
+
     match cmd {
         Cmd::Cbor => {
             // CTAP CBOR command
+            println!(
+                "[CTAP] CBOR request: {}",
+                hex::encode(&message.data[..message.data.len().min(32)])
+            );
             response_buffer.clear();
             match auth.handle(&message.data, response_buffer) {
                 Ok(_) => {
                     println!(
                         "[CTAP] ✓ Command processed ({} bytes response)",
                         response_buffer.len()
+                    );
+                    println!(
+                        "[CTAP] CBOR response: {}",
+                        hex::encode(&response_buffer[..response_buffer.len().min(32)])
                     );
                     let response_msg = Message::new(cid, Cmd::Cbor, response_buffer.clone());
                     send_message(uhid, &response_msg)?;
@@ -276,19 +328,24 @@ fn process_message(
                 response_data.push(0); // Build device version
                 response_data.push(0x01); // Capabilities: CBOR
 
-                println!("[CTAP] INIT command processed");
+                println!("[CTAP] INIT command processed (assigned CID: 0x{:08x})", cid);
                 let response_msg = Message::new(cid, Cmd::Init, response_data);
                 send_message(uhid, &response_msg)?;
+            } else {
+                println!(
+                    "[CTAP] ⚠ INIT command with invalid data length: {}",
+                    message.data.len()
+                );
             }
         }
         Cmd::Ping => {
             // Echo ping data
-            println!("[CTAP] PING command processed");
+            println!("[CTAP] PING command processed ({} bytes)", message.data.len());
             let response_msg = Message::new(cid, Cmd::Ping, message.data);
             send_message(uhid, &response_msg)?;
         }
         _ => {
-            println!("[CTAP] Unknown command: {:?}", cmd);
+            println!("[CTAP] ⚠ Unknown command: {:?}", cmd);
         }
     }
 
@@ -299,10 +356,27 @@ fn process_message(
 fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
     let packets = message
         .to_packets()
-        .map_err(|_| keylib::common::Error::Other)?;
+        .map_err(|e| {
+            println!("[CTAP] ✗ Failed to create packets from message: {:?}", e);
+            keylib::common::Error::Other
+        })?;
 
-    for packet in packets.iter() {
-        uhid.write_packet(packet.as_bytes())?;
+    println!(
+        "[CTAP] Sending response: {} packet(s), {} bytes total",
+        packets.len(),
+        message.data.len()
+    );
+
+    for (i, packet) in packets.iter().enumerate() {
+        match uhid.write_packet(packet.as_bytes()) {
+            Ok(_) => {
+                println!("[UHID] ✓ Sent packet {}/{}", i + 1, packets.len());
+            }
+            Err(e) => {
+                println!("[UHID] ✗ Failed to send packet {}/{}: {:?}", i + 1, packets.len(), e);
+                return Err(e);
+            }
+        }
     }
 
     Ok(())
