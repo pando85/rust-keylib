@@ -208,16 +208,16 @@ impl PinUvAuthEncapsulation {
             platform_key_agreement,
         ));
         request_map.push((
-            Value::Integer(4.into()), // pinHashEnc
+            Value::Integer(6.into()), // pinHashEnc (0x06)
             Value::Bytes(pin_hash_enc),
         ));
         request_map.push((
-            Value::Integer(5.into()), // permissions
+            Value::Integer(9.into()), // permissions (0x09)
             Value::Integer(permissions.into()),
         ));
         if let Some(rp_id_str) = rp_id {
             request_map.push((
-                Value::Integer(6.into()), // rpId
+                Value::Integer(10.into()), // rpId (0x0A)
                 Value::Text(rp_id_str.to_string()),
             ));
         }

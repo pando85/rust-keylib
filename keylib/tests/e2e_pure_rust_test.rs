@@ -123,7 +123,7 @@ impl TestAuthenticator {
 
         // Spawn authenticator thread
         let handle = thread::spawn(move || {
-            if let Err(e) = Self::run_authenticator(stop_flag_clone, callbacks, config) {}
+            if let Err(_e) = Self::run_authenticator(stop_flag_clone, callbacks, config) {}
         });
 
         // Wait for authenticator to start
@@ -183,7 +183,7 @@ impl TestAuthenticator {
                             let init_data_len = pending_packets[0].payload().len();
                             if init_data_len >= payload_len as usize {
                                 // Complete message in one packet
-                                if let Err(e) =
+                                if let Err(_e) =
                                     Self::process_message(&mut auth, &uhid, &pending_packets)
                                 {
                                 }
@@ -226,7 +226,7 @@ impl TestAuthenticator {
                     // No data, sleep briefly
                     thread::sleep(Duration::from_millis(1));
                 }
-                Err(e) => {
+                Err(_e) => {
                     thread::sleep(Duration::from_millis(10));
                 }
             }
@@ -238,7 +238,7 @@ impl TestAuthenticator {
     /// Process a complete CTAP HID message
     fn process_message(auth: &mut Authenticator, uhid: &Uhid, packets: &[Packet]) -> Result<()> {
         // Reassemble message
-        let message = Message::from_packets(packets).map_err(|e| keylib::common::Error::Other)?;
+        let message = Message::from_packets(packets).map_err(|_e| keylib::common::Error::Other)?;
 
         let cid = message.cid;
         let cmd = message.cmd;
@@ -254,7 +254,7 @@ impl TestAuthenticator {
                         let response_msg = Message::new(cid, Cmd::Cbor, response_buffer);
                         Self::send_message(uhid, &response_msg)?;
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         // Send error response
                         let response_msg = Message::new(cid, Cmd::Cbor, vec![0x01]); // CTAP2_ERR_INVALID_CBOR
                         Self::send_message(uhid, &response_msg)?;
@@ -291,9 +291,9 @@ impl TestAuthenticator {
     fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
         let packets = message
             .to_packets()
-            .map_err(|e| keylib::common::Error::Other)?;
+            .map_err(|_e| keylib::common::Error::Other)?;
 
-        for (i, packet) in packets.iter().enumerate() {
+        for packet in packets.iter() {
             uhid.write_packet(packet.as_bytes())?;
         }
 
