@@ -6,6 +6,8 @@
 #[cfg(feature = "pure-rust")]
 pub mod authenticator;
 #[cfg(feature = "pure-rust")]
+pub mod client;
+#[cfg(feature = "pure-rust")]
 pub mod transport;
 
 // Re-export core types from pure Rust crates
