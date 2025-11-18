@@ -4,10 +4,12 @@
 /// TODO: Adapt this test to work with both zig-ffi and pure-rust implementations
 
 // Only compile with zig-ffi for now
-#![cfg(feature = "zig-ffi")]
+#[cfg(feature = "zig-ffi")]
 
-use keylib::credential::{Credential, User};
-use keylib::error;
+use keylib::{Credential, Error, RelyingParty, Result, User};
+
+#[cfg(feature = "zig-ffi")]
+use keylib::credential::Extensions;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -23,7 +25,7 @@ impl TestCredentialStore {
         }
     }
 
-    fn write(&mut self, cred: Credential) -> error::Result<()> {
+    fn write(&mut self, cred: Credential) -> Result<()> {
         println!("💾 Storing credential:");
         println!("   User ID: {:?}", cred.user.id);
         println!("   RP ID: {}", cred.rp.id);
@@ -65,7 +67,7 @@ mod tests {
                 name: Some("testuser".to_string()),
                 display_name: Some("Test User".to_string()),
             },
-            rp: keylib::credential::RelyingParty {
+            rp: RelyingParty {
                 id: "example.com".to_string(),
                 name: Some("Example Corp".to_string()),
             },
@@ -74,7 +76,7 @@ mod tests {
             sign_count: 0,
             created: 1234567890,
             discoverable: true,
-            extensions: keylib::credential::Extensions::default(),
+            extensions: Extensions::default(),
         };
 
         println!("1️⃣ Creating test credential:");
@@ -180,7 +182,7 @@ mod tests {
                     name: Some("user1".to_string()),
                     display_name: Some("User One".to_string()),
                 },
-                rp: keylib::credential::RelyingParty {
+                rp: RelyingParty {
                     id: "example.com".to_string(),
                     name: Some("Example".to_string()),
                 },
@@ -189,7 +191,7 @@ mod tests {
                 sign_count: 0,
                 created: 1000,
                 discoverable: true,
-                extensions: keylib::credential::Extensions::default(),
+                extensions: Extensions::default(),
             },
             Credential {
                 id: b"cred2".to_vec(),
@@ -198,7 +200,7 @@ mod tests {
                     name: Some("user2".to_string()),
                     display_name: Some("User Two".to_string()),
                 },
-                rp: keylib::credential::RelyingParty {
+                rp: RelyingParty {
                     id: "another.com".to_string(),
                     name: Some("Another".to_string()),
                 },
@@ -207,7 +209,7 @@ mod tests {
                 sign_count: 0,
                 created: 2000,
                 discoverable: true,
-                extensions: keylib::credential::Extensions::default(),
+                extensions: Extensions::default(),
             },
             Credential {
                 id: b"cred3".to_vec(),
@@ -216,7 +218,7 @@ mod tests {
                     name: Some("user3".to_string()),
                     display_name: Some("User Three".to_string()),
                 },
-                rp: keylib::credential::RelyingParty {
+                rp: RelyingParty {
                     id: "example.com".to_string(),
                     name: Some("Example".to_string()),
                 },
@@ -225,7 +227,7 @@ mod tests {
                 sign_count: 0,
                 created: 3000,
                 discoverable: true,
-                extensions: keylib::credential::Extensions::default(),
+                extensions: Extensions::default(),
             },
         ];
 

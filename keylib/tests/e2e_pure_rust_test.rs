@@ -72,7 +72,7 @@ impl TestAuthenticator {
         let callbacks = CallbacksBuilder::new()
             .up(Arc::new(|_, _, _| Ok(UpResult::Accepted)))
             .uv(Arc::new(|_, _, _| Ok(UvResult::Accepted)))
-            .write(Arc::new(move |cred: CredentialRef| {
+            .write(Arc::new(move |_id: &str, _rp_id: &str, cred: CredentialRef| {
                 let mut store = creds_write.lock().unwrap();
                 store.insert(cred.id.to_vec(), cred.to_owned());
                 Ok(())
@@ -96,9 +96,9 @@ impl TestAuthenticator {
                     .cloned()
                     .ok_or(keylib::common::Error::DoesNotExist)
             }))
-            .delete(Arc::new(move |cred_id: &[u8]| {
+            .delete(Arc::new(move |cred_id: &str| {
                 let mut store = creds_delete.lock().unwrap();
-                store.remove(cred_id);
+                store.remove(cred_id.as_bytes());
                 Ok(())
             }))
             .build();
