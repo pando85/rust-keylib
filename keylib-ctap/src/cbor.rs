@@ -153,6 +153,21 @@ impl MapParser {
     pub fn get_raw(&self, key: i32) -> Option<&Value> {
         self.map.get(&(key as i128))
     }
+
+    /// Get bytes directly (for CBOR Bytes type)
+    ///
+    /// This is needed because Value::Bytes doesn't automatically deserialize
+    /// to Vec<u8> via the generic get() method.
+    pub fn get_bytes(&self, key: i32) -> Result<Vec<u8>> {
+        let value = self.map
+            .get(&(key as i128))
+            .ok_or(StatusCode::MissingParameter)?;
+
+        match value {
+            Value::Bytes(bytes) => Ok(bytes.clone()),
+            _ => Err(StatusCode::InvalidCbor),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -129,8 +129,8 @@ fn handle_set_pin<C: AuthenticatorCallbacks>(
     }
 
     let protocol: u8 = parser.get(req_keys::PIN_UV_AUTH_PROTOCOL)?;
-    let new_pin_enc: Vec<u8> = parser.get(req_keys::NEW_PIN_ENC)?;
-    let pin_uv_auth_param: Vec<u8> = parser.get(req_keys::PIN_UV_AUTH_PARAM)?;
+    let new_pin_enc: Vec<u8> = parser.get_bytes(req_keys::NEW_PIN_ENC)?;
+    let pin_uv_auth_param: Vec<u8> = parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?;
 
     // Get platform's key agreement key (COSE_Key format)
     let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
@@ -202,9 +202,9 @@ fn handle_change_pin<C: AuthenticatorCallbacks>(
     }
 
     let protocol: u8 = parser.get(req_keys::PIN_UV_AUTH_PROTOCOL)?;
-    let pin_hash_enc: Vec<u8> = parser.get(req_keys::PIN_HASH_ENC)?;
-    let new_pin_enc: Vec<u8> = parser.get(req_keys::NEW_PIN_ENC)?;
-    let pin_uv_auth_param: Vec<u8> = parser.get(req_keys::PIN_UV_AUTH_PARAM)?;
+    let pin_hash_enc: Vec<u8> = parser.get_bytes(req_keys::PIN_HASH_ENC)?;
+    let new_pin_enc: Vec<u8> = parser.get_bytes(req_keys::NEW_PIN_ENC)?;
+    let pin_uv_auth_param: Vec<u8> = parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?;
 
     // Get platform's key agreement key
     let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
@@ -297,7 +297,7 @@ fn handle_get_pin_token<C: AuthenticatorCallbacks>(
     }
 
     let protocol: u8 = parser.get(req_keys::PIN_UV_AUTH_PROTOCOL)?;
-    let pin_hash_enc: Vec<u8> = parser.get(req_keys::PIN_HASH_ENC)?;
+    let pin_hash_enc: Vec<u8> = parser.get_bytes(req_keys::PIN_HASH_ENC)?;
 
     // Get platform's key agreement key
     let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
@@ -380,11 +380,7 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     eprintln!("[AUTH-DEBUG] protocol={}", protocol);
 
     eprintln!("[AUTH-DEBUG] Parsing pin_hash_enc...");
-    eprintln!("[AUTH-DEBUG] Checking if key 0x06 exists: {}", parser.contains_key(req_keys::PIN_HASH_ENC));
-    if let Some(raw_value) = parser.get_raw(req_keys::PIN_HASH_ENC) {
-        eprintln!("[AUTH-DEBUG] Raw value for key 0x06: {:?}", raw_value);
-    }
-    let pin_hash_enc: Vec<u8> = parser.get(req_keys::PIN_HASH_ENC).map_err(|e| {
+    let pin_hash_enc: Vec<u8> = parser.get_bytes(req_keys::PIN_HASH_ENC).map_err(|e| {
         eprintln!("[AUTH-DEBUG] Failed to parse pin_hash_enc: {:?}", e);
         e
     })?;
