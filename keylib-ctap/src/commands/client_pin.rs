@@ -470,7 +470,12 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     }
 
     // PIN verified - get PIN token with permissions
-    let token = auth.get_pin_token("", permissions, rp_id)?;
+    eprintln!("[AUTH-DEBUG] Getting PIN token with permissions={:02x}, rp_id={:?}", permissions, rp_id);
+    let token = auth.get_pin_token_after_verification(permissions, rp_id).map_err(|e| {
+        eprintln!("[AUTH-DEBUG] get_pin_token_after_verification failed: {:?}", e);
+        e
+    })?;
+    eprintln!("[AUTH-DEBUG] Got PIN token, len={}", token.len());
 
     // Encrypt the token
     let encrypted_token = match protocol {

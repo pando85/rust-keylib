@@ -404,6 +404,27 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
         // Verify PIN
         self.verify_pin(pin)?;
 
+        self.get_pin_token_after_verification(permissions, rp_id)
+    }
+
+    /// Get PIN token with permissions (without PIN verification)
+    ///
+    /// This should only be called after PIN has already been verified
+    /// (e.g., via encrypted PIN hash in CTAP command).
+    ///
+    /// # Arguments
+    ///
+    /// * `permissions` - Requested permission bitmask
+    /// * `rp_id` - RP ID for scoped permissions
+    ///
+    /// # Returns
+    ///
+    /// PIN token value (32 bytes) or error
+    pub fn get_pin_token_after_verification(
+        &mut self,
+        permissions: u8,
+        rp_id: Option<String>,
+    ) -> Result<[u8; 32], StatusCode> {
         // Generate random token
         use rand::RngCore;
         let mut token_bytes = [0u8; 32];
