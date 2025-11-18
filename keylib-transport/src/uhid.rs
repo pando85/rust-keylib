@@ -123,12 +123,13 @@ struct UhidInput2 {
 // then data. This matches our definition.
 
 /// UHID OUTPUT event (device -> host)
+/// Matches kernel structure: type (4) + data (4096) + size (2) + rtype (1) = 4103 bytes
 #[repr(C, packed)]
 struct UhidOutput {
     event_type: u32,
-    rtype: u8,
+    data: [u8; 4096],  // Data comes first in kernel uhid_output_req
     size: u16,
-    data: [u8; 4096],
+    rtype: u8,
 }
 
 /// UHID generic event header
@@ -367,7 +368,8 @@ impl UhidDevice {
             return Err(Error::Other("Device not started".to_string()));
         }
 
-        let mut event_buffer = vec![0u8; 4096];
+        // Need 4103 bytes for UhidOutput: event_type(4) + data(4096) + size(2) + rtype(1)
+        let mut event_buffer = vec![0u8; 4200];
 
         // Set non-blocking mode
         self.set_nonblocking(true)?;
@@ -384,6 +386,8 @@ impl UhidDevice {
                 match event_type {
                     UHID_OUTPUT => {
                         eprintln!("[UHID read_packet] UHID_OUTPUT event");
+                        eprintln!("[UHID DEBUG] sizeof(UhidOutput)={}, received bytes={}",
+                                 std::mem::size_of::<UhidOutput>(), n);
                         // Parse OUTPUT event
                         if n >= std::mem::size_of::<UhidOutput>() {
                             let output = unsafe {
