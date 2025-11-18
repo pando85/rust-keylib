@@ -226,28 +226,12 @@ impl PinUvAuthEncapsulation {
         ciborium::ser::into_writer(&Value::Map(request_map), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
-        eprintln!("[DEBUG] Sending getPinUvAuthTokenUsingPinWithPermissions (subCommand=0x09)");
-        eprintln!("[DEBUG] Request size: {} bytes", request_bytes.len());
-
         // Send clientPin command (0x06)
-        let response = transport.send_ctap_command(0x06, &request_bytes).map_err(|e| {
-            eprintln!("[DEBUG] getPinUvAuthTokenUsingPinWithPermissions failed with error: {:?}", e);
-            e
-        })?;
-
-        eprintln!("[DEBUG] getPinUvAuthTokenUsingPinWithPermissions response: {} bytes", response.len());
-        if response.len() > 0 {
-            eprintln!("[DEBUG] Response bytes: {:02x?}", &response[..response.len().min(64)]);
-        }
+        let response = transport.send_ctap_command(0x06, &request_bytes)?;
 
         // Parse response to get pinUvAuthToken
         let response_value: Value = ciborium::de::from_reader(&response[..])
-            .map_err(|e| {
-                eprintln!("[DEBUG] Failed to parse CBOR response: {:?}", e);
-                Error::Other
-            })?;
-
-        eprintln!("[DEBUG] Parsed response value: {:?}", response_value);
+            .map_err(|_| Error::Other)?;
 
         let pin_token_enc = match response_value {
             Value::Map(map) => {
@@ -257,15 +241,9 @@ impl PinUvAuthEncapsulation {
                         Value::Bytes(b) => Some(b.clone()),
                         _ => None,
                     })
-                    .ok_or_else(|| {
-                        eprintln!("[DEBUG] No pinUvAuthToken (key 2) found in response map");
-                        Error::Other
-                    })?
+                    .ok_or(Error::Other)?
             }
-            _ => {
-                eprintln!("[DEBUG] Response is not a map");
-                return Err(Error::Other);
-            }
+            _ => return Err(Error::Other),
         };
 
         // Decrypt PIN token
