@@ -11,6 +11,7 @@ readme.workspace = true
 [dependencies]
 # USB HID transport (optional)
 hidapi = { workspace = true, optional = true }
+hex = { workspace = true }
 
 # Linux UHID support (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]

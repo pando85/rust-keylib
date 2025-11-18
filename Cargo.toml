@@ -31,6 +31,7 @@ serde = { version = "1.0", features = ["derive"] }
 
 # Utilities
 thiserror = "1.0"
+hex = "0.4"
 
 # Transport
 hidapi = "2.6"
