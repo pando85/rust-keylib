@@ -479,10 +479,10 @@ fn process_message(
             // U2F/CTAP1 message - not supported, but we don't advertise NMSG
             // to work around buggy WebAuthn clients.
             //
-            // IMPORTANT: We silently ignore U2F messages (no response) to force
-            // clients to timeout and fall back to CTAP2. Sending an error response
-            // causes some buggy clients to give up entirely instead of trying CTAP2.
-            println!("[CTAP] ⚠ Received CTAP1/U2F Msg command (ignoring, no response)");
+            // IMPORTANT: We MUST send a response (CTAPHID protocol requirement).
+            // Send a U2F error response with status code 0x6D00 (INS not supported).
+            // This tells the client we don't support U2F, prompting it to try CTAP2.
+            println!("[CTAP] ⚠ Received CTAP1/U2F Msg command");
             println!("[CTAP]   Payload: {} bytes: {}",
                 message.data.len(),
                 hex::encode(&message.data[..message.data.len().min(32)]));
@@ -499,8 +499,12 @@ fn process_message(
                 println!("[CTAP]   U2F command: 0x{:02x} ({})", u2f_cmd, u2f_cmd_name);
             }
 
-            println!("[CTAP]   No response sent - client should timeout and try CTAP2");
-            // Do NOT send any response - let it timeout
+            println!("[CTAP]   Sending U2F error response: SW=0x6D00 (INS not supported)");
+            // U2F error response format: 2-byte status word (SW1 SW2)
+            // 0x6D00 = Instruction not supported
+            let error_data = vec![0x6D, 0x00];
+            let response_msg = Message::new(cid, Cmd::Msg, error_data);
+            send_message(uhid, &response_msg)?;
         }
         _ => {
             println!("[CTAP] ⚠ Unknown command: {:?}", cmd);
