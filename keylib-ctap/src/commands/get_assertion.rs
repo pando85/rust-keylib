@@ -87,11 +87,10 @@ pub fn handle<C: AuthenticatorCallbacks>(
         // If allow_list is provided, filter by it
         let mut creds = Vec::new();
         for desc in allow_list {
-            if let Ok(cred) = auth.callbacks().get_credential(&desc.id) {
-                if cred.rp_id == rp_id {
+            if let Ok(cred) = auth.callbacks().get_credential(&desc.id)
+                && cred.rp_id == rp_id {
                     creds.push(cred);
                 }
-            }
         }
         creds
     } else {

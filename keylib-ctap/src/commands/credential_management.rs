@@ -232,23 +232,22 @@ fn handle_delete_credential<C: AuthenticatorCallbacks>(
     let cred_id_value: ciborium::Value = params_parser.get(subparam_keys::CREDENTIAL_ID)?;
 
     // Parse credential ID from descriptor
-    let cred_id = match cred_id_value {
+    
+
+    match cred_id_value {
         ciborium::Value::Map(m) => {
             for (k, v) in m {
-                if let (ciborium::Value::Text(key), ciborium::Value::Bytes(id)) = (k, v) {
-                    if key == "id" {
+                if let (ciborium::Value::Text(key), ciborium::Value::Bytes(id)) = (k, v)
+                    && key == "id" {
                         return auth.callbacks().delete_credential(&id).and_then(|_| {
                             MapBuilder::new().build()
                         });
                     }
-                }
             }
             Err(StatusCode::InvalidParameter)
         }
         _ => Err(StatusCode::InvalidParameter),
-    }?;
-
-    cred_id
+    }?
 }
 
 /// Handle updateUserInformation subcommand
@@ -268,8 +267,8 @@ fn handle_update_user_information<C: AuthenticatorCallbacks>(
     match cred_id_value {
         ciborium::Value::Map(m) => {
             for (k, v) in m {
-                if let (ciborium::Value::Text(key), ciborium::Value::Bytes(id)) = (k, v) {
-                    if key == "id" {
+                if let (ciborium::Value::Text(key), ciborium::Value::Bytes(id)) = (k, v)
+                    && key == "id" {
                         // Found the ID, use it
                         let bytes = id;
                         // Get existing credential
@@ -284,7 +283,6 @@ fn handle_update_user_information<C: AuthenticatorCallbacks>(
 
                         return MapBuilder::new().build();
                     }
-                }
             }
             Err(StatusCode::InvalidParameter)
         }

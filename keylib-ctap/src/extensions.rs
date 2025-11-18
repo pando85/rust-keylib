@@ -124,12 +124,11 @@ impl MakeCredentialExtensions {
                         }
                     }
                     ext_ids::MIN_PIN_LENGTH => {
-                        if let ciborium::Value::Bool(b) = val {
-                            if *b {
+                        if let ciborium::Value::Bool(b) = val
+                            && *b {
                                 // Request to include min PIN length in response
                                 exts.min_pin_length = Some(4); // Will be filled by authenticator
                             }
-                        }
                     }
                     _ => {} // Ignore unknown extensions
                 }
@@ -181,14 +180,13 @@ impl MakeCredentialExtensions {
         }
 
         // minPinLength - return actual minimum PIN length
-        if self.min_pin_length.is_some() {
-            if let Some(len) = actual_min_pin_length {
+        if self.min_pin_length.is_some()
+            && let Some(len) = actual_min_pin_length {
                 outputs.push((
                     ciborium::Value::Text(ext_ids::MIN_PIN_LENGTH.to_string()),
                     ciborium::Value::Integer((len as i32).into()),
                 ));
             }
-        }
 
         if outputs.is_empty() {
             None

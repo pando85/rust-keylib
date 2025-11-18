@@ -295,7 +295,7 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
         // Hash the PIN (left-padded to 64 bytes with zeros)
         let mut padded_pin = [0u8; 64];
         padded_pin[..pin_bytes.len()].copy_from_slice(pin_bytes);
-        let hash = Sha256::digest(&padded_pin);
+        let hash = Sha256::digest(padded_pin);
         self.pin_hash = Some(hash.into());
 
         // Reset retry counter
@@ -345,7 +345,7 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
         let pin_bytes = pin.as_bytes();
         let mut padded_pin = [0u8; 64];
         padded_pin[..pin_bytes.len()].copy_from_slice(pin_bytes);
-        let hash = Sha256::digest(&padded_pin);
+        let hash = Sha256::digest(padded_pin);
 
         // Compare using constant-time comparison
         use subtle::ConstantTimeEq;

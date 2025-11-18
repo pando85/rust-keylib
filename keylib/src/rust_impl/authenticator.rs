@@ -6,18 +6,14 @@
 use keylib_ctap::{
     authenticator::{Authenticator as CtapAuthenticator, AuthenticatorConfig as CtapConfig},
     callbacks::{
-        AuthenticatorCallbacks, CredentialStorageCallbacks, UserInteractionCallbacks, UpResult,
+        CredentialStorageCallbacks, UserInteractionCallbacks, UpResult,
         UvResult,
     },
     types::Credential,
     StatusCode,
 };
 
-#[cfg(feature = "pure-rust")]
-use keylib_transport::CtapHidHandler;
 
-#[cfg(all(feature = "pure-rust", target_os = "linux"))]
-use keylib_transport::UhidDevice;
 
 #[cfg(all(feature = "pure-rust", feature = "usb"))]
 use keylib_transport::AuthenticatorRunner;
@@ -42,6 +38,12 @@ pub struct BridgeCallbacks {
 }
 
 #[cfg(feature = "pure-rust")]
+impl Default for BridgeCallbacks {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BridgeCallbacks {
     pub fn new() -> Self {
         Self {
@@ -118,7 +120,7 @@ impl CredentialStorageCallbacks for BridgeCallbacks {
             .values()
             .filter(|c| {
                 c.rp_id == rp_id
-                    && (user_id.is_none() || user_id == Some(&c.user_id.as_slice()))
+                    && (user_id.is_none() || user_id == Some(c.user_id.as_slice()))
             })
             .cloned()
             .collect();

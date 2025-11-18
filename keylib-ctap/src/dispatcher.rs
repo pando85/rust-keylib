@@ -55,7 +55,7 @@ impl<C: AuthenticatorCallbacks> CommandDispatcher<C> {
             }
             CommandCode::Reset => {
                 // Reset requires user confirmation
-                self.authenticator.reset();
+                self.authenticator.reset()?;
                 Ok(vec![]) // Empty response on success
             }
             CommandCode::GetNextAssertion => {

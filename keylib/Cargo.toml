@@ -10,17 +10,17 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-default = ["zig-ffi"]
-# Zig FFI implementation (legacy, will be removed)
-zig-ffi = ["dep:keylib-sys"]
-bundled = ["keylib-sys?/bundled"]
-integration-tests = []
-# Pure Rust implementation (alternative to Zig FFI)
+default = ["pure-rust"]
+# Pure Rust implementation (default)
 pure-rust = [
     "dep:keylib-crypto",
     "dep:keylib-ctap",
     "dep:keylib-transport",
 ]
+# Zig FFI implementation (legacy, will be removed)
+zig-ffi = ["dep:keylib-sys"]
+bundled = ["keylib-sys?/bundled"]
+integration-tests = []
 # Enable USB HID transport (requires libudev on Linux)
 usb = ["keylib-transport?/usb"]
 
@@ -50,3 +50,32 @@ base64 = "0.22"
 serial_test = "3.0"
 hex = "0.4"
 serde_cbor = "0.11"
+
+# Examples require Zig FFI (legacy, will be updated to pure Rust)
+[[example]]
+name = "authenticator"
+required-features = ["zig-ffi"]
+
+[[example]]
+name = "client"
+required-features = ["zig-ffi"]
+
+[[example]]
+name = "client_credential_mgmt"
+required-features = ["zig-ffi"]
+
+[[example]]
+name = "credential_management"
+required-features = ["zig-ffi"]
+
+[[example]]
+name = "custom_commands"
+required-features = ["zig-ffi"]
+
+[[example]]
+name = "pin_protocol"
+required-features = ["zig-ffi"]
+
+[[example]]
+name = "webauthn_flow"
+required-features = ["zig-ffi"]
