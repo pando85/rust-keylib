@@ -166,6 +166,7 @@ fn main() -> Result<()> {
 
     // CTAP HID state
     let mut current_channel: u32 = 0xffffffff; // Broadcast channel
+    let mut next_channel_id: u32 = 1; // Channel ID allocator (starts at 1)
     let mut pending_packets: Vec<Packet> = Vec::new();
     let mut response_buffer = Vec::new();
     let mut buffer = [0u8; 64];
@@ -204,6 +205,7 @@ fn main() -> Result<()> {
                                 &uhid,
                                 &pending_packets,
                                 &mut response_buffer,
+                                &mut next_channel_id,
                             );
                             pending_packets.clear();
                         }
@@ -236,6 +238,7 @@ fn main() -> Result<()> {
                                         &uhid,
                                         &pending_packets,
                                         &mut response_buffer,
+                                        &mut next_channel_id,
                                     );
                                     pending_packets.clear();
                                 }
@@ -268,6 +271,7 @@ fn process_message(
     uhid: &Uhid,
     packets: &[Packet],
     response_buffer: &mut Vec<u8>,
+    next_channel_id: &mut u32,
 ) -> Result<()> {
     println!("[CTAP] Processing message from {} packet(s)", packets.len());
 
@@ -315,10 +319,14 @@ fn process_message(
             }
         }
         Cmd::Init => {
-            // CTAP HID INIT
+            // CTAP HID INIT - allocate a new channel ID
             if message.data.len() >= 8 {
+                // Allocate new channel ID
+                let allocated_cid = *next_channel_id;
+                *next_channel_id += 1;
+
                 let mut response_data = message.data[..8].to_vec(); // Echo nonce
-                response_data.extend_from_slice(&cid.to_be_bytes());
+                response_data.extend_from_slice(&allocated_cid.to_be_bytes()); // NEW channel ID
                 response_data.push(2); // CTAP protocol version
                 response_data.push(0); // Major device version
                 response_data.push(0); // Minor device version
@@ -326,10 +334,11 @@ fn process_message(
                 response_data.push(0x01); // Capabilities: CBOR
 
                 println!(
-                    "[CTAP] INIT command processed (assigned CID: 0x{:08x})",
-                    cid
+                    "[CTAP] INIT command processed (allocated NEW CID: 0x{:08x})",
+                    allocated_cid
                 );
-                let response_msg = Message::new(cid, Cmd::Init, response_data);
+                // Respond on broadcast channel with new CID in payload
+                let response_msg = Message::new(0xffffffff, Cmd::Init, response_data);
                 send_message(uhid, &response_msg)?;
             } else {
                 println!(
