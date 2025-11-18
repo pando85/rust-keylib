@@ -297,6 +297,55 @@ fn process_message(
                 "[CTAP] CBOR request: {}",
                 hex::encode(&message.data[..message.data.len().min(32)])
             );
+
+            // Decode CTAP command type
+            if !message.data.is_empty() {
+                let cmd_byte = message.data[0];
+                let cmd_name = match cmd_byte {
+                    0x01 => "authenticatorMakeCredential",
+                    0x02 => "authenticatorGetAssertion",
+                    0x04 => "authenticatorGetInfo",
+                    0x06 => "authenticatorClientPIN",
+                    0x07 => "authenticatorReset",
+                    0x08 => "authenticatorGetNextAssertion",
+                    0x0a => "authenticatorCredentialManagement",
+                    0x0b => "authenticatorSelection",
+                    _ => "unknown",
+                };
+                println!("[CTAP] Command type: 0x{:02x} ({})", cmd_byte, cmd_name);
+
+                // For ClientPIN commands, decode the subcommand
+                if cmd_byte == 0x06 && message.data.len() > 1 {
+                    if let Ok(value) = ciborium::de::from_reader::<ciborium::value::Value, _>(&message.data[1..]) {
+                        if let ciborium::value::Value::Map(map) = value {
+                            for (k, v) in &map {
+                                if let ciborium::value::Value::Integer(key_int) = k {
+                                    let key_num: i128 = (*key_int).into();
+                                    if key_num == 2 {
+                                        if let ciborium::value::Value::Integer(subcmd) = v {
+                                            let subcmd_num: i128 = (*subcmd).into();
+                                            let subcmd_name = match subcmd_num {
+                                                0x01 => "getPinRetries",
+                                                0x02 => "getKeyAgreement",
+                                                0x03 => "setPIN",
+                                                0x04 => "changePIN",
+                                                0x05 => "getPinToken (deprecated)",
+                                                0x06 => "getPinUvAuthTokenUsingPin",
+                                                0x07 => "getUVRetries",
+                                                0x08 => "getPinUvAuthTokenUsingUv",
+                                                0x09 => "getPinUvAuthTokenUsingPinWithPermissions",
+                                                _ => "unknown",
+                                            };
+                                            println!("[CTAP] ClientPIN SubCommand: 0x{:02x} ({})", subcmd_num, subcmd_name);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             response_buffer.clear();
             match auth.handle(&message.data, response_buffer) {
                 Ok(_) => {
@@ -308,6 +357,30 @@ fn process_message(
                         "[CTAP] CBOR response: {}",
                         hex::encode(&response_buffer[..response_buffer.len().min(32)])
                     );
+
+                    // Decode response status
+                    if !response_buffer.is_empty() {
+                        let status = response_buffer[0];
+                        if status == 0x00 {
+                            println!("[CTAP] Response status: CTAP2_OK");
+                        } else {
+                            let error_name = match status {
+                                0x01 => "CTAP1_ERR_INVALID_COMMAND",
+                                0x02 => "CTAP1_ERR_INVALID_PARAMETER",
+                                0x03 => "CTAP1_ERR_INVALID_LENGTH",
+                                0x31 => "CTAP2_ERR_PIN_INVALID",
+                                0x32 => "CTAP2_ERR_PIN_BLOCKED",
+                                0x33 => "CTAP2_ERR_PIN_AUTH_INVALID",
+                                0x34 => "CTAP2_ERR_PIN_AUTH_BLOCKED",
+                                0x35 => "CTAP2_ERR_PIN_NOT_SET",
+                                0x36 => "CTAP2_ERR_PIN_REQUIRED",
+                                0x37 => "CTAP2_ERR_PIN_POLICY_VIOLATION",
+                                _ => "UNKNOWN_ERROR",
+                            };
+                            println!("[CTAP] Response status: {} (0x{:02x})", error_name, status);
+                        }
+                    }
+
                     let response_msg = Message::new(cid, Cmd::Cbor, response_buffer.clone());
                     send_message(uhid, &response_msg)?;
                 }
