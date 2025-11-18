@@ -87,19 +87,27 @@ fn handle_get_key_agreement<C: AuthenticatorCallbacks>(
     auth: &mut Authenticator<C>,
     parser: &MapParser,
 ) -> Result<Vec<u8>> {
+    eprintln!("[DEBUG][auth] handle_get_key_agreement");
+
     let protocol: u8 = parser.get(req_keys::PIN_UV_AUTH_PROTOCOL)?;
+    eprintln!("[DEBUG][auth]   Protocol: {}", protocol);
 
     // Validate protocol version
     if protocol != 1 && protocol != 2 {
+        eprintln!("[DEBUG][auth] ✗ Invalid protocol version");
         return Err(StatusCode::InvalidParameter);
     }
 
     // Generate ephemeral ECDH key pair
     let keypair = keylib_crypto::ecdh::KeyPair::generate()?;
     let (x, y) = keypair.public_key_cose();
+    eprintln!("[DEBUG][auth] Generated authenticator key pair");
+    eprintln!("[DEBUG][auth]   Public key x: {} bytes", x.len());
+    eprintln!("[DEBUG][auth]   Public key y: {} bytes", y.len());
 
     // Store keypair for later use in PIN operations
     auth.set_pin_protocol_keypair(protocol, keypair);
+    eprintln!("[DEBUG][auth] ✓ Stored keypair for protocol {}", protocol);
 
     // Build COSE key
     let key_agreement = MapBuilder::new()
@@ -109,6 +117,8 @@ fn handle_get_key_agreement<C: AuthenticatorCallbacks>(
         .insert_bytes(-2, &x)? // x coordinate
         .insert_bytes(-3, &y)? // y coordinate
         .build_value();
+
+    eprintln!("[DEBUG][auth] ✓ Returning COSE key");
 
     MapBuilder::new()
         .insert(resp_keys::KEY_AGREEMENT, key_agreement)?
@@ -363,26 +373,46 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     auth: &mut Authenticator<C>,
     parser: &MapParser,
 ) -> Result<Vec<u8>> {
+    eprintln!("[DEBUG][auth] handle_get_pin_uv_auth_token_using_pin_with_permissions");
+
     if !auth.is_pin_set() {
+        eprintln!("[DEBUG][auth] ✗ PIN not set");
         return Err(StatusCode::PinNotSet);
     }
+    eprintln!("[DEBUG][auth] ✓ PIN is set");
 
     let protocol: u8 = parser.get(req_keys::PIN_UV_AUTH_PROTOCOL)?;
     let pin_hash_enc: Vec<u8> = parser.get_bytes(req_keys::PIN_HASH_ENC)?;
     let permissions: u8 = parser.get(req_keys::PERMISSIONS)?;
     let rp_id: Option<String> = parser.get_opt(req_keys::RP_ID)?;
 
+    eprintln!("[DEBUG][auth] Request parameters:");
+    eprintln!("[DEBUG][auth]   Protocol: {}", protocol);
+    eprintln!("[DEBUG][auth]   Permissions: 0x{:02x}", permissions);
+    eprintln!("[DEBUG][auth]   RP ID: {:?}", rp_id);
+    eprintln!("[DEBUG][auth]   Encrypted PIN hash length: {}", pin_hash_enc.len());
+
     // Get platform's key agreement key
     let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
     let platform_public_key = parse_cose_key(&key_agreement)?;
+    eprintln!("[DEBUG][auth] Parsed platform public key ({} bytes)", platform_public_key.len());
 
     // Get stored keypair for this protocol
-    let keypair = auth
-        .get_pin_protocol_keypair(protocol)
-        .ok_or(StatusCode::PinAuthInvalid)?;
+    let keypair = match auth.get_pin_protocol_keypair(protocol) {
+        Some(kp) => {
+            eprintln!("[DEBUG][auth] ✓ Found stored keypair for protocol {}", protocol);
+            kp
+        }
+        None => {
+            eprintln!("[DEBUG][auth] ✗ No keypair found for protocol {}", protocol);
+            eprintln!("[DEBUG][auth] This means getKeyAgreement was not called first!");
+            return Err(StatusCode::PinAuthInvalid);
+        }
+    };
 
     // Compute shared secret
     let shared_secret = keypair.shared_secret(&platform_public_key)?;
+    eprintln!("[DEBUG][auth] Derived shared secret ({} bytes)", shared_secret.len());
 
     // Derive keys based on protocol version
     let (enc_key, _hmac_key) = match protocol {
@@ -394,6 +424,7 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
         }
         _ => return Err(StatusCode::InvalidParameter),
     };
+    eprintln!("[DEBUG][auth] Derived encryption key ({} bytes)", enc_key.len());
 
     // Decrypt PIN hash (first 16 bytes of SHA-256(PIN))
     let decrypted_pin_hash = match protocol {
@@ -401,31 +432,42 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
         2 => keylib_crypto::pin_protocol::v2::decrypt(&enc_key, &pin_hash_enc)?,
         _ => return Err(StatusCode::InvalidParameter),
     };
+    eprintln!("[DEBUG][auth] Decrypted PIN hash ({} bytes)", decrypted_pin_hash.len());
+    eprintln!("[DEBUG][auth] Decrypted PIN hash: {:02x?}", &decrypted_pin_hash[..decrypted_pin_hash.len().min(16)]);
 
     if decrypted_pin_hash.len() < 16 {
+        eprintln!("[DEBUG][auth] ✗ Decrypted PIN hash too short (< 16 bytes)");
         return Err(StatusCode::PinAuthInvalid);
     }
 
     // Verify PIN hash by comparing first 16 bytes with stored PIN hash
     if let Some(stored_pin_hash) = auth.pin_hash() {
+        eprintln!("[DEBUG][auth] Stored PIN hash (first 16 bytes): {:02x?}", &stored_pin_hash[..16]);
         use subtle::ConstantTimeEq;
         let is_valid: bool = stored_pin_hash[..16]
             .ct_eq(&decrypted_pin_hash[..16])
             .into();
         if !is_valid {
+            eprintln!("[DEBUG][auth] ✗ PIN hash mismatch!");
+            eprintln!("[DEBUG][auth]   Expected: {:02x?}", &stored_pin_hash[..16]);
+            eprintln!("[DEBUG][auth]   Received: {:02x?}", &decrypted_pin_hash[..16]);
             // Decrement retry counter
             auth.decrement_pin_retries();
             if auth.is_pin_blocked() {
+                eprintln!("[DEBUG][auth] PIN is now blocked");
                 return Err(StatusCode::PinBlocked);
             }
             return Err(StatusCode::PinInvalid);
         }
+        eprintln!("[DEBUG][auth] ✓ PIN hash verified successfully");
     } else {
+        eprintln!("[DEBUG][auth] ✗ No PIN hash stored (but is_pin_set() returned true?)");
         return Err(StatusCode::PinNotSet);
     }
 
     // PIN verified - get PIN token with permissions
     let token = auth.get_pin_token_after_verification(permissions, rp_id)?;
+    eprintln!("[DEBUG][auth] Generated PIN token ({} bytes)", token.len());
 
     // Encrypt the token
     let encrypted_token = match protocol {
@@ -433,6 +475,8 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
         2 => keylib_crypto::pin_protocol::v2::encrypt(&enc_key, &token)?,
         _ => return Err(StatusCode::InvalidParameter),
     };
+    eprintln!("[DEBUG][auth] Encrypted PIN token ({} bytes)", encrypted_token.len());
+    eprintln!("[DEBUG][auth] ✓ Returning encrypted PIN token");
 
     MapBuilder::new()
         .insert_bytes(resp_keys::PIN_UV_AUTH_TOKEN, &encrypted_token)?
