@@ -102,12 +102,15 @@ fn main() -> Result<()> {
     // User information
     let user = User {
         id: vec![1, 2, 3, 4], // User ID (should be unique per user)
-        name: "alice@example.com".to_string(),
+        name: Some("alice@example.com".to_string()),
         display_name: Some("Alice".to_string()),
     };
 
     println!("      RP: {}", rp.id);
-    println!("      User: {}", user.name);
+    println!(
+        "      User: {}",
+        user.name.as_deref().unwrap_or("(unnamed)")
+    );
 
     // Compute PIN/UV auth parameter
     let pin_uv_auth_param = encapsulation.authenticate(client_data_hash.as_slice(), &pin_token)?;

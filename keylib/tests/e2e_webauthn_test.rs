@@ -674,14 +674,6 @@ fn test_complete_webauthn_flow() -> Result<()> {
         name: Some("Test Relying Party".to_string()),
     };
 
-    #[cfg(feature = "zig-ffi")]
-    let user = User {
-        id: TEST_USER_ID.to_vec(),
-        name: TEST_USER_NAME.to_string(),
-        display_name: Some(TEST_USER_DISPLAY_NAME.to_string()),
-    };
-
-    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
     let user = User {
         id: TEST_USER_ID.to_vec(),
         name: Some(TEST_USER_NAME.to_string()),
@@ -798,14 +790,6 @@ fn test_registration_without_pin() -> Result<()> {
         name: Some("Test RP".to_string()),
     };
 
-    #[cfg(feature = "zig-ffi")]
-    let user = User {
-        id: TEST_USER_ID.to_vec(),
-        name: TEST_USER_NAME.to_string(),
-        display_name: Some(TEST_USER_DISPLAY_NAME.to_string()),
-    };
-
-    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
     let user = User {
         id: TEST_USER_ID.to_vec(),
         name: Some(TEST_USER_NAME.to_string()),
@@ -888,14 +872,6 @@ fn test_pin_change_flow() -> Result<()> {
         name: Some("PIN Change Test RP".to_string()),
     };
 
-    #[cfg(feature = "zig-ffi")]
-    let user = User {
-        id: b"pin-change-user".to_vec(),
-        name: "pinchange@example.com".to_string(),
-        display_name: Some("Pin Change User".to_string()),
-    };
-
-    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
     let user = User {
         id: b"pin-change-user".to_vec(),
         name: Some("pinchange@example.com".to_string()),
@@ -1058,14 +1034,6 @@ fn test_uv_only_authenticator() -> Result<()> {
         name: Some("UV-Only Test RP".to_string()),
     };
 
-    #[cfg(feature = "zig-ffi")]
-    let user = User {
-        id: b"uv-only-user".to_vec(),
-        name: "uvonly@example.com".to_string(),
-        display_name: Some("UV Only User".to_string()),
-    };
-
-    #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
     let user = User {
         id: b"uv-only-user".to_vec(),
         name: Some("uvonly@example.com".to_string()),

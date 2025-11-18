@@ -31,7 +31,7 @@ use std::rc::Rc;
 #[derive(Debug, Clone)]
 pub struct User {
     pub id: Vec<u8>,
-    pub name: String,
+    pub name: Option<String>,
     pub display_name: Option<String>,
 }
 
@@ -374,10 +374,12 @@ impl Client {
             Value::Text("id".to_string()),
             Value::Bytes(request.user.id.clone()),
         ));
-        user_map.push((
-            Value::Text("name".to_string()),
-            Value::Text(request.user.name.clone()),
-        ));
+        if let Some(name) = &request.user.name {
+            user_map.push((
+                Value::Text("name".to_string()),
+                Value::Text(name.clone()),
+            ));
+        }
         if let Some(display_name) = &request.user.display_name {
             user_map.push((
                 Value::Text("displayName".to_string()),
