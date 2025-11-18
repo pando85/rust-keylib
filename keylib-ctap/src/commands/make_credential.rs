@@ -268,44 +268,48 @@ pub fn handle<C: AuthenticatorCallbacks>(
     // 8. Generate credential key pair
     let (private_key, public_key_bytes) = ecdsa::generate_keypair();
 
-    // 9. Generate credential ID (for now, just use random bytes)
-    let credential_id = generate_credential_id();
-
-    // 10. Store credential
-    // TEMPORARY FIX: Always store credentials for testing, regardless of rk flag
-    // TODO: Implement proper wrapped credentials (encrypted in credential ID) for rk=false
+    // 9. Generate credential ID
     eprintln!("[DEBUG][makeCredential] Credential storage:");
     eprintln!("[DEBUG][makeCredential]   options.rk (resident key): {}", options.rk);
-    eprintln!("[DEBUG][makeCredential]   Credential ID: {} bytes", credential_id.len());
 
-    if !options.rk {
-        eprintln!("[DEBUG][makeCredential]   ⚠ Client requested non-resident key, but storing anyway for testing");
-        eprintln!("[DEBUG][makeCredential]   Note: Proper implementation would encrypt private key into credential ID");
-    }
+    let credential_id = if options.rk {
+        // Resident key: generate random ID and store credential
+        eprintln!("[DEBUG][makeCredential]   ✓ Resident key: storing credential in persistent storage");
+        let id = generate_credential_id();
 
-    // Use cred_protect from extensions, or default
-    let cred_protect_value = extensions
-        .cred_protect
-        .map(|p| p.to_u8())
-        .unwrap_or(CredProtect::UserVerificationOptional as u8);
+        let cred_protect_value = extensions
+            .cred_protect
+            .map(|p| p.to_u8())
+            .unwrap_or(CredProtect::UserVerificationOptional as u8);
 
-    let credential = crate::types::Credential {
-        id: credential_id.clone(),
-        rp_id: rp.id.clone(),
-        rp_name: rp.name.clone(),
-        user_id: user.id.clone(),
-        user_name: user.name.clone(),
-        user_display_name: user.display_name.clone(),
-        private_key: private_key.to_vec(),
-        algorithm: alg.alg,
-        sign_count: 0,
-        created: current_timestamp(),
-        discoverable: options.rk, // Mark as discoverable only if rk was requested
-        cred_protect: cred_protect_value,
+        let credential = crate::types::Credential {
+            id: id.clone(),
+            rp_id: rp.id.clone(),
+            rp_name: rp.name.clone(),
+            user_id: user.id.clone(),
+            user_name: user.name.clone(),
+            user_display_name: user.display_name.clone(),
+            private_key: private_key.to_vec(),
+            algorithm: alg.alg,
+            sign_count: 0,
+            created: current_timestamp(),
+            discoverable: true,
+            cred_protect: cred_protect_value,
+        };
+
+        auth.callbacks().write_credential(&credential)?;
+        eprintln!("[DEBUG][makeCredential]   ✓ Credential stored successfully");
+
+        id
+    } else {
+        // Non-resident key: wrap private key into credential ID
+        eprintln!("[DEBUG][makeCredential]   ✓ Non-resident key: wrapping private key into credential ID");
+        let wrapped_id = auth.wrap_credential(&private_key, &rp.id, alg.alg)?;
+        eprintln!("[DEBUG][makeCredential]   ✓ Wrapped credential ID: {} bytes", wrapped_id.len());
+        wrapped_id
     };
 
-    auth.callbacks().write_credential(&credential)?;
-    eprintln!("[DEBUG][makeCredential]   ✓ Credential stored successfully");
+    eprintln!("[DEBUG][makeCredential]   Final credential ID: {} bytes", credential_id.len());
 
     // 11. Build extension outputs
     let extension_outputs = extensions.build_outputs(auth.config().min_pin_length);

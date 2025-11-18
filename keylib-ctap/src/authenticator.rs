@@ -10,6 +10,7 @@ use keylib_crypto::pin_protocol;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::Arc;
+use subtle::ConstantTimeEq;
 
 /// Maximum PIN retries before blocking
 const MAX_PIN_RETRIES: u8 = 8;
@@ -56,6 +57,12 @@ pub struct AuthenticatorConfig {
 
     /// Minimum PIN length
     pub min_pin_length: Option<usize>,
+
+    /// Credential wrapping key for non-resident credentials
+    ///
+    /// Used to encrypt private keys into credential IDs when rk=false.
+    /// If None, a random key will be generated at runtime.
+    pub credential_wrapping_key: Option<[u8; 32]>,
 }
 
 impl AuthenticatorConfig {
@@ -74,6 +81,7 @@ impl AuthenticatorConfig {
             transports: vec!["usb".to_string(), "nfc".to_string()],
             max_cred_blob_length: Some(32),
             min_pin_length: Some(4), // CTAP default minimum PIN length
+            credential_wrapping_key: None,     // Will be generated if needed
         }
     }
 
@@ -228,6 +236,10 @@ pub struct Authenticator<C: AuthenticatorCallbacks> {
     /// Ephemeral ECDH keypair for PIN protocol (protocol version -> keypair)
     /// This is used for key agreement in PIN operations
     pin_protocol_keypairs: HashMap<u8, keylib_crypto::ecdh::KeyPair>,
+
+    /// Credential wrapping key for non-resident credentials
+    /// Generated at runtime if not provided in config
+    credential_wrapping_key: [u8; 32],
 }
 
 impl<C: AuthenticatorCallbacks> Authenticator<C> {
@@ -238,6 +250,14 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
     /// * `config` - Authenticator configuration
     /// * `callbacks` - User interaction and storage callbacks
     pub fn new(config: AuthenticatorConfig, callbacks: C) -> Self {
+        // Generate or use provided wrapping key
+        let credential_wrapping_key = config.credential_wrapping_key.unwrap_or_else(|| {
+            use rand::RngCore;
+            let mut key = [0u8; 32];
+            rand::thread_rng().fill_bytes(&mut key);
+            key
+        });
+
         Self {
             config,
             callbacks: Arc::new(callbacks),
@@ -248,6 +268,7 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
             min_pin_length: 4, // Default minimum PIN length
             custom_commands: HashMap::new(),
             pin_protocol_keypairs: HashMap::new(),
+            credential_wrapping_key,
         }
     }
 
@@ -604,6 +625,118 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
         // For now, return a simple calculation based on max_credentials
         // In a real implementation, this would query the credential storage
         Some(self.config.max_credentials)
+    }
+
+    /// Wrap credential data into a credential ID (for non-resident credentials)
+    ///
+    /// Encrypts the private key and metadata into the credential ID itself.
+    /// This allows non-resident credentials to work without storing them.
+    ///
+    /// Format: version(1) || IV(16) || encrypted_data || HMAC(16)
+    /// Encrypted data contains: private_key(32) || rp_id_len(1) || rp_id || algorithm(4)
+    pub fn wrap_credential(
+        &self,
+        private_key: &[u8],
+        rp_id: &str,
+        algorithm: i32,
+    ) -> Result<Vec<u8>, StatusCode> {
+        use keylib_crypto::pin_protocol::v2;
+
+        // Version byte (1 = wrapped credential v1)
+        let version: u8 = 1;
+
+        // Build plaintext: private_key || rp_id_len || rp_id || algorithm
+        let mut plaintext = Vec::new();
+        plaintext.extend_from_slice(private_key); // 32 bytes
+        plaintext.push(rp_id.len() as u8); // 1 byte
+        plaintext.extend_from_slice(rp_id.as_bytes());
+        plaintext.extend_from_slice(&algorithm.to_be_bytes()); // 4 bytes
+
+        // Pad to 16-byte boundary for AES-CBC
+        while plaintext.len() % 16 != 0 {
+            plaintext.push(0);
+        }
+
+        // Encrypt using PIN protocol V2 (AES-256-CBC with random IV)
+        let encrypted = v2::encrypt(&self.credential_wrapping_key, &plaintext)
+            .map_err(|_| StatusCode::Other)?;
+
+        // Build credential ID: version || encrypted_data
+        let mut credential_id = Vec::new();
+        credential_id.push(version);
+        credential_id.extend_from_slice(&encrypted);
+
+        // Add HMAC for integrity
+        let hmac = v2::authenticate(&self.credential_wrapping_key, &credential_id);
+        credential_id.extend_from_slice(&hmac[..16]); // First 16 bytes of HMAC
+
+        Ok(credential_id)
+    }
+
+    /// Unwrap credential data from a credential ID (for non-resident credentials)
+    ///
+    /// Decrypts and verifies a wrapped credential ID, returning the private key
+    /// and metadata if valid.
+    ///
+    /// Returns: (private_key, rp_id, algorithm)
+    pub fn unwrap_credential(
+        &self,
+        credential_id: &[u8],
+    ) -> Result<(Vec<u8>, String, i32), StatusCode> {
+        use keylib_crypto::pin_protocol::v2;
+
+        // Minimum size: version(1) + IV(16) + min_encrypted(16) + HMAC(16) = 49 bytes
+        if credential_id.len() < 49 {
+            return Err(StatusCode::InvalidParameter);
+        }
+
+        // Split: version || encrypted_data || HMAC
+        let version = credential_id[0];
+        let hmac_start = credential_id.len() - 16;
+        let data_with_version = &credential_id[..hmac_start];
+        let hmac_received = &credential_id[hmac_start..];
+
+        // Verify version
+        if version != 1 {
+            return Err(StatusCode::InvalidParameter);
+        }
+
+        // Verify HMAC
+        let hmac_computed = v2::authenticate(&self.credential_wrapping_key, data_with_version);
+        let hmac_valid: bool = hmac_computed[..16].ct_eq(hmac_received).into();
+        if !hmac_valid {
+            return Err(StatusCode::InvalidParameter);
+        }
+
+        // Decrypt
+        let encrypted = &credential_id[1..hmac_start];
+        let plaintext = v2::decrypt(&self.credential_wrapping_key, encrypted)
+            .map_err(|_| StatusCode::InvalidParameter)?;
+
+        // Parse plaintext: private_key(32) || rp_id_len(1) || rp_id || algorithm(4)
+        if plaintext.len() < 37 {
+            return Err(StatusCode::InvalidParameter);
+        }
+
+        let private_key = plaintext[0..32].to_vec();
+        let rp_id_len = plaintext[32] as usize;
+
+        if plaintext.len() < 33 + rp_id_len + 4 {
+            return Err(StatusCode::InvalidParameter);
+        }
+
+        let rp_id = std::str::from_utf8(&plaintext[33..33 + rp_id_len])
+            .map_err(|_| StatusCode::InvalidParameter)?
+            .to_string();
+
+        let algorithm = i32::from_be_bytes([
+            plaintext[33 + rp_id_len],
+            plaintext[34 + rp_id_len],
+            plaintext[35 + rp_id_len],
+            plaintext[36 + rp_id_len],
+        ]);
+
+        Ok((private_key, rp_id, algorithm))
     }
 }
 

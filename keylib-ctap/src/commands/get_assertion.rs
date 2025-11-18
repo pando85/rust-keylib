@@ -93,10 +93,34 @@ pub fn handle<C: AuthenticatorCallbacks>(
         // If allow_list is provided, filter by it
         let mut creds = Vec::new();
         for desc in allow_list {
-            if let Ok(cred) = auth.callbacks().get_credential(&desc.id)
-                && cred.rp_id == rp_id
-            {
-                creds.push(cred);
+            // First try to find in storage
+            if let Ok(cred) = auth.callbacks().get_credential(&desc.id) {
+                if cred.rp_id == rp_id {
+                    creds.push(cred);
+                    continue;
+                }
+            }
+
+            // If not found, try unwrapping (for non-resident credentials)
+            if let Ok((private_key, cred_rp_id, algorithm)) = auth.unwrap_credential(&desc.id) {
+                if cred_rp_id == rp_id {
+                    // Create a temporary credential from unwrapped data
+                    let cred = crate::types::Credential {
+                        id: desc.id.clone(),
+                        rp_id: cred_rp_id,
+                        rp_name: None,
+                        user_id: Vec::new(),      // Not stored in wrapped cred
+                        user_name: None,           // Not stored in wrapped cred
+                        user_display_name: None,   // Not stored in wrapped cred
+                        private_key,
+                        algorithm,
+                        sign_count: 0,             // Wrapped creds don't track sign count
+                        created: 0,                // Not tracked
+                        discoverable: false,       // Non-resident
+                        cred_protect: 0,           // Not tracked
+                    };
+                    creds.push(cred);
+                }
             }
         }
         creds
@@ -161,9 +185,14 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // 8. Increment sign count
     let new_sign_count = selected_cred.sign_count + 1;
-    let mut updated_cred = selected_cred.clone();
-    updated_cred.sign_count = new_sign_count;
-    auth.callbacks().update_credential(&updated_cred)?;
+
+    // Only update stored credentials (not wrapped ones)
+    if selected_cred.discoverable {
+        let mut updated_cred = selected_cred.clone();
+        updated_cred.sign_count = new_sign_count;
+        auth.callbacks().update_credential(&updated_cred)?;
+    }
+    // Note: Wrapped credentials (non-resident) don't persist sign count
 
     // 9. Build extension outputs
     let extension_outputs = extensions.build_outputs();
