@@ -230,7 +230,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::{RelyingParty, User};
+    use crate::common::{ClientDataHash, RelyingParty, User};
 
     #[test]
     fn test_make_credential_request_encoding() {

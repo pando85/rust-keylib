@@ -1,5 +1,11 @@
 /// Test for credential storage and retrieval
 /// This tests the full cycle: create credential -> store -> retrieve -> authenticate
+///
+/// TODO: Adapt this test to work with both zig-ffi and pure-rust implementations
+
+// Only compile with zig-ffi for now
+#![cfg(feature = "zig-ffi")]
+
 use keylib::credential::{Credential, User};
 use keylib::error;
 

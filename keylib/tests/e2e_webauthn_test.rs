@@ -8,7 +8,7 @@
 //! These tests require:
 //! - Linux with UHID kernel module loaded
 //! - Proper permissions to access /dev/uhid
-//! - Run with: cargo test --test e2e_webauthn_test
+//! - Run with: cargo test --test e2e_webauthn_test --features zig-ffi
 //!
 //! # Test Flow
 //!
@@ -16,8 +16,20 @@
 //! 2. Use the Client API to perform registration (makeCredential)
 //! 3. Use the Client API to perform authentication (getAssertion)
 //! 4. Verify the complete flow succeeds
+//!
+//! # TODO
+//!
+//! These tests currently only work with the zig-ffi feature because they use
+//! zig-ffi specific types like Ctaphid, CtapCommand, and AuthenticatorOptions.
+//! Future work will adapt these tests to work with both implementations.
 
-use keylib::Authenticator;
+// Only compile these tests with zig-ffi feature
+#![cfg(feature = "zig-ffi")]
+
+use keylib::{
+    Authenticator, AuthenticatorConfig, AuthenticatorOptions, Callbacks, CtapCommand, UpResult,
+    UvResult,
+};
 use keylib::client::{
     Client, ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth,
     PinUvAuthProtocol, TransportList, User,
@@ -27,9 +39,6 @@ use keylib::credential::RelyingParty;
 use keylib::ctaphid::Ctaphid;
 use keylib::error::Result;
 use keylib::uhid::Uhid;
-use keylib::{
-    AuthenticatorConfig, AuthenticatorOptions, Callbacks, CtapCommand, UpResult, UvResult,
-};
 
 use base64::prelude::*;
 use serial_test::serial;
