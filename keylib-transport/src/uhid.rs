@@ -428,11 +428,18 @@ impl UhidDevice {
 
         let mut event = UhidInput2 {
             event_type: UHID_INPUT2,
-            size: 64,
+            size: 65, // Report ID + 64-byte packet
             data: [0; 4096],
         };
 
-        event.data[..64].copy_from_slice(data);
+        // Prepend report ID byte (0x00) to match OUTPUT event format
+        event.data[0] = 0x00; // Report ID
+        event.data[1..65].copy_from_slice(data); // 64-byte HID packet
+
+        println!(
+            "[UHID-Transport] INPUT2 with report ID: 00{}",
+            hex::encode(&data[..16.min(data.len())])
+        );
 
         let event_bytes = unsafe {
             std::slice::from_raw_parts(
