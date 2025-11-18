@@ -311,32 +311,126 @@ pub mod v2 {
 
     /// Encrypt plaintext with AES-256-CBC for V2
     ///
-    /// V2 uses the same encryption as V1 for PIN values themselves.
+    /// V2 encryption differs from V1:
+    /// - Generates a random 16-byte IV
+    /// - Prepends IV to the ciphertext (first 16 bytes)
+    /// - Encrypts data starting at byte 16
+    ///
+    /// Format: [IV (16 bytes)] || [Encrypted data]
     ///
     /// # Arguments
     ///
-    /// * `key` - 32-byte encryption key
-    /// * `plaintext` - Data to encrypt
+    /// * `key` - 32-byte AES encryption key
+    /// * `plaintext` - Data to encrypt (must be multiple of 16 bytes)
     ///
     /// # Returns
     ///
-    /// PKCS#7 padded ciphertext
+    /// IV prepended ciphertext (length = 16 + plaintext.len())
     pub fn encrypt(key: &[u8; 32], plaintext: &[u8]) -> Result<Vec<u8>> {
-        v1::encrypt(key, plaintext)
+        use aes::cipher::{BlockEncrypt, KeyInit};
+        use aes::Aes256;
+        use rand::Rng;
+
+        if plaintext.len() % 16 != 0 {
+            return Err(CryptoError::EncryptionFailed);
+        }
+
+        // Generate random IV
+        let mut rng = rand::thread_rng();
+        let mut iv: [u8; 16] = [0u8; 16];
+        rng.fill(&mut iv);
+
+        // Allocate output: IV + ciphertext
+        let mut output = vec![0u8; 16 + plaintext.len()];
+
+        // Copy IV to first 16 bytes
+        output[0..16].copy_from_slice(&iv);
+
+        // Initialize AES cipher
+        let cipher = Aes256::new(key.into());
+
+        // Encrypt using CBC mode with the random IV
+        let mut iv_block = iv;
+        for (i, chunk) in plaintext.chunks(16).enumerate() {
+            let mut block = [0u8; 16];
+            block.copy_from_slice(chunk);
+
+            // XOR with IV
+            for j in 0..16 {
+                block[j] ^= iv_block[j];
+            }
+
+            // Encrypt block
+            let mut encrypted_block = block.into();
+            cipher.encrypt_block(&mut encrypted_block);
+
+            // Copy to output (starting at byte 16)
+            output[16 + i * 16..16 + (i + 1) * 16].copy_from_slice(&encrypted_block);
+
+            // Update IV for next block (CBC chaining)
+            iv_block = encrypted_block.into();
+        }
+
+        Ok(output)
     }
 
     /// Decrypt ciphertext with AES-256-CBC for V2
     ///
+    /// V2 decryption expects ciphertext in format:
+    /// [IV (16 bytes)] || [Encrypted data]
+    ///
     /// # Arguments
     ///
-    /// * `key` - 32-byte encryption key
-    /// * `ciphertext` - Encrypted data
+    /// * `key` - 32-byte AES encryption key
+    /// * `ciphertext` - IV-prepended encrypted data
     ///
     /// # Returns
     ///
     /// Decrypted plaintext
     pub fn decrypt(key: &[u8; 32], ciphertext: &[u8]) -> Result<Vec<u8>> {
-        v1::decrypt(key, ciphertext)
+        use aes::cipher::{BlockDecrypt, KeyInit};
+        use aes::Aes256;
+
+        if ciphertext.len() < 16 || (ciphertext.len() - 16) % 16 != 0 {
+            return Err(CryptoError::DecryptionFailed);
+        }
+
+        // Extract IV from first 16 bytes
+        let mut iv: [u8; 16] = [0u8; 16];
+        iv.copy_from_slice(&ciphertext[0..16]);
+
+        // Initialize AES cipher
+        let cipher = Aes256::new(key.into());
+
+        // Allocate output (excluding IV)
+        let encrypted_data = &ciphertext[16..];
+        let mut output = vec![0u8; encrypted_data.len()];
+
+        // Decrypt using CBC mode
+        let mut iv_block = iv;
+        for (i, chunk) in encrypted_data.chunks(16).enumerate() {
+            let mut block = [0u8; 16];
+            block.copy_from_slice(chunk);
+
+            // Decrypt block
+            let encrypted_block = block;
+            let mut decrypted_block = block.into();
+            cipher.decrypt_block(&mut decrypted_block);
+
+            // XOR with IV
+            let mut plaintext_block: [u8; 16] = decrypted_block.into();
+            for j in 0..16 {
+                plaintext_block[j] ^= iv_block[j];
+            }
+
+            // Copy to output
+            output[i * 16..(i + 1) * 16].copy_from_slice(&plaintext_block);
+
+            // Update IV for next block (CBC chaining)
+            iv_block = encrypted_block;
+        }
+
+        Ok(output)
     }
 
     /// Derive encryption key from shared secret for V2

@@ -413,6 +413,7 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     // Compute shared secret
     let shared_secret = keypair.shared_secret(&platform_public_key)?;
     eprintln!("[DEBUG][auth] Derived shared secret ({} bytes)", shared_secret.len());
+    eprintln!("[DEBUG][auth] Shared secret (first 16 bytes): {:02x?}", &shared_secret[..16.min(shared_secret.len())]);
 
     // Derive keys based on protocol version
     let (enc_key, _hmac_key) = match protocol {
@@ -425,6 +426,7 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
         _ => return Err(StatusCode::InvalidParameter),
     };
     eprintln!("[DEBUG][auth] Derived encryption key ({} bytes)", enc_key.len());
+    eprintln!("[DEBUG][auth] Encryption key (first 16 bytes): {:02x?}", &enc_key[..16]);
     eprintln!("[DEBUG][auth] Encrypted PIN hash: {:02x?}", &pin_hash_enc[..pin_hash_enc.len().min(16)]);
 
     // Decrypt PIN hash (first 16 bytes of SHA-256(PIN))
