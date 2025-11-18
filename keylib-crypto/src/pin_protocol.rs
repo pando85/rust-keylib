@@ -273,7 +273,8 @@ pub mod v2 {
 
     /// Derive HMAC key from shared secret for V2
     ///
-    /// V2 uses HKDF-SHA-256 for key derivation (more robust than V1).
+    /// Uses HKDF-SHA-256 per CTAP 2.1 specification.
+    /// HKDF-SHA-256(salt=32 zero bytes, IKM=sharedSecret, info="CTAP2 HMAC key", L=32)
     ///
     /// # Arguments
     ///
@@ -294,15 +295,17 @@ pub mod v2 {
     /// assert_eq!(hmac_key.len(), 32);
     /// ```
     pub fn derive_hmac_key(shared_secret: &[u8; 32]) -> [u8; 32] {
-        // For simplicity, use SHA-256 like V1
-        // A full implementation would use HKDF-SHA-256
-        let mut hasher = Sha256::new();
-        hasher.update(b"CTAP2 HMAC key");
-        hasher.update(shared_secret);
-        let hash = hasher.finalize();
+        use hkdf::Hkdf;
 
+        // Per CTAP 2.1 spec: HKDF-SHA-256 with 32-byte zero salt
+        let salt = [0u8; 32];
+        let info = b"CTAP2 HMAC key";
+
+        let hkdf = Hkdf::<Sha256>::new(Some(&salt), shared_secret);
         let mut key = [0u8; 32];
-        key.copy_from_slice(&hash);
+        hkdf.expand(info, &mut key)
+            .expect("32 bytes is valid length for HKDF-SHA-256");
+
         key
     }
 
@@ -338,6 +341,9 @@ pub mod v2 {
 
     /// Derive encryption key from shared secret for V2
     ///
+    /// Uses HKDF-SHA-256 per CTAP 2.1 specification.
+    /// HKDF-SHA-256(salt=32 zero bytes, IKM=sharedSecret, info="CTAP2 AES key", L=32)
+    ///
     /// # Arguments
     ///
     /// * `shared_secret` - 32-byte ECDH shared secret
@@ -346,13 +352,17 @@ pub mod v2 {
     ///
     /// 32-byte encryption key
     pub fn derive_encryption_key(shared_secret: &[u8; 32]) -> [u8; 32] {
-        let mut hasher = Sha256::new();
-        hasher.update(b"CTAP2 AES key");
-        hasher.update(shared_secret);
-        let hash = hasher.finalize();
+        use hkdf::Hkdf;
 
+        // Per CTAP 2.1 spec: HKDF-SHA-256 with 32-byte zero salt
+        let salt = [0u8; 32];
+        let info = b"CTAP2 AES key";
+
+        let hkdf = Hkdf::<Sha256>::new(Some(&salt), shared_secret);
         let mut key = [0u8; 32];
-        key.copy_from_slice(&hash);
+        hkdf.expand(info, &mut key)
+            .expect("32 bytes is valid length for HKDF-SHA-256");
+
         key
     }
 }
