@@ -474,6 +474,22 @@ fn process_message(
             // U2F/CTAP1 message - not supported (we advertised NMSG capability)
             println!("[CTAP] ⚠ Received CTAP1/U2F Msg command");
             println!("[CTAP]   This authenticator advertised NMSG (no U2F support)");
+            println!("[CTAP]   Payload: {} bytes: {}",
+                message.data.len(),
+                hex::encode(&message.data[..message.data.len().min(32)]));
+
+            // Decode U2F command type if present
+            if !message.data.is_empty() {
+                let u2f_cmd = message.data[0];
+                let u2f_cmd_name = match u2f_cmd {
+                    0x00 => "U2F_REGISTER (not supported)",
+                    0x01 => "U2F_AUTHENTICATE (not supported)",
+                    0x02 => "U2F_VERSION",
+                    _ => "Unknown U2F command",
+                };
+                println!("[CTAP]   U2F command: 0x{:02x} ({})", u2f_cmd, u2f_cmd_name);
+            }
+
             println!("[CTAP]   Sending CTAPHID_ERR_INVALID_CMD error");
 
             // Send CTAPHID error: ERR_INVALID_CMD (0x01)
