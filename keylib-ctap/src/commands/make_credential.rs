@@ -81,32 +81,67 @@ pub fn handle<C: AuthenticatorCallbacks>(
         }
     }
 
-    let parser = MapParser::from_bytes(data)?;
+    eprintln!("[DEBUG][makeCredential] Creating MapParser from {} bytes...", data.len());
+    let parser = MapParser::from_bytes(data).map_err(|e| {
+        eprintln!("[DEBUG][makeCredential] ✗ Failed to create MapParser: {:?}", e);
+        e
+    })?;
+    eprintln!("[DEBUG][makeCredential] ✓ MapParser created successfully");
 
     // 1. Parse required parameters
-    let client_data_hash: Vec<u8> = parser.get(req_keys::CLIENT_DATA_HASH)?;
+    eprintln!("[DEBUG][makeCredential] Parsing clientDataHash (key 0x01)...");
+    let client_data_hash: Vec<u8> = parser.get(req_keys::CLIENT_DATA_HASH).map_err(|e| {
+        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse clientDataHash: {:?}", e);
+        eprintln!("[DEBUG][makeCredential]   This usually means the key is missing or wrong type");
+        e
+    })?;
     if client_data_hash.len() != 32 {
         return Err(StatusCode::InvalidParameter);
     }
     eprintln!("[DEBUG][makeCredential] ✓ client_data_hash: {} bytes", client_data_hash.len());
 
-    let rp: RelyingParty = parser.get(req_keys::RP)?;
+    eprintln!("[DEBUG][makeCredential] Parsing rp (key 0x02)...");
+    let rp: RelyingParty = parser.get(req_keys::RP).map_err(|e| {
+        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse rp: {:?}", e);
+        e
+    })?;
     eprintln!("[DEBUG][makeCredential] ✓ rp.id: {:?}", rp.id);
 
-    let user: User = parser.get(req_keys::USER)?;
+    eprintln!("[DEBUG][makeCredential] Parsing user (key 0x03)...");
+    let user: User = parser.get(req_keys::USER).map_err(|e| {
+        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse user: {:?}", e);
+        e
+    })?;
     eprintln!("[DEBUG][makeCredential] ✓ user.id: {} bytes", user.id.len());
 
+    eprintln!("[DEBUG][makeCredential] Parsing pubKeyCredParams (key 0x04)...");
     // Parse pub_key_cred_params as generic CBOR and convert
-    let params_value: ciborium::Value = parser.get(req_keys::PUB_KEY_CRED_PARAMS)?;
+    let params_value: ciborium::Value = parser.get(req_keys::PUB_KEY_CRED_PARAMS).map_err(|e| {
+        eprintln!("[DEBUG][makeCredential] ✗ Failed to get pubKeyCredParams value: {:?}", e);
+        e
+    })?;
     let pub_key_cred_params: Vec<PublicKeyCredentialParameters> =
-        crate::cbor::from_value(params_value)?;
+        crate::cbor::from_value(params_value).map_err(|e| {
+            eprintln!("[DEBUG][makeCredential] ✗ Failed to convert pubKeyCredParams: {:?}", e);
+            e
+        })?;
     eprintln!("[DEBUG][makeCredential] ✓ pub_key_cred_params: {} algorithms", pub_key_cred_params.len());
 
     // 2. Parse optional parameters
+    eprintln!("[DEBUG][makeCredential] Parsing optional parameters...");
     let exclude_list: Option<Vec<PublicKeyCredentialDescriptor>> =
-        parser.get_opt(req_keys::EXCLUDE_LIST)?;
-    let pin_uv_auth_param: Option<Vec<u8>> = parser.get_opt(req_keys::PIN_UV_AUTH_PARAM)?;
-    let pin_uv_auth_protocol: Option<u8> = parser.get_opt(req_keys::PIN_UV_AUTH_PROTOCOL)?;
+        parser.get_opt(req_keys::EXCLUDE_LIST).map_err(|e| {
+            eprintln!("[DEBUG][makeCredential] ✗ Failed to parse excludeList: {:?}", e);
+            e
+        })?;
+    let pin_uv_auth_param: Option<Vec<u8>> = parser.get_opt(req_keys::PIN_UV_AUTH_PARAM).map_err(|e| {
+        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse pinUvAuthParam: {:?}", e);
+        e
+    })?;
+    let pin_uv_auth_protocol: Option<u8> = parser.get_opt(req_keys::PIN_UV_AUTH_PROTOCOL).map_err(|e| {
+        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse pinUvAuthProtocol: {:?}", e);
+        e
+    })?;
 
     eprintln!("[DEBUG][makeCredential] Optional parameters:");
     eprintln!("[DEBUG][makeCredential]   exclude_list: {}", if exclude_list.is_some() { "present" } else { "none" });
@@ -114,7 +149,12 @@ pub fn handle<C: AuthenticatorCallbacks>(
     eprintln!("[DEBUG][makeCredential]   pin_uv_auth_protocol: {:?}", pin_uv_auth_protocol);
 
     // Parse options
-    let options = parse_options(&parser)?;
+    eprintln!("[DEBUG][makeCredential] Parsing options (key 0x07)...");
+    let options = parse_options(&parser).map_err(|e| {
+        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse options: {:?}", e);
+        e
+    })?;
+    eprintln!("[DEBUG][makeCredential] ✓ Options parsed: rk={}, up={}, uv={}", options.rk, options.up, options.uv);
 
     // Parse extensions
     let extensions =
