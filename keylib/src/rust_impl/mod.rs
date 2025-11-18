@@ -6,6 +6,10 @@
 #[cfg(feature = "pure-rust")]
 pub mod authenticator;
 #[cfg(feature = "pure-rust")]
+pub mod authenticator_options;
+#[cfg(feature = "pure-rust")]
+pub mod ctap_command;
+#[cfg(feature = "pure-rust")]
 pub mod client;
 #[cfg(feature = "pure-rust")]
 pub mod client_pin;

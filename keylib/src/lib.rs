@@ -44,8 +44,8 @@ pub use authenticator_config::{AuthenticatorConfig, AuthenticatorConfigBuilder};
 pub use authenticator_options::AuthenticatorOptions;
 #[cfg(feature = "zig-ffi")]
 pub use callbacks::{
-    Callbacks, CallbacksBuilder, DeleteCallback, ReadCallback, UpCallback, UpResult, UvCallback,
-    UvResult, WriteCallback,
+    Callbacks, CallbacksBuilder, DeleteCallback, ReadCallback, ReadFirstCallback, ReadNextCallback,
+    SelectCallback, UpCallback, UpResult, UvCallback, UvResult, WriteCallback,
 };
 #[cfg(feature = "zig-ffi")]
 pub use client::{CborCommand, CborCommandResult, Client, Transport, TransportList};
@@ -57,3 +57,29 @@ pub use ctap_command::CtapCommand;
 pub use custom_command::{CustomCommand, CustomCommandHandler};
 #[cfg(feature = "zig-ffi")]
 pub use error::{Error, Result};
+
+// Re-export pure-rust types at root level when pure-rust is active (without zig-ffi)
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+pub use rust_impl::authenticator::{
+    Authenticator, AuthenticatorConfig, AuthenticatorConfigBuilder, Callbacks, CallbacksBuilder,
+    DeleteCallback, ReadCallback, ReadFirstCallback, ReadNextCallback, SelectCallback, UpCallback,
+    UpResult, UvCallback, UvResult, WriteCallback,
+};
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+pub use rust_impl::authenticator_options::AuthenticatorOptions;
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+pub use rust_impl::client::Client;
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+pub use rust_impl::client_pin::PinProtocol;
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+pub use rust_impl::ctap_command::CtapCommand;
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
+pub use rust_impl::transport::{Transport, TransportList};
+#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi"), target_os = "linux"))]
+pub use rust_impl::uhid::Uhid;
+
+// Re-export common types (always available)
+pub use common::{
+    ClientDataHash, Credential, CredentialRef, Error, GetAssertionRequest, MakeCredentialRequest,
+    PinUvAuth, PinUvAuthProtocol, RelyingParty, Result, User,
+};

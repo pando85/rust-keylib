@@ -89,20 +89,31 @@ pub type UpCallback =
 pub type UvCallback =
     Arc<dyn Fn(&str, Option<&str>, Option<&str>) -> Result<UvResult> + Send + Sync>;
 
-/// Select callback type for choosing which user to authenticate with
-pub type SelectCallback = Arc<dyn Fn(&str, &[String]) -> Result<usize> + Send + Sync>;
+/// Select callback type for choosing which user to authenticate with (zig-ffi compatible)
+pub type SelectCallback = Arc<dyn Fn(&str) -> Result<Vec<String>> + Send + Sync>;
 
-/// Write callback type for storing credential data
-pub type WriteCallback = Arc<dyn Fn(CredentialRef) -> Result<()> + Send + Sync>;
+/// Read callback type for retrieving credential data (zig-ffi compatible)
+pub type ReadCallback = Arc<dyn Fn(&str, &str) -> Result<Vec<u8>> + Send + Sync>;
 
-/// Delete callback type for removing credential data
-pub type DeleteCallback = Arc<dyn Fn(&[u8]) -> Result<()> + Send + Sync>;
+/// Write callback type for storing credential data (zig-ffi compatible)
+pub type WriteCallback = Arc<dyn Fn(&str, &str, CredentialRef) -> Result<()> + Send + Sync>;
 
-/// Read credentials callback type
+/// Delete callback type for removing credential data (zig-ffi compatible)
+pub type DeleteCallback = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
+
+/// Read first callback type for starting credential iteration (zig-ffi compatible)
+pub type ReadFirstCallback = Arc<
+    dyn Fn(Option<&str>, Option<&str>, Option<[u8; 32]>) -> Result<Credential> + Send + Sync,
+>;
+
+/// Read next callback type for continuing credential iteration (zig-ffi compatible)
+pub type ReadNextCallback = Arc<dyn Fn() -> Result<Credential> + Send + Sync>;
+
+/// Read credentials callback type (pure-rust legacy, kept for backward compatibility)
 pub type ReadCredentialsCallback =
     Arc<dyn Fn(&str, Option<&[u8]>) -> Result<Vec<Credential>> + Send + Sync>;
 
-/// Get credential callback type
+/// Get credential callback type (pure-rust legacy, kept for backward compatibility)
 pub type GetCredentialCallback = Arc<dyn Fn(&[u8]) -> Result<Credential> + Send + Sync>;
 
 /// Callback wrapper (matches zig-ffi Callbacks API)
@@ -111,8 +122,12 @@ pub struct Callbacks {
     pub up: Option<UpCallback>,
     pub uv: Option<UvCallback>,
     pub select: Option<SelectCallback>,
+    pub read: Option<ReadCallback>,
     pub write: Option<WriteCallback>,
     pub delete: Option<DeleteCallback>,
+    pub read_first: Option<ReadFirstCallback>,
+    pub read_next: Option<ReadNextCallback>,
+    // Legacy pure-rust callbacks (kept for backward compatibility)
     pub read_credentials: Option<ReadCredentialsCallback>,
     pub get_credential: Option<GetCredentialCallback>,
 }
@@ -123,8 +138,11 @@ pub struct CallbacksBuilder {
     up: Option<UpCallback>,
     uv: Option<UvCallback>,
     select: Option<SelectCallback>,
+    read: Option<ReadCallback>,
     write: Option<WriteCallback>,
     delete: Option<DeleteCallback>,
+    read_first: Option<ReadFirstCallback>,
+    read_next: Option<ReadNextCallback>,
     read_credentials: Option<ReadCredentialsCallback>,
     get_credential: Option<GetCredentialCallback>,
 }
@@ -149,6 +167,11 @@ impl CallbacksBuilder {
         self
     }
 
+    pub fn read(mut self, callback: ReadCallback) -> Self {
+        self.read = Some(callback);
+        self
+    }
+
     pub fn write(mut self, callback: WriteCallback) -> Self {
         self.write = Some(callback);
         self
@@ -156,6 +179,16 @@ impl CallbacksBuilder {
 
     pub fn delete(mut self, callback: DeleteCallback) -> Self {
         self.delete = Some(callback);
+        self
+    }
+
+    pub fn read_first(mut self, callback: ReadFirstCallback) -> Self {
+        self.read_first = Some(callback);
+        self
+    }
+
+    pub fn read_next(mut self, callback: ReadNextCallback) -> Self {
+        self.read_next = Some(callback);
         self
     }
 
@@ -174,10 +207,41 @@ impl CallbacksBuilder {
             up: self.up,
             uv: self.uv,
             select: self.select,
+            read: self.read,
             write: self.write,
             delete: self.delete,
+            read_first: self.read_first,
+            read_next: self.read_next,
             read_credentials: self.read_credentials,
             get_credential: self.get_credential,
+        }
+    }
+}
+
+impl Callbacks {
+    /// Create a new Callbacks instance (zig-ffi compatible constructor)
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        up: Option<UpCallback>,
+        uv: Option<UvCallback>,
+        select: Option<SelectCallback>,
+        read: Option<ReadCallback>,
+        write: Option<WriteCallback>,
+        delete: Option<DeleteCallback>,
+        read_first: Option<ReadFirstCallback>,
+        read_next: Option<ReadNextCallback>,
+    ) -> Self {
+        Self {
+            up,
+            uv,
+            select,
+            read,
+            write,
+            delete,
+            read_first,
+            read_next,
+            read_credentials: None,
+            get_credential: None,
         }
     }
 }
@@ -218,9 +282,11 @@ impl UserInteractionCallbacks for CallbackAdapter {
         }
     }
 
-    fn select_credential(&self, rp_id: &str, user_names: &[String]) -> keylib_ctap::Result<usize> {
+    fn select_credential(&self, rp_id: &str, _user_names: &[String]) -> keylib_ctap::Result<usize> {
         if let Some(select_cb) = &self.callbacks.select {
-            select_cb(rp_id, user_names).map_err(|_| StatusCode::Other)
+            // Call zig-ffi compatible select callback which returns the list of users
+            // For pure-rust, we ignore the returned user list and just return 0
+            select_cb(rp_id).map(|_| 0).map_err(|_| StatusCode::Other)
         } else {
             Ok(0) // Default to first credential
         }
@@ -231,6 +297,10 @@ impl UserInteractionCallbacks for CallbackAdapter {
 impl CredentialStorageCallbacks for CallbackAdapter {
     fn write_credential(&self, credential: &CtapCredential) -> keylib_ctap::Result<()> {
         if let Some(write_cb) = &self.callbacks.write {
+            // Convert credential id to string for zig-ffi compatible signature
+            let id_str = std::str::from_utf8(&credential.id)
+                .unwrap_or_else(|_| std::str::from_utf8(&credential.id[..credential.id.len().min(16)]).unwrap_or(""));
+
             // Convert keylib-ctap credential to CredentialRef
             let cred_ref = CredentialRef {
                 id: &credential.id,
@@ -246,7 +316,8 @@ impl CredentialStorageCallbacks for CallbackAdapter {
                 discoverable: credential.discoverable,
                 cred_protect: Some(credential.cred_protect),
             };
-            write_cb(cred_ref).map_err(|_| StatusCode::Other)
+            // Call zig-ffi compatible write callback: (id, rp_id, credential_ref)
+            write_cb(id_str, &credential.rp_id, cred_ref).map_err(|_| StatusCode::Other)
         } else {
             Ok(()) // No-op if no callback
         }
@@ -254,7 +325,10 @@ impl CredentialStorageCallbacks for CallbackAdapter {
 
     fn delete_credential(&self, credential_id: &[u8]) -> keylib_ctap::Result<()> {
         if let Some(delete_cb) = &self.callbacks.delete {
-            delete_cb(credential_id).map_err(|_| StatusCode::Other)
+            // Convert credential id to string for zig-ffi compatible signature
+            let id_str = std::str::from_utf8(credential_id)
+                .unwrap_or_else(|_| std::str::from_utf8(&credential_id[..credential_id.len().min(16)]).unwrap_or(""));
+            delete_cb(id_str).map_err(|_| StatusCode::Other)
         } else {
             Ok(()) // No-op if no callback
         }
@@ -314,6 +388,8 @@ impl CredentialStorageCallbacks for CallbackAdapter {
 #[derive(Debug, Clone)]
 pub struct AuthenticatorConfig {
     pub aaguid: [u8; 16],
+    pub commands: Vec<super::ctap_command::CtapCommand>,
+    pub options: Option<super::authenticator_options::AuthenticatorOptions>,
     pub max_credentials: usize,
     pub extensions: Vec<String>,
 }
@@ -322,6 +398,8 @@ impl Default for AuthenticatorConfig {
     fn default() -> Self {
         Self {
             aaguid: [0u8; 16],
+            commands: super::ctap_command::CtapCommand::default_commands(),
+            options: None,
             max_credentials: 100,
             extensions: vec![],
         }
@@ -338,13 +416,29 @@ impl AuthenticatorConfig {
 #[derive(Default)]
 pub struct AuthenticatorConfigBuilder {
     aaguid: [u8; 16],
+    commands: Vec<super::ctap_command::CtapCommand>,
+    options: Option<super::authenticator_options::AuthenticatorOptions>,
     max_credentials: usize,
     extensions: Vec<String>,
 }
 
 impl AuthenticatorConfigBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn aaguid(mut self, aaguid: [u8; 16]) -> Self {
         self.aaguid = aaguid;
+        self
+    }
+
+    pub fn commands(mut self, commands: Vec<super::ctap_command::CtapCommand>) -> Self {
+        self.commands = commands;
+        self
+    }
+
+    pub fn options(mut self, options: super::authenticator_options::AuthenticatorOptions) -> Self {
+        self.options = Some(options);
         self
     }
 
@@ -361,6 +455,12 @@ impl AuthenticatorConfigBuilder {
     pub fn build(self) -> AuthenticatorConfig {
         AuthenticatorConfig {
             aaguid: self.aaguid,
+            commands: if self.commands.is_empty() {
+                super::ctap_command::CtapCommand::default_commands()
+            } else {
+                self.commands
+            },
+            options: self.options,
             max_credentials: if self.max_credentials == 0 {
                 100
             } else {
