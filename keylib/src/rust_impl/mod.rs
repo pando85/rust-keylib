@@ -11,6 +11,8 @@ pub mod client;
 pub mod client_pin;
 #[cfg(feature = "pure-rust")]
 pub mod transport;
+#[cfg(all(feature = "pure-rust", target_os = "linux"))]
+pub mod uhid;
 
 // Re-export core types from pure Rust crates
 #[cfg(feature = "pure-rust")]

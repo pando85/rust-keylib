@@ -10,7 +10,7 @@ use keylib_transport::{enumerate_devices, init_usb, UsbDeviceInfo, UsbTransport 
 #[cfg(all(feature = "pure-rust", target_os = "linux"))]
 use keylib_transport::UhidDevice;
 
-use keylib_transport::{ChannelManager, CtapHidHandler, CommandHandler, Message, Packet};
+use keylib_transport::{ChannelManager, Message, Packet};
 
 use std::sync::{Arc, Mutex};
 
@@ -129,7 +129,7 @@ impl Transport {
     }
 
     /// Read data from the transport with timeout
-    pub fn read(&mut self, buffer: &mut [u8], timeout_ms: i32) -> Result<usize> {
+    pub fn read(&mut self, buffer: &mut [u8], _timeout_ms: i32) -> Result<usize> {
         let mut inner = self.inner.lock().unwrap();
         match &mut *inner {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]

@@ -2,10 +2,7 @@
 //!
 //! Provides high-level client interface matching the zig-ffi implementation.
 
-use crate::common::{
-    ClientDataHash, CredentialDescriptor, Error, GetAssertionRequest, MakeCredentialRequest,
-    Result,
-};
+use crate::common::{Error, GetAssertionRequest, MakeCredentialRequest, Result};
 use crate::rust_impl::transport::Transport;
 
 use ciborium::value::Value;

@@ -175,6 +175,7 @@ impl UhidDevice {
     }
 
     /// Create a virtual HID device with custom parameters
+    #[allow(clippy::too_many_arguments)]
     fn create_device(
         &mut self,
         name: &str,

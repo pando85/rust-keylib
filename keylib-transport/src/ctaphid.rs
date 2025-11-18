@@ -305,9 +305,8 @@ impl Message {
 
         // Add continuation packet data
         let mut remaining = total_len - init_data_len;
-        let mut expected_seq = 0u8;
 
-        for packet in &packets[1..] {
+        for (expected_seq, packet) in packets[1..].iter().enumerate() {
             if packet.is_init() {
                 return Err(Error::InvalidSequence);
             }
@@ -317,7 +316,7 @@ impl Message {
             }
 
             let seq = packet.seq().ok_or(Error::InvalidSequence)?;
-            if seq != expected_seq {
+            if seq != expected_seq as u8 {
                 return Err(Error::InvalidSequence);
             }
 
@@ -325,7 +324,6 @@ impl Message {
             data.extend_from_slice(&packet.payload()[..cont_data_len]);
 
             remaining -= cont_data_len;
-            expected_seq += 1;
 
             if remaining == 0 {
                 break;

@@ -1,0 +1,76 @@
+//! Pure Rust UHID Support
+//!
+//! Provides UHID (Userspace HID) device support matching the zig-ffi API.
+
+use crate::common::{Error, Result};
+
+#[cfg(all(feature = "pure-rust", target_os = "linux"))]
+use keylib_transport::UhidDevice;
+
+/// UHID virtual device wrapper (matches zig-ffi API)
+#[cfg(all(feature = "pure-rust", target_os = "linux"))]
+pub struct Uhid {
+    device: UhidDevice,
+}
+
+#[cfg(all(feature = "pure-rust", target_os = "linux"))]
+impl Uhid {
+    /// Open a UHID device
+    ///
+    /// Creates a virtual FIDO2 HID device via Linux UHID interface.
+    pub fn open() -> Result<Self> {
+        let device = UhidDevice::create_fido_device().map_err(|e| {
+            eprintln!("Failed to create UHID device: {:?}", e);
+            Error::Other
+        })?;
+
+        Ok(Self { device })
+    }
+
+    /// Read a 64-byte HID packet
+    ///
+    /// Returns the number of bytes read.
+    /// Blocks waiting for a packet if none is available.
+    pub fn read_packet(&self, out: &mut [u8; 64]) -> Result<usize> {
+        // Loop until we get a packet (blocking read)
+        loop {
+            match self.device.read_packet(out) {
+                Ok(Some(len)) => return Ok(len),
+                Ok(None) => {
+                    // No packet available, sleep briefly and try again
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    continue;
+                }
+                Err(e) => {
+                    eprintln!("UHID read error: {:?}", e);
+                    return Err(Error::Other);
+                }
+            }
+        }
+    }
+
+    /// Write a 64-byte HID packet
+    ///
+    /// Returns the number of bytes written (always 64 on success).
+    pub fn write_packet(&self, data: &[u8; 64]) -> Result<usize> {
+        self.device.write_packet(data).map_err(|e| {
+            eprintln!("UHID write error: {:?}", e);
+            Error::Other
+        })?;
+
+        Ok(64) // Return number of bytes written
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore] // Requires /dev/uhid permissions
+    fn test_uhid_creation() {
+        // This test requires proper permissions
+        // Run with: cargo test -- --ignored
+        let _uhid = Uhid::open();
+    }
+}
