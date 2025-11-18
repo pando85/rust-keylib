@@ -414,7 +414,7 @@ fn process_message(
                 response_data.push(0); // Major device version
                 response_data.push(0); // Minor device version
                 response_data.push(0); // Build device version
-                response_data.push(0x01); // Capabilities: CBOR
+                response_data.push(0x04 | 0x08); // Capabilities: CBOR (0x04) + NMSG (0x08, no U2F)
 
                 println!(
                     "[CTAP] INIT command processed (allocated NEW CID: 0x{:08x})",
