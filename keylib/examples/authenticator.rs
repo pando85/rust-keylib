@@ -470,8 +470,25 @@ fn process_message(
             let response_msg = Message::new(cid, Cmd::Ping, message.data);
             send_message(uhid, &response_msg)?;
         }
+        Cmd::Msg => {
+            // U2F/CTAP1 message - not supported (we advertised NMSG capability)
+            println!("[CTAP] ⚠ Received CTAP1/U2F Msg command");
+            println!("[CTAP]   This authenticator advertised NMSG (no U2F support)");
+            println!("[CTAP]   Sending CTAPHID_ERR_INVALID_CMD error");
+
+            // Send CTAPHID error: ERR_INVALID_CMD (0x01)
+            let error_data = vec![0x01]; // ERR_INVALID_CMD
+            let response_msg = Message::new(cid, Cmd::Error, error_data);
+            send_message(uhid, &response_msg)?;
+        }
         _ => {
             println!("[CTAP] ⚠ Unknown command: {:?}", cmd);
+            println!("[CTAP]   Sending CTAPHID_ERR_INVALID_CMD error");
+
+            // Send CTAPHID error: ERR_INVALID_CMD (0x01)
+            let error_data = vec![0x01]; // ERR_INVALID_CMD
+            let response_msg = Message::new(cid, Cmd::Error, error_data);
+            send_message(uhid, &response_msg)?;
         }
     }
 
