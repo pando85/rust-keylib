@@ -55,9 +55,10 @@ fn main() -> Result<()> {
     // Create credential storage
     let credentials = Arc::new(Mutex::new(HashMap::<Vec<u8>, Credential>::new()));
 
-    // Setup PIN
-    Authenticator::set_pin_hash(&get_pin_hash());
-    println!("[Setup] PIN configured: 123456");
+    // Setup PIN - DISABLED to match Zig (no PIN set)
+    // Authenticator::set_pin_hash(&get_pin_hash());
+    // println!("[Setup] PIN configured: 123456");
+    println!("[Setup] PIN not configured (matching Zig behavior)");
 
     // Setup callbacks
     let creds_write = credentials.clone();
