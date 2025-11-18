@@ -135,6 +135,7 @@ fn main() -> Result<()> {
         ])
         .max_credentials(100)
         .extensions(vec!["credProtect".to_string(), "hmac-secret".to_string()])
+        .force_resident_keys(true)  // For testing: always store credentials
         .build();
 
     println!("[Setup] Creating authenticator...");

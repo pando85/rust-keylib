@@ -401,6 +401,7 @@ pub struct AuthenticatorConfig {
     pub options: Option<super::authenticator_options::AuthenticatorOptions>,
     pub max_credentials: usize,
     pub extensions: Vec<String>,
+    pub force_resident_keys: bool,
 }
 
 impl Default for AuthenticatorConfig {
@@ -411,6 +412,7 @@ impl Default for AuthenticatorConfig {
             options: None,
             max_credentials: 100,
             extensions: vec![],
+            force_resident_keys: false,
         }
     }
 }
@@ -429,6 +431,7 @@ pub struct AuthenticatorConfigBuilder {
     options: Option<super::authenticator_options::AuthenticatorOptions>,
     max_credentials: usize,
     extensions: Vec<String>,
+    force_resident_keys: bool,
 }
 
 impl AuthenticatorConfigBuilder {
@@ -461,6 +464,11 @@ impl AuthenticatorConfigBuilder {
         self
     }
 
+    pub fn force_resident_keys(mut self, force: bool) -> Self {
+        self.force_resident_keys = force;
+        self
+    }
+
     pub fn build(self) -> AuthenticatorConfig {
         AuthenticatorConfig {
             aaguid: self.aaguid,
@@ -476,6 +484,7 @@ impl AuthenticatorConfigBuilder {
                 self.max_credentials
             },
             extensions: self.extensions,
+            force_resident_keys: self.force_resident_keys,
         }
     }
 }
@@ -521,7 +530,8 @@ impl Authenticator {
         let ctap_config = CtapConfig::new()
             .with_aaguid(config.aaguid)
             .with_max_credentials(config.max_credentials)
-            .with_extensions(config.extensions);
+            .with_extensions(config.extensions)
+            .with_force_resident_keys(config.force_resident_keys);
 
         let mut authenticator = CtapAuthenticator::new(ctap_config, adapter);
 

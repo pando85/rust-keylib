@@ -63,6 +63,13 @@ pub struct AuthenticatorConfig {
     /// Used to encrypt private keys into credential IDs when rk=false.
     /// If None, a random key will be generated at runtime.
     pub credential_wrapping_key: Option<[u8; 32]>,
+
+    /// Force all credentials to be resident keys (for testing)
+    ///
+    /// When true, all credentials are stored regardless of the rk option
+    /// in makeCredential requests. This is useful for testing without a
+    /// proper client that saves credential IDs.
+    pub force_resident_keys: bool,
 }
 
 impl AuthenticatorConfig {
@@ -82,6 +89,7 @@ impl AuthenticatorConfig {
             max_cred_blob_length: Some(32),
             min_pin_length: Some(4), // CTAP default minimum PIN length
             credential_wrapping_key: None,     // Will be generated if needed
+            force_resident_keys: false,
         }
     }
 
@@ -124,6 +132,12 @@ impl AuthenticatorConfig {
     /// Set firmware version
     pub fn with_firmware_version(mut self, version: u32) -> Self {
         self.firmware_version = Some(version);
+        self
+    }
+
+    /// Force all credentials to be resident keys (for testing)
+    pub fn with_force_resident_keys(mut self, force: bool) -> Self {
+        self.force_resident_keys = force;
         self
     }
 }

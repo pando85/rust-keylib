@@ -272,8 +272,11 @@ pub fn handle<C: AuthenticatorCallbacks>(
     eprintln!("[DEBUG][makeCredential] Credential storage:");
     eprintln!("[DEBUG][makeCredential]   options.rk (resident key): {}", options.rk);
 
-    let credential_id = if options.rk {
+    let credential_id = if options.rk || auth.config().force_resident_keys {
         // Resident key: generate random ID and store credential
+        if auth.config().force_resident_keys && !options.rk {
+            eprintln!("[DEBUG][makeCredential]   ⚙ Force resident keys enabled: converting to resident key");
+        }
         eprintln!("[DEBUG][makeCredential]   ✓ Resident key: storing credential in persistent storage");
         let id = generate_credential_id();
 
