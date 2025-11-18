@@ -368,17 +368,48 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     }
     eprintln!("[AUTH-DEBUG] PIN is set");
 
-    let protocol: u8 = parser.get(req_keys::PIN_UV_AUTH_PROTOCOL)?;
-    let pin_hash_enc: Vec<u8> = parser.get(req_keys::PIN_HASH_ENC)?;
-    let permissions: u8 = parser.get(req_keys::PERMISSIONS)?;
-    let rp_id: Option<String> = parser.get_opt(req_keys::RP_ID)?;
+    eprintln!("[AUTH-DEBUG] Parsing protocol...");
+    let protocol: u8 = parser.get(req_keys::PIN_UV_AUTH_PROTOCOL).map_err(|e| {
+        eprintln!("[AUTH-DEBUG] Failed to parse protocol: {:?}", e);
+        e
+    })?;
+    eprintln!("[AUTH-DEBUG] protocol={}", protocol);
 
-    eprintln!("[AUTH-DEBUG] protocol={}, permissions={:02x}, rp_id={:?}", protocol, permissions, rp_id);
+    eprintln!("[AUTH-DEBUG] Parsing pin_hash_enc...");
+    let pin_hash_enc: Vec<u8> = parser.get(req_keys::PIN_HASH_ENC).map_err(|e| {
+        eprintln!("[AUTH-DEBUG] Failed to parse pin_hash_enc: {:?}", e);
+        e
+    })?;
     eprintln!("[AUTH-DEBUG] pin_hash_enc len={}", pin_hash_enc.len());
 
+    eprintln!("[AUTH-DEBUG] Parsing permissions...");
+    let permissions: u8 = parser.get(req_keys::PERMISSIONS).map_err(|e| {
+        eprintln!("[AUTH-DEBUG] Failed to parse permissions: {:?}", e);
+        e
+    })?;
+    eprintln!("[AUTH-DEBUG] permissions={:02x}", permissions);
+
+    eprintln!("[AUTH-DEBUG] Parsing rp_id...");
+    let rp_id: Option<String> = parser.get_opt(req_keys::RP_ID).map_err(|e| {
+        eprintln!("[AUTH-DEBUG] Failed to parse rp_id: {:?}", e);
+        e
+    })?;
+    eprintln!("[AUTH-DEBUG] rp_id={:?}", rp_id);
+
     // Get platform's key agreement key
-    let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
-    let platform_public_key = parse_cose_key(&key_agreement)?;
+    eprintln!("[AUTH-DEBUG] Parsing key_agreement...");
+    let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT).map_err(|e| {
+        eprintln!("[AUTH-DEBUG] Failed to parse key_agreement: {:?}", e);
+        e
+    })?;
+    eprintln!("[AUTH-DEBUG] Got key_agreement");
+
+    eprintln!("[AUTH-DEBUG] Parsing COSE key...");
+    let platform_public_key = parse_cose_key(&key_agreement).map_err(|e| {
+        eprintln!("[AUTH-DEBUG] Failed to parse COSE key: {:?}", e);
+        e
+    })?;
+    eprintln!("[AUTH-DEBUG] Parsed COSE key, len={}", platform_public_key.len());
 
     // Get stored keypair for this protocol
     let keypair = auth
