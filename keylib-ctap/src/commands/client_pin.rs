@@ -353,7 +353,7 @@ fn handle_get_pin_token<C: AuthenticatorCallbacks>(
     };
 
     MapBuilder::new()
-        .insert(resp_keys::PIN_UV_AUTH_TOKEN, encrypted_token)?
+        .insert_bytes(resp_keys::PIN_UV_AUTH_TOKEN, &encrypted_token)?
         .build()
 }
 
@@ -485,7 +485,7 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     };
 
     MapBuilder::new()
-        .insert(resp_keys::PIN_UV_AUTH_TOKEN, encrypted_token)?
+        .insert_bytes(resp_keys::PIN_UV_AUTH_TOKEN, &encrypted_token)?
         .build()
 }
 
