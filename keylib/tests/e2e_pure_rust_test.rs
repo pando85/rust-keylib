@@ -119,6 +119,8 @@ impl TestAuthenticator {
         let mut hasher = Sha256::new();
         hasher.update(TEST_PIN.as_bytes());
         let pin_hash: [u8; 32] = hasher.finalize().into();
+        println!("[TEST-DEBUG] Setting PIN hash: {:02x?}", &pin_hash[..16]);
+        println!("[TEST-DEBUG] PIN used: {:?}", TEST_PIN);
         Authenticator::set_pin_hash(&pin_hash);
 
         // Spawn authenticator thread

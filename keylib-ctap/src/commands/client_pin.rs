@@ -360,14 +360,21 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     auth: &mut Authenticator<C>,
     parser: &MapParser,
 ) -> Result<Vec<u8>> {
+    eprintln!("[AUTH-DEBUG] handle_get_pin_uv_auth_token_using_pin_with_permissions called");
+
     if !auth.is_pin_set() {
+        eprintln!("[AUTH-DEBUG] PIN not set!");
         return Err(StatusCode::PinNotSet);
     }
+    eprintln!("[AUTH-DEBUG] PIN is set");
 
     let protocol: u8 = parser.get(req_keys::PIN_UV_AUTH_PROTOCOL)?;
     let pin_hash_enc: Vec<u8> = parser.get(req_keys::PIN_HASH_ENC)?;
     let permissions: u8 = parser.get(req_keys::PERMISSIONS)?;
     let rp_id: Option<String> = parser.get_opt(req_keys::RP_ID)?;
+
+    eprintln!("[AUTH-DEBUG] protocol={}, permissions={:02x}, rp_id={:?}", protocol, permissions, rp_id);
+    eprintln!("[AUTH-DEBUG] pin_hash_enc len={}", pin_hash_enc.len());
 
     // Get platform's key agreement key
     let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
@@ -399,15 +406,21 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
         _ => return Err(StatusCode::InvalidParameter),
     };
 
+    eprintln!("[AUTH-DEBUG] Decrypted PIN hash len={}", decrypted_pin_hash.len());
+    eprintln!("[AUTH-DEBUG] Decrypted PIN hash[..16]: {:02x?}", &decrypted_pin_hash[..16.min(decrypted_pin_hash.len())]);
+
     if decrypted_pin_hash.len() < 16 {
+        eprintln!("[AUTH-DEBUG] Decrypted PIN hash too short!");
         return Err(StatusCode::PinAuthInvalid);
     }
 
     // Verify PIN hash by comparing first 16 bytes with stored PIN hash
     if let Some(stored_pin_hash) = auth.pin_hash() {
+        eprintln!("[AUTH-DEBUG] Stored PIN hash: {:02x?}", &stored_pin_hash[..16]);
         use subtle::ConstantTimeEq;
         let is_valid: bool = stored_pin_hash[..16].ct_eq(&decrypted_pin_hash[..16]).into();
         if !is_valid {
+            eprintln!("[AUTH-DEBUG] PIN verification FAILED - hashes don't match!");
             // Decrement retry counter
             auth.decrement_pin_retries();
             if auth.is_pin_blocked() {
@@ -415,7 +428,9 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
             }
             return Err(StatusCode::PinInvalid);
         }
+        eprintln!("[AUTH-DEBUG] PIN verification SUCCESS!");
     } else {
+        eprintln!("[AUTH-DEBUG] No stored PIN hash!");
         return Err(StatusCode::PinNotSet);
     }
 
