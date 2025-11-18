@@ -479,9 +479,10 @@ fn process_message(
             // U2F/CTAP1 message - not supported, but we don't advertise NMSG
             // to work around buggy WebAuthn clients.
             //
-            // IMPORTANT: We MUST send a response (CTAPHID protocol requirement).
-            // Send a U2F error response with status code 0x6D00 (INS not supported).
-            // This tells the client we don't support U2F, prompting it to try CTAP2.
+            // IMPORTANT: Echo the U2F request back unchanged (matching Zig behavior).
+            // The Zig implementation (keylib-sys/keylib/example/authenticator.zig:144)
+            // doesn't process MSG commands - it just echoes them back.
+            // This causes clients to receive garbage and fall back to CTAP2.
             println!("[CTAP] ⚠ Received CTAP1/U2F Msg command");
             println!("[CTAP]   Payload: {} bytes: {}",
                 message.data.len(),
@@ -499,11 +500,9 @@ fn process_message(
                 println!("[CTAP]   U2F command: 0x{:02x} ({})", u2f_cmd, u2f_cmd_name);
             }
 
-            println!("[CTAP]   Sending U2F error response: SW=0x6D00 (INS not supported)");
-            // U2F error response format: 2-byte status word (SW1 SW2)
-            // 0x6D00 = Instruction not supported
-            let error_data = vec![0x6D, 0x00];
-            let response_msg = Message::new(cid, Cmd::Msg, error_data);
+            println!("[CTAP]   Echoing request back unchanged (not processing as U2F)");
+            // Echo the U2F request back unchanged - matches Zig implementation
+            let response_msg = Message::new(cid, Cmd::Msg, message.data);
             send_message(uhid, &response_msg)?;
         }
         _ => {
