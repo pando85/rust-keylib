@@ -292,10 +292,8 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
             return Err(StatusCode::PinPolicyViolation);
         }
 
-        // Hash the PIN (left-padded to 64 bytes with zeros)
-        let mut padded_pin = [0u8; 64];
-        padded_pin[..pin_bytes.len()].copy_from_slice(pin_bytes);
-        let hash = Sha256::digest(padded_pin);
+        // Hash the PIN (according to CTAP spec, store SHA-256 of raw PIN, not padded)
+        let hash = Sha256::digest(pin_bytes);
         self.pin_hash = Some(hash.into());
 
         // Reset retry counter
@@ -341,11 +339,9 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
             return Err(StatusCode::PinBlocked);
         }
 
-        // Hash the provided PIN
+        // Hash the provided PIN (raw PIN, not padded, per CTAP spec)
         let pin_bytes = pin.as_bytes();
-        let mut padded_pin = [0u8; 64];
-        padded_pin[..pin_bytes.len()].copy_from_slice(pin_bytes);
-        let hash = Sha256::digest(padded_pin);
+        let hash = Sha256::digest(pin_bytes);
 
         // Compare using constant-time comparison
         use subtle::ConstantTimeEq;
@@ -369,6 +365,18 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
     /// Returns the full 32-byte SHA-256 hash of the PIN, if set.
     pub(crate) fn pin_hash(&self) -> Option<[u8; 32]> {
         self.pin_hash
+    }
+
+    /// Set PIN hash directly for testing purposes
+    ///
+    /// This bypasses normal PIN validation and should only be used in tests.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash` - The 32-byte PIN hash to set
+    pub fn set_pin_hash_for_testing(&mut self, hash: [u8; 32]) {
+        self.pin_hash = Some(hash);
+        self.pin_retries = MAX_PIN_RETRIES;
     }
 
     /// Decrement PIN retry counter (for failed PIN attempts)

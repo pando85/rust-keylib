@@ -18,6 +18,14 @@ use keylib_ctap::{
 #[cfg(feature = "pure-rust")]
 use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "pure-rust")]
+use std::sync::OnceLock;
+
+/// Global PIN hash storage for zig-ffi API compatibility
+/// This allows set_pin_hash to be called before creating an authenticator
+#[cfg(feature = "pure-rust")]
+static PRESET_PIN_HASH: OnceLock<Mutex<Option<[u8; 32]>>> = OnceLock::new();
+
 /// User presence result (matches zig-ffi)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpResult {
@@ -481,10 +489,22 @@ pub struct Authenticator {
 impl Authenticator {
     /// Set the PIN hash for the authenticator (must be called before creating instance)
     ///
-    /// Note: In pure-rust, PIN is set per-authenticator instance, not globally.
-    /// This is a compatibility shim for zig-ffi API - currently a no-op.
-    pub fn set_pin_hash(_pin_hash: &[u8]) {
-        // No-op for pure-rust implementation
+    /// This is a compatibility method for zig-ffi API. The PIN hash will be applied
+    /// to the next authenticator instance created.
+    ///
+    /// # Arguments
+    ///
+    /// * `pin_hash` - SHA-256 hash of the PIN (32 bytes)
+    pub fn set_pin_hash(pin_hash: &[u8]) {
+        if pin_hash.len() == 32 {
+            let mut hash = [0u8; 32];
+            hash.copy_from_slice(pin_hash);
+
+            let lock = PRESET_PIN_HASH.get_or_init(|| Mutex::new(None));
+            if let Ok(mut guard) = lock.lock() {
+                *guard = Some(hash);
+            }
+        }
     }
 
     /// Create a new authenticator with default configuration
@@ -502,7 +522,19 @@ impl Authenticator {
             .with_max_credentials(config.max_credentials)
             .with_extensions(config.extensions);
 
-        let authenticator = CtapAuthenticator::new(ctap_config, adapter);
+        let mut authenticator = CtapAuthenticator::new(ctap_config, adapter);
+
+        // Apply preset PIN hash if available (for zig-ffi API compatibility)
+        if let Some(lock) = PRESET_PIN_HASH.get() {
+            if let Ok(mut guard) = lock.lock() {
+                if let Some(pin_hash) = guard.take() {
+                    // Set the PIN hash directly on the authenticator
+                    // We use the internal method that sets the hash without validation
+                    authenticator.set_pin_hash_for_testing(pin_hash);
+                }
+            }
+        }
+
         let dispatcher = CommandDispatcher::new(authenticator);
 
         Ok(Self {
