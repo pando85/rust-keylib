@@ -380,7 +380,19 @@ impl UhidDevice {
                                 size,
                                 hex::encode(&output.data[..size.min(16)])
                             );
-                            if size <= 64 {
+
+                            // UHID prepends a report ID byte (0x00) to HID packets
+                            // We need to skip it and only return the 64-byte HID packet
+                            if size == 65 && output.data[0] == 0x00 {
+                                // Skip report ID, copy actual 64-byte packet
+                                buffer[..64].copy_from_slice(&output.data[1..65]);
+                                println!(
+                                    "[UHID-Transport] Stripped report ID, returning 64-byte packet: {}",
+                                    hex::encode(&buffer[..16])
+                                );
+                                return Ok(Some(64));
+                            } else if size <= 64 {
+                                // No report ID, copy directly
                                 buffer[..size].copy_from_slice(&output.data[..size]);
                                 return Ok(Some(size));
                             }
