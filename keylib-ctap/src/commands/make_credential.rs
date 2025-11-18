@@ -54,6 +54,33 @@ pub fn handle<C: AuthenticatorCallbacks>(
     auth: &mut Authenticator<C>,
     data: &[u8],
 ) -> Result<Vec<u8>> {
+    eprintln!("[DEBUG][makeCredential] Processing makeCredential request ({} bytes)", data.len());
+
+    // Debug: show CBOR structure
+    if let Ok(value) = ciborium::de::from_reader::<ciborium::Value, _>(&data[..]) {
+        if let ciborium::Value::Map(map) = &value {
+            eprintln!("[DEBUG][makeCredential] CBOR map keys present:");
+            for (k, _) in map {
+                if let ciborium::Value::Integer(i) = k {
+                    let key_num: i128 = (*i).into();
+                    let key_name = match key_num {
+                        0x01 => "clientDataHash",
+                        0x02 => "rp",
+                        0x03 => "user",
+                        0x04 => "pubKeyCredParams",
+                        0x05 => "excludeList",
+                        0x06 => "extensions",
+                        0x07 => "options",
+                        0x08 => "pinUvAuthParam",
+                        0x09 => "pinUvAuthProtocol",
+                        _ => "unknown",
+                    };
+                    eprintln!("[DEBUG][makeCredential]   0x{:02x}: {}", key_num, key_name);
+                }
+            }
+        }
+    }
+
     let parser = MapParser::from_bytes(data)?;
 
     // 1. Parse required parameters
@@ -61,20 +88,30 @@ pub fn handle<C: AuthenticatorCallbacks>(
     if client_data_hash.len() != 32 {
         return Err(StatusCode::InvalidParameter);
     }
+    eprintln!("[DEBUG][makeCredential] ✓ client_data_hash: {} bytes", client_data_hash.len());
 
     let rp: RelyingParty = parser.get(req_keys::RP)?;
+    eprintln!("[DEBUG][makeCredential] ✓ rp.id: {:?}", rp.id);
+
     let user: User = parser.get(req_keys::USER)?;
+    eprintln!("[DEBUG][makeCredential] ✓ user.id: {} bytes", user.id.len());
 
     // Parse pub_key_cred_params as generic CBOR and convert
     let params_value: ciborium::Value = parser.get(req_keys::PUB_KEY_CRED_PARAMS)?;
     let pub_key_cred_params: Vec<PublicKeyCredentialParameters> =
         crate::cbor::from_value(params_value)?;
+    eprintln!("[DEBUG][makeCredential] ✓ pub_key_cred_params: {} algorithms", pub_key_cred_params.len());
 
     // 2. Parse optional parameters
     let exclude_list: Option<Vec<PublicKeyCredentialDescriptor>> =
         parser.get_opt(req_keys::EXCLUDE_LIST)?;
     let pin_uv_auth_param: Option<Vec<u8>> = parser.get_opt(req_keys::PIN_UV_AUTH_PARAM)?;
     let pin_uv_auth_protocol: Option<u8> = parser.get_opt(req_keys::PIN_UV_AUTH_PROTOCOL)?;
+
+    eprintln!("[DEBUG][makeCredential] Optional parameters:");
+    eprintln!("[DEBUG][makeCredential]   exclude_list: {}", if exclude_list.is_some() { "present" } else { "none" });
+    eprintln!("[DEBUG][makeCredential]   pin_uv_auth_param: {}", if let Some(ref p) = pin_uv_auth_param { format!("{} bytes", p.len()) } else { "none".to_string() });
+    eprintln!("[DEBUG][makeCredential]   pin_uv_auth_protocol: {:?}", pin_uv_auth_protocol);
 
     // Parse options
     let options = parse_options(&parser)?;
@@ -95,12 +132,20 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // 4. Verify PIN/UV auth if present
     if let Some(_pin_auth) = &pin_uv_auth_param {
-        let _protocol = pin_uv_auth_protocol.ok_or(StatusCode::MissingParameter)?;
+        eprintln!("[DEBUG][makeCredential] PIN/UV auth present, verifying protocol...");
+        let _protocol = pin_uv_auth_protocol.ok_or_else(|| {
+            eprintln!("[DEBUG][makeCredential] ✗ pinUvAuthProtocol missing! (CTAP2_ERR_MISSING_PARAMETER)");
+            StatusCode::MissingParameter
+        })?;
+        eprintln!("[DEBUG][makeCredential] ✓ pinUvAuthProtocol: {}", _protocol);
+
         // TODO: Implement PIN token verification
         // For now, just check if PIN is set when pin_auth is provided
         if !auth.is_pin_set() {
+            eprintln!("[DEBUG][makeCredential] ✗ PIN not set");
             return Err(StatusCode::PinNotSet);
         }
+        eprintln!("[DEBUG][makeCredential] ✓ PIN is set");
     }
 
     // 5. Check excluded credentials

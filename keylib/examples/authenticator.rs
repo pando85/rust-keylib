@@ -368,6 +368,14 @@ fn process_message(
                                 0x01 => "CTAP1_ERR_INVALID_COMMAND",
                                 0x02 => "CTAP1_ERR_INVALID_PARAMETER",
                                 0x03 => "CTAP1_ERR_INVALID_LENGTH",
+                                0x11 => "CTAP2_ERR_CBOR_UNEXPECTED_TYPE",
+                                0x12 => "CTAP2_ERR_MISSING_PARAMETER",
+                                0x14 => "CTAP2_ERR_LIMIT_EXCEEDED",
+                                0x15 => "CTAP2_ERR_UNSUPPORTED_EXTENSION",
+                                0x16 => "CTAP2_ERR_CREDENTIAL_EXCLUDED",
+                                0x21 => "CTAP2_ERR_OPERATION_DENIED",
+                                0x22 => "CTAP2_ERR_KEY_STORE_FULL",
+                                0x2E => "CTAP2_ERR_REQUEST_TOO_LARGE",
                                 0x31 => "CTAP2_ERR_PIN_INVALID",
                                 0x32 => "CTAP2_ERR_PIN_BLOCKED",
                                 0x33 => "CTAP2_ERR_PIN_AUTH_INVALID",
@@ -375,6 +383,7 @@ fn process_message(
                                 0x35 => "CTAP2_ERR_PIN_NOT_SET",
                                 0x36 => "CTAP2_ERR_PIN_REQUIRED",
                                 0x37 => "CTAP2_ERR_PIN_POLICY_VIOLATION",
+                                0x38 => "CTAP2_ERR_PIN_TOKEN_EXPIRED",
                                 _ => "UNKNOWN_ERROR",
                             };
                             println!("[CTAP] Response status: {} (0x{:02x})", error_name, status);
