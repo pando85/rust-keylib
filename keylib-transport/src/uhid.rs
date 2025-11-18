@@ -127,7 +127,7 @@ struct UhidInput2 {
 #[repr(C, packed)]
 struct UhidOutput {
     event_type: u32,
-    data: [u8; 4096],  // Data comes first in kernel uhid_output_req
+    data: [u8; 4096], // Data comes first in kernel uhid_output_req
     size: u16,
     rtype: u8,
 }
@@ -234,13 +234,9 @@ impl UhidDevice {
             )
         };
 
-
         self.file
             .write_all(event_bytes)
-            .map_err(|e| {
-                Error::Other(format!("Failed to create UHID device: {}", e))
-            })?;
-
+            .map_err(|e| Error::Other(format!("Failed to create UHID device: {}", e)))?;
 
         // Wait for OPEN or START event indicating device is ready
         self.wait_for_start()?;
@@ -257,12 +253,10 @@ impl UhidDevice {
     fn wait_for_start(&mut self) -> Result<()> {
         let mut buffer = vec![0u8; 4096];
 
-
         // Try to read events with a timeout
         for i in 0..50 {
             // 5 second timeout (50 * 100ms)
-            if i > 0 && i % 10 == 0 {
-            }
+            if i > 0 && i % 10 == 0 {}
 
             match self.read_event(&mut buffer) {
                 Ok(Some(UHID_OPEN)) => {
@@ -301,16 +295,12 @@ impl UhidDevice {
                 let event_type = u32::from_ne_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
                 Ok(Some(event_type))
             }
-            Ok(n) => {
-                Ok(None)
-            }
+            Ok(_n) => Ok(None),
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 // This is normal for non-blocking reads
                 Ok(None)
             }
-            Err(e) => {
-                Err(Error::Other(format!("Failed to read UHID event: {}", e)))
-            }
+            Err(e) => Err(Error::Other(format!("Failed to read UHID event: {}", e))),
         }
     }
 
@@ -318,9 +308,7 @@ impl UhidDevice {
     fn set_nonblocking(&self, nonblocking: bool) -> Result<()> {
         let fd = self.file.as_raw_fd();
         let flags = nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_GETFL)
-            .map_err(|e| {
-                Error::Other(format!("Failed to get file flags: {}", e))
-            })?;
+            .map_err(|e| Error::Other(format!("Failed to get file flags: {}", e)))?;
 
         let mut flags = nix::fcntl::OFlag::from_bits_truncate(flags);
         if nonblocking {
@@ -330,9 +318,7 @@ impl UhidDevice {
         }
 
         nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_SETFL(flags))
-            .map_err(|e| {
-                Error::Other(format!("Failed to set file flags: {}", e))
-            })?;
+            .map_err(|e| Error::Other(format!("Failed to set file flags: {}", e)))?;
         Ok(())
     }
 
@@ -354,17 +340,18 @@ impl UhidDevice {
         let mut file_ref = &self.file;
         match file_ref.read(&mut event_buffer) {
             Ok(n) if n >= std::mem::size_of::<UhidEventHeader>() => {
-                let event_type =
-                    u32::from_ne_bytes([event_buffer[0], event_buffer[1], event_buffer[2], event_buffer[3]]);
-
+                let event_type = u32::from_ne_bytes([
+                    event_buffer[0],
+                    event_buffer[1],
+                    event_buffer[2],
+                    event_buffer[3],
+                ]);
 
                 match event_type {
                     UHID_OUTPUT => {
                         // Parse OUTPUT event
                         if n >= std::mem::size_of::<UhidOutput>() {
-                            let output = unsafe {
-                                &*(event_buffer.as_ptr() as *const UhidOutput)
-                            };
+                            let output = unsafe { &*(event_buffer.as_ptr() as *const UhidOutput) };
                             let size = output.size as usize;
                             if size <= 64 {
                                 buffer[..size].copy_from_slice(&output.data[..size]);

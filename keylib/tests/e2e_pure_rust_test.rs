@@ -21,8 +21,8 @@
 #![cfg(feature = "pure-rust")]
 
 use keylib::common::{
-    ClientDataHash, Credential, CredentialRef, MakeCredentialRequest,
-    PinUvAuth, PinUvAuthProtocol, RelyingParty, Result, User,
+    ClientDataHash, Credential, CredentialRef, MakeCredentialRequest, PinUvAuth, PinUvAuthProtocol,
+    RelyingParty, Result, User,
 };
 use keylib::rust_impl::authenticator::{
     Authenticator, AuthenticatorConfig, Callbacks, CallbacksBuilder, UpResult, UvResult,
@@ -72,11 +72,13 @@ impl TestAuthenticator {
         let callbacks = CallbacksBuilder::new()
             .up(Arc::new(|_, _, _| Ok(UpResult::Accepted)))
             .uv(Arc::new(|_, _, _| Ok(UvResult::Accepted)))
-            .write(Arc::new(move |_id: &str, _rp_id: &str, cred: CredentialRef| {
-                let mut store = creds_write.lock().unwrap();
-                store.insert(cred.id.to_vec(), cred.to_owned());
-                Ok(())
-            }))
+            .write(Arc::new(
+                move |_id: &str, _rp_id: &str, cred: CredentialRef| {
+                    let mut store = creds_write.lock().unwrap();
+                    store.insert(cred.id.to_vec(), cred.to_owned());
+                    Ok(())
+                },
+            ))
             .read_credentials(Arc::new(move |rp_id: &str, user_id: Option<&[u8]>| {
                 let store = creds_read.lock().unwrap();
                 let filtered: Vec<Credential> = store
@@ -121,8 +123,7 @@ impl TestAuthenticator {
 
         // Spawn authenticator thread
         let handle = thread::spawn(move || {
-            if let Err(e) = Self::run_authenticator(stop_flag_clone, callbacks, config) {
-            }
+            if let Err(e) = Self::run_authenticator(stop_flag_clone, callbacks, config) {}
         });
 
         // Wait for authenticator to start
@@ -235,20 +236,12 @@ impl TestAuthenticator {
     }
 
     /// Process a complete CTAP HID message
-    fn process_message(
-        auth: &mut Authenticator,
-        uhid: &Uhid,
-        packets: &[Packet],
-    ) -> Result<()> {
+    fn process_message(auth: &mut Authenticator, uhid: &Uhid, packets: &[Packet]) -> Result<()> {
         // Reassemble message
-        let message = Message::from_packets(packets).map_err(|e| {
-            keylib::common::Error::Other
-        })?;
+        let message = Message::from_packets(packets).map_err(|e| keylib::common::Error::Other)?;
 
         let cid = message.cid;
         let cmd = message.cmd;
-
-                 cid, cmd, message.data.len());
 
         // Handle CTAP commands
         match cmd {
@@ -288,8 +281,7 @@ impl TestAuthenticator {
                 let response_msg = Message::new(cid, Cmd::Ping, message.data);
                 Self::send_message(uhid, &response_msg)?;
             }
-            _ => {
-            }
+            _ => {}
         }
 
         Ok(())
@@ -297,11 +289,9 @@ impl TestAuthenticator {
 
     /// Send a CTAP HID message via UHID
     fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
-                 message.cid, message.cmd, message.data.len());
-
-        let packets = message.to_packets().map_err(|e| {
-            keylib::common::Error::Other
-        })?;
+        let packets = message
+            .to_packets()
+            .map_err(|e| keylib::common::Error::Other)?;
 
         for (i, packet) in packets.iter().enumerate() {
             uhid.write_packet(packet.as_bytes())?;
@@ -419,10 +409,13 @@ fn test_pure_rust_make_credential_with_pin() {
     println!("[INFO] Sending makeCredential request");
 
     // Send makeCredential
-    let response = Client::make_credential(&mut transport, request)
-        .expect("Failed to make credential");
+    let response =
+        Client::make_credential(&mut transport, request).expect("Failed to make credential");
 
-    println!("[OK] Credential created, response: {} bytes", response.len());
+    println!(
+        "[OK] Credential created, response: {} bytes",
+        response.len()
+    );
 
     // Stop authenticator
     auth.stop();
@@ -455,8 +448,8 @@ fn test_pure_rust_authenticator_get_info() {
 
     println!("[INFO] Sending getInfo request");
 
-    let response = Client::authenticator_get_info(&mut transport)
-        .expect("Failed to get authenticator info");
+    let response =
+        Client::authenticator_get_info(&mut transport).expect("Failed to get authenticator info");
 
     println!("[OK] Got info: {} bytes", response.len());
 

@@ -107,10 +107,7 @@ impl UsbTransport {
         let written = self
             .device
             .write(data)
-            .map_err(|e| {
-                Error::IoError(format!("Failed to write packet: {}", e))
-            })?;
-
+            .map_err(|e| Error::IoError(format!("Failed to write packet: {}", e)))?;
 
         if written != data.len() {
             return Err(Error::IoError(format!(
@@ -152,10 +149,7 @@ impl UsbTransport {
         let read = self
             .device
             .read_timeout(&mut buf, timeout_ms)
-            .map_err(|e| {
-                Error::IoError(format!("Failed to read packet: {}", e))
-            })?;
-
+            .map_err(|e| Error::IoError(format!("Failed to read packet: {}", e)))?;
 
         if read == 0 {
             // Timeout

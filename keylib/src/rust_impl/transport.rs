@@ -140,7 +140,8 @@ impl Transport {
                 // USB transport uses packet-based API with timeout
                 match transport
                     .read_packet_timeout(timeout_ms)
-                    .map_err(|e| Error::IoError(e.to_string()))? {
+                    .map_err(|e| Error::IoError(e.to_string()))?
+                {
                     Some(packet) => {
                         let packet_bytes = packet.as_bytes();
                         let len = packet_bytes.len().min(buffer.len());
@@ -163,7 +164,8 @@ impl Transport {
                 // UHID doesn't have timeout, use blocking read
                 if let Some(len) = device
                     .read_packet(&mut packet)
-                    .map_err(|e| Error::IoError(e.to_string()))? {
+                    .map_err(|e| Error::IoError(e.to_string()))?
+                {
                     buffer[..len].copy_from_slice(&packet[..len]);
                     Ok(len)
                 } else {
@@ -196,7 +198,8 @@ impl Transport {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]
             TransportInner::Usb { .. } => {
                 // Use broadcast channel for INIT, otherwise allocate
-                if cmd == 0x06 { // CTAPHID_INIT
+                if cmd == 0x06 {
+                    // CTAPHID_INIT
                     0xffffffff
                 } else {
                     // For this simplified implementation, use a fixed channel
@@ -275,8 +278,8 @@ impl Transport {
         }
 
         // Reassemble message
-        let response_message = Message::from_packets(&response_packets)
-            .map_err(|_| Error::Other)?;
+        let response_message =
+            Message::from_packets(&response_packets).map_err(|_| Error::Other)?;
 
         Ok(response_message.data)
     }
@@ -286,9 +289,7 @@ impl Transport {
         let inner = self.inner.lock().unwrap();
         match &*inner {
             #[cfg(all(feature = "pure-rust", feature = "usb"))]
-            TransportInner::Usb { .. } => {
-                Ok("USB HID Transport".to_string())
-            }
+            TransportInner::Usb { .. } => Ok("USB HID Transport".to_string()),
             #[cfg(all(feature = "pure-rust", target_os = "linux"))]
             TransportInner::Uhid { .. } => Ok("UHID Virtual Device".to_string()),
         }
