@@ -167,14 +167,14 @@ impl UhidDevice {
     pub fn create_fido_device() -> Result<Self> {
         println!("[UHID-Transport] Opening /dev/uhid...");
         let mut device = Self::open()?;
-        println!("[UHID-Transport] Creating FIDO2 device (Vendor: 0x1050, Product: 0x0407)...");
+        println!("[UHID-Transport] Creating FIDO2 device (Vendor: 0x15d9, Product: 0x0a37)...");
         device.create_device(
             "Virtual FIDO2 Authenticator",
             "virtual-fido",
             "virtual-fido-001",
             BUS_USB,
-            0x1050, // Yubico vendor ID
-            0x0407, // FIDO2 product ID
+            0x15d9, // Match Zig implementation (NOT Yubico - browsers recognize Yubico and force U2F)
+            0x0a37, // Match Zig implementation
             0x0001, // Version
             FIDO_HID_REPORT_DESCRIPTOR,
         )?;
