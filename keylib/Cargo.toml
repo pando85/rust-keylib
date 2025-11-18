@@ -16,6 +16,7 @@ pure-rust = [
     "dep:keylib-crypto",
     "dep:keylib-ctap",
     "dep:keylib-transport",
+    "usb", # Enable USB HID transport for device enumeration
 ]
 # Zig FFI implementation (legacy, will be removed)
 zig-ffi = ["dep:keylib-sys"]

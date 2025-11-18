@@ -348,13 +348,19 @@ fn test_pure_rust_make_credential_with_pin() {
     // Start virtual authenticator
     let auth = TestAuthenticator::start().expect("Failed to start authenticator");
 
-    // Wait for device to be ready
-    thread::sleep(Duration::from_millis(200));
+    // Wait for kernel to register the UHID device as a HID device
+    println!("[TEST] Waiting for UHID device to be registered by kernel...");
+    thread::sleep(Duration::from_secs(2));
 
     // Enumerate transports
+    println!("[TEST] Enumerating transports...");
     let list = TransportList::enumerate().expect("Failed to enumerate transports");
-    assert!(!list.is_empty(), "No transports found");
 
+    if list.is_empty() {
+        panic!("No transports found - ensure USB feature is enabled and UHID device is registered");
+    }
+
+    println!("[TEST] Found {} transport(s)", list.len());
     let mut transport = list.get(0).expect("Failed to get transport");
     transport.open().expect("Failed to open transport");
 
@@ -433,9 +439,20 @@ fn test_pure_rust_authenticator_get_info() {
     println!("\n[TEST] Testing AuthenticatorGetInfo (Pure Rust)");
 
     let auth = TestAuthenticator::start().expect("Failed to start authenticator");
-    thread::sleep(Duration::from_millis(200));
 
+    // Wait for kernel to register the UHID device as a HID device
+    // This can take a moment as the kernel needs to process the device
+    println!("[TEST] Waiting for UHID device to be registered by kernel...");
+    thread::sleep(Duration::from_secs(2));
+
+    println!("[TEST] Enumerating transports...");
     let list = TransportList::enumerate().expect("Failed to enumerate transports");
+
+    if list.is_empty() {
+        panic!("No transports found - ensure USB feature is enabled and UHID device is registered");
+    }
+
+    println!("[TEST] Found {} transport(s)", list.len());
     let mut transport = list.get(0).expect("Failed to get transport");
     transport.open().expect("Failed to open transport");
 
