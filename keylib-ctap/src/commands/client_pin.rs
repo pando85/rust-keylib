@@ -425,13 +425,30 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
         _ => return Err(StatusCode::InvalidParameter),
     };
     eprintln!("[DEBUG][auth] Derived encryption key ({} bytes)", enc_key.len());
+    eprintln!("[DEBUG][auth] Encrypted PIN hash: {:02x?}", &pin_hash_enc[..pin_hash_enc.len().min(16)]);
 
     // Decrypt PIN hash (first 16 bytes of SHA-256(PIN))
+    eprintln!("[DEBUG][auth] Attempting to decrypt PIN hash (protocol {})...", protocol);
     let decrypted_pin_hash = match protocol {
-        1 => keylib_crypto::pin_protocol::v1::decrypt(&enc_key, &pin_hash_enc)?,
-        2 => keylib_crypto::pin_protocol::v2::decrypt(&enc_key, &pin_hash_enc)?,
+        1 => {
+            eprintln!("[DEBUG][auth] Using PIN protocol V1 decrypt");
+            keylib_crypto::pin_protocol::v1::decrypt(&enc_key, &pin_hash_enc)
+                .map_err(|e| {
+                    eprintln!("[DEBUG][auth] ✗ V1 decryption failed: {:?}", e);
+                    StatusCode::PinAuthInvalid
+                })?
+        }
+        2 => {
+            eprintln!("[DEBUG][auth] Using PIN protocol V2 decrypt");
+            keylib_crypto::pin_protocol::v2::decrypt(&enc_key, &pin_hash_enc)
+                .map_err(|e| {
+                    eprintln!("[DEBUG][auth] ✗ V2 decryption failed: {:?}", e);
+                    StatusCode::PinAuthInvalid
+                })?
+        }
         _ => return Err(StatusCode::InvalidParameter),
     };
+    eprintln!("[DEBUG][auth] ✓ Decryption successful!");
     eprintln!("[DEBUG][auth] Decrypted PIN hash ({} bytes)", decrypted_pin_hash.len());
     eprintln!("[DEBUG][auth] Decrypted PIN hash: {:02x?}", &decrypted_pin_hash[..decrypted_pin_hash.len().min(16)]);
 
