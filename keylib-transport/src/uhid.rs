@@ -376,14 +376,18 @@ impl UhidDevice {
                 let event_type =
                     u32::from_ne_bytes([event_buffer[0], event_buffer[1], event_buffer[2], event_buffer[3]]);
 
+                eprintln!("[UHID read_packet] Received UHID event: type={}, size={}", event_type, n);
+
                 match event_type {
                     UHID_OUTPUT => {
+                        eprintln!("[UHID read_packet] UHID_OUTPUT event");
                         // Parse OUTPUT event
                         if n >= std::mem::size_of::<UhidOutput>() {
                             let output = unsafe {
                                 &*(event_buffer.as_ptr() as *const UhidOutput)
                             };
                             let size = output.size as usize;
+                            eprintln!("[UHID read_packet] OUTPUT payload size: {}", size);
                             if size <= 64 {
                                 buffer[..size].copy_from_slice(&output.data[..size]);
                                 return Ok(Some(size));
@@ -392,6 +396,7 @@ impl UhidDevice {
                         Ok(None)
                     }
                     _ => {
+                        eprintln!("[UHID read_packet] Skipping non-OUTPUT event: {}", event_type);
                         // Other event types, skip
                         Ok(None)
                     }
