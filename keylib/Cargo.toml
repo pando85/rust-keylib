@@ -44,6 +44,7 @@ aes = "0.8"
 cbc = { version = "0.1", features = ["alloc"] }
 hmac = "0.12"
 hkdf = "0.12"
+hex = { workspace = true }
 
 [dev-dependencies]
 lazy_static = "1.4"

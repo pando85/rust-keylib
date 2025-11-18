@@ -12,7 +12,6 @@ use keylib_transport::UhidDevice;
 
 use keylib_transport::{ChannelManager, Message, Packet};
 
-use rand::Rng;
 use std::sync::{Arc, Mutex};
 
 /// Safe Rust wrapper for Transport
