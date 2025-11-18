@@ -11,6 +11,8 @@ use crate::ctaphid::Packet;
 use crate::error::{Error, Result};
 #[cfg(feature = "usb")]
 use hidapi::{HidApi, HidDevice};
+#[cfg(feature = "usb")]
+use std::ffi::CString;
 
 /// FIDO2 HID usage page
 #[cfg(feature = "usb")]
@@ -59,8 +61,12 @@ pub struct UsbTransport {
 impl UsbTransport {
     /// Open a USB HID device by path
     pub fn open(api: &HidApi, path: &str) -> Result<Self> {
+        // Convert path to CString for hidapi
+        let c_path = CString::new(path)
+            .map_err(|e| Error::IoError(format!("Invalid device path: {}", e)))?;
+
         let device = api
-            .open_path(path)
+            .open_path(&c_path)
             .map_err(|e| Error::IoError(format!("Failed to open device: {}", e)))?;
 
         let info = UsbDeviceInfo {
