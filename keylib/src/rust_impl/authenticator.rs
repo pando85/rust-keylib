@@ -559,11 +559,14 @@ impl Authenticator {
         // Dispatch command
         match dispatcher.dispatch(request) {
             Ok(response_data) => {
-                *response = response_data;
+                // CTAP success response: [0x00 status] [CBOR data...]
+                response.clear();
+                response.push(0x00); // Success status byte
+                response.extend_from_slice(&response_data);
                 Ok(response.len())
             }
             Err(status_code) => {
-                // Return CTAP error status as single-byte response
+                // CTAP error response: [error status byte] (no CBOR data)
                 *response = vec![status_code as u8];
                 Ok(1)
             }
