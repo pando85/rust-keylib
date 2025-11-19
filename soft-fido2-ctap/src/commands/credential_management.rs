@@ -139,7 +139,7 @@ fn handle_enumerate_rps_begin<C: AuthenticatorCallbacks>(
         rp_builder = rp_builder.insert(2, name.clone())?;
     }
 
-    let rp_value = rp_builder.build_value();
+    let rp_value = rp_builder.build_value()?;
 
     MapBuilder::new()
         .insert(resp_keys::RP, rp_value)?
@@ -163,7 +163,7 @@ fn handle_enumerate_credentials_begin<C: AuthenticatorCallbacks>(
     parser: &MapParser,
 ) -> Result<Vec<u8>> {
     // Get subcommand parameters
-    let params: ciborium::Value = parser.get(req_keys::SUBCOMMAND_PARAMS)?;
+    let params: crate::cbor::Value = parser.get(req_keys::SUBCOMMAND_PARAMS)?;
     let params_parser = MapParser::from_value(params)?;
 
     // Extract RP ID hash
@@ -200,9 +200,9 @@ fn handle_enumerate_credentials_begin<C: AuthenticatorCallbacks>(
     };
 
     // Build credential ID descriptor
-    let cred_id = ciborium::Value::Map(vec![(
-        ciborium::Value::Text("id".to_string()),
-        ciborium::Value::Bytes(cred.id.clone()),
+    let cred_id = crate::cbor::Value::Map(vec![(
+        crate::cbor::Value::Text("id".to_string()),
+        crate::cbor::Value::Bytes(cred.id.clone()),
     )]);
 
     MapBuilder::new()
@@ -227,18 +227,18 @@ fn handle_delete_credential<C: AuthenticatorCallbacks>(
     parser: &MapParser,
 ) -> Result<Vec<u8>> {
     // Get subcommand parameters
-    let params: ciborium::Value = parser.get(req_keys::SUBCOMMAND_PARAMS)?;
+    let params: crate::cbor::Value = parser.get(req_keys::SUBCOMMAND_PARAMS)?;
     let params_parser = MapParser::from_value(params)?;
 
     // Extract credential ID
-    let cred_id_value: ciborium::Value = params_parser.get(subparam_keys::CREDENTIAL_ID)?;
+    let cred_id_value: crate::cbor::Value = params_parser.get(subparam_keys::CREDENTIAL_ID)?;
 
     // Parse credential ID from descriptor
 
     match cred_id_value {
-        ciborium::Value::Map(m) => {
+        crate::cbor::Value::Map(m) => {
             for (k, v) in m {
-                if let (ciborium::Value::Text(key), ciborium::Value::Bytes(id)) = (k, v)
+                if let (crate::cbor::Value::Text(key), crate::cbor::Value::Bytes(id)) = (k, v)
                     && key == "id"
                 {
                     return auth
@@ -259,18 +259,18 @@ fn handle_update_user_information<C: AuthenticatorCallbacks>(
     parser: &MapParser,
 ) -> Result<Vec<u8>> {
     // Get subcommand parameters
-    let params: ciborium::Value = parser.get(req_keys::SUBCOMMAND_PARAMS)?;
+    let params: crate::cbor::Value = parser.get(req_keys::SUBCOMMAND_PARAMS)?;
     let params_parser = MapParser::from_value(params)?;
 
     // Extract credential ID and new user info
-    let cred_id_value: ciborium::Value = params_parser.get(subparam_keys::CREDENTIAL_ID)?;
+    let cred_id_value: crate::cbor::Value = params_parser.get(subparam_keys::CREDENTIAL_ID)?;
     let new_user: User = params_parser.get(subparam_keys::USER)?;
 
     // Parse credential ID and update user information
     match cred_id_value {
-        ciborium::Value::Map(m) => {
+        crate::cbor::Value::Map(m) => {
             for (k, v) in m {
-                if let (ciborium::Value::Text(key), ciborium::Value::Bytes(id)) = (k, v)
+                if let (crate::cbor::Value::Text(key), crate::cbor::Value::Bytes(id)) = (k, v)
                     && key == "id"
                 {
                     // Found the ID, use it

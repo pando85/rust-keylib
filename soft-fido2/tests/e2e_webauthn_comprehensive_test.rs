@@ -246,7 +246,7 @@ fn build_make_credential_request(
     user_display_name: &str,
     require_resident_key: bool,
 ) -> Vec<u8> {
-    use ciborium::Value;
+    use soft_fido2_ctap::cbor::Value;
 
     let rp_map = vec![
         (
@@ -299,13 +299,13 @@ fn build_make_credential_request(
     ];
 
     let mut buffer = Vec::new();
-    ciborium::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
     buffer
 }
 
 /// Build CTAP getAssertion request
 fn build_get_assertion_request(client_data_hash: &[u8], credential_id: Option<&[u8]>) -> Vec<u8> {
-    use ciborium::Value;
+    use soft_fido2_ctap::cbor::Value;
 
     let options_map = vec![
         (Value::Text("up".to_string()), Value::Bool(true)),
@@ -340,32 +340,32 @@ fn build_get_assertion_request(client_data_hash: &[u8], credential_id: Option<&[
     }
 
     let mut buffer = Vec::new();
-    ciborium::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
     buffer
 }
 
 /// Parse COSE public key to p256 VerifyingKey
 fn parse_cose_public_key(cose_key_cbor: &[u8]) -> Option<VerifyingKey> {
-    let cose_key: ciborium::Value = ciborium::from_reader(cose_key_cbor).ok()?;
+    let cose_key: soft_fido2_ctap::cbor::Value = soft_fido2_ctap::cbor::decode(cose_key_cbor).ok()?;
 
     let map = match cose_key {
-        ciborium::Value::Map(m) => m,
+        soft_fido2_ctap::cbor::Value::Map(m) => m,
         _ => return None,
     };
 
     let x = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &(-2).into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &(-2).into()))
         .and_then(|(_, v)| match v {
-            ciborium::Value::Bytes(b) => Some(b),
+            soft_fido2_ctap::cbor::Value::Bytes(b) => Some(b),
             _ => None,
         })?;
 
     let y = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &(-3).into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &(-3).into()))
         .and_then(|(_, v)| match v {
-            ciborium::Value::Bytes(b) => Some(b),
+            soft_fido2_ctap::cbor::Value::Bytes(b) => Some(b),
             _ => None,
         })?;
 
@@ -384,19 +384,19 @@ fn parse_attestation_response(ctap_response: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8
         ctap_response[0]
     );
 
-    let response: ciborium::Value =
-        ciborium::from_reader(&ctap_response[1..]).expect("Invalid CBOR");
+    let response: soft_fido2_ctap::cbor::Value =
+        soft_fido2_ctap::cbor::decode(&ctap_response[1..]).expect("Invalid CBOR");
 
     let map = match response {
-        ciborium::Value::Map(m) => m,
+        soft_fido2_ctap::cbor::Value::Map(m) => m,
         _ => panic!("Expected CBOR map"),
     };
 
     let auth_data = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &2.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &2.into()))
         .and_then(|(_, v)| match v {
-            ciborium::Value::Bytes(b) => Some(b.clone()),
+            soft_fido2_ctap::cbor::Value::Bytes(b) => Some(b.clone()),
             _ => None,
         })
         .expect("Missing authData");
@@ -421,28 +421,28 @@ fn parse_attestation_response(ctap_response: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8
 fn parse_assertion_response(ctap_response: &[u8]) -> (Vec<u8>, Vec<u8>, u32) {
     assert_eq!(ctap_response[0], 0x00, "CTAP error");
 
-    let response: ciborium::Value =
-        ciborium::from_reader(&ctap_response[1..]).expect("Invalid CBOR");
+    let response: soft_fido2_ctap::cbor::Value =
+        soft_fido2_ctap::cbor::decode(&ctap_response[1..]).expect("Invalid CBOR");
 
     let map = match response {
-        ciborium::Value::Map(m) => m,
+        soft_fido2_ctap::cbor::Value::Map(m) => m,
         _ => panic!("Expected CBOR map"),
     };
 
     let auth_data = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &2.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &2.into()))
         .and_then(|(_, v)| match v {
-            ciborium::Value::Bytes(b) => Some(b.clone()),
+            soft_fido2_ctap::cbor::Value::Bytes(b) => Some(b.clone()),
             _ => None,
         })
         .expect("Missing authData");
 
     let signature = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &3.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &3.into()))
         .and_then(|(_, v)| match v {
-            ciborium::Value::Bytes(b) => Some(b.clone()),
+            soft_fido2_ctap::cbor::Value::Bytes(b) => Some(b.clone()),
             _ => None,
         })
         .expect("Missing signature");

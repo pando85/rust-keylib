@@ -24,7 +24,7 @@ use soft_fido2::client::Client;
 use soft_fido2::transport::TransportList;
 use soft_fido2::{PinProtocol, PinUvAuthEncapsulation};
 
-use ciborium::value::Value;
+use soft_fido2_ctap::cbor::Value;
 
 const PIN: &str = "123456";
 
@@ -55,7 +55,7 @@ fn main() -> Result<()> {
     println!("[3] Checking authenticator capabilities...");
     let info_data = Client::authenticator_get_info(&mut transport)?;
 
-    match ciborium::from_reader::<Value, _>(info_data.as_slice()) {
+    match soft_fido2_ctap::cbor::decode::<Value>(info_data.as_slice()) {
         Ok(Value::Map(map)) => {
             for (key, value) in &map {
                 if let (Value::Integer(k), Value::Map(opts)) = (key, value)

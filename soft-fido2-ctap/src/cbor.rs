@@ -32,6 +32,9 @@ use alloc::vec::Vec;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
+/// Type alias for CBOR Value (compatibility with ciborium)
+pub type Value = cbor4ii::core::Value;
+
 #[cfg(feature = "std")]
 use std::io::{self, Write};
 
@@ -143,6 +146,25 @@ pub fn decode<T: for<'de> Deserialize<'de>>(data: &[u8]) -> Result<T> {
     cbor4ii::serde::from_slice(data).map_err(|_| StatusCode::InvalidCbor)
 }
 
+/// Convert a value to CBOR Value for manual map construction (compatibility with ciborium)
+pub fn to_value<T: Serialize>(value: &T) -> Result<Value> {
+    // Encode to bytes then decode as Value
+    let bytes = encode(value)?;
+    cbor4ii::serde::from_slice(&bytes).map_err(|_| StatusCode::InvalidCbor)
+}
+
+/// Decode CBOR Value to typed value (compatibility with ciborium)
+pub fn from_value<T: for<'de> Deserialize<'de>>(value: &Value) -> Result<T> {
+    // Encode Value to bytes then decode as T
+    let bytes = encode(value)?;
+    decode(&bytes)
+}
+
+/// Encode a value directly to a writer (compatibility helper)
+pub fn into_writer<T: Serialize, W: Write>(value: &T, writer: W) -> Result<()> {
+    cbor4ii::serde::to_writer(writer, value).map_err(|_| StatusCode::InvalidCbor)
+}
+
 /// Build a CBOR map with integer keys (common in CTAP)
 ///
 /// This builder still requires some allocations for storing entries, but encoding
@@ -196,9 +218,10 @@ impl MapBuilder {
         encode(&map)
     }
 
-    /// Build the map as raw CBOR bytes for manual construction
-    pub fn build_value(self) -> Result<Vec<u8>> {
-        self.build()
+    /// Build the map as a CBOR Value for manual construction (compatibility with ciborium)
+    pub fn build_value(self) -> Result<Value> {
+        let bytes = self.build()?;
+        cbor4ii::serde::from_slice(&bytes).map_err(|_| StatusCode::InvalidCbor)
     }
 }
 
@@ -218,9 +241,7 @@ impl Serialize for RawCborValue {
         S: serde::Serializer,
     {
         // Deserialize the raw CBOR and re-serialize it
-        // This is necessary because cbor4ii doesn't have a Value type
-        let value: cbor4ii::core::Value =
-            cbor4ii::core::utils::decode(&self.0[..]).map_err(serde::ser::Error::custom)?;
+        let value: Value = cbor4ii::serde::from_slice(&self.0[..]).map_err(serde::ser::Error::custom)?;
         value.serialize(serializer)
     }
 }
@@ -238,7 +259,7 @@ impl MapParser {
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         // Decode as a map of integer keys to raw CBOR values
         // We'll store the raw bytes and decode them on-demand
-        let raw_map: BTreeMap<i32, cbor4ii::core::Value> =
+        let raw_map: BTreeMap<i32, Value> =
             decode(data).map_err(|_| StatusCode::InvalidCbor)?;
 
         let mut map = BTreeMap::new();
@@ -249,6 +270,13 @@ impl MapParser {
         }
 
         Ok(Self { map })
+    }
+
+    /// Parse from a CBOR Value (compatibility with ciborium)
+    pub fn from_value(value: Value) -> Result<Self> {
+        // Encode Value to bytes then parse
+        let bytes = encode(&value)?;
+        Self::from_bytes(&bytes)
     }
 
     /// Get a required value by key
@@ -268,6 +296,13 @@ impl MapParser {
     /// Check if a key exists
     pub fn contains_key(&self, key: i32) -> bool {
         self.map.contains_key(&key)
+    }
+
+    /// Get raw value for debugging (compatibility with ciborium)
+    pub fn get_raw(&self, key: i32) -> Option<Value> {
+        self.map.get(&key).and_then(|bytes| {
+            cbor4ii::serde::from_slice(bytes).ok()
+        })
     }
 
     /// Get bytes directly (for CBOR Bytes type)

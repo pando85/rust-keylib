@@ -65,14 +65,14 @@ fn main() {
     println!("Received authenticator info: {} bytes", info_data.len());
 
     // Parse CBOR data
-    match ciborium::from_reader::<ciborium::value::Value, _>(info_data.as_slice()) {
+    match soft_fido2_ctap::cbor::decode::<soft_fido2_ctap::cbor::Value>(info_data.as_slice()) {
         Ok(info) => {
             println!("Parsed authenticator info successfully");
 
             // Extract and display key information
-            if let ciborium::value::Value::Map(map) = info {
+            if let soft_fido2_ctap::cbor::Value::Map(map) = info {
                 for (key, value) in map {
-                    if let (ciborium::value::Value::Integer(k), v) = (key, value) {
+                    if let (soft_fido2_ctap::cbor::Value::Integer(k), v) = (key, value) {
                         match k.into() {
                             1 => println!("  Versions: {:?}", v),
                             2 => println!("  Extensions: {:?}", v),
@@ -80,10 +80,10 @@ fn main() {
                             4 => {
                                 println!("  Options: {:?}", v);
                                 // Check for credMgmt support
-                                if let ciborium::value::Value::Map(opts) = &v {
+                                if let soft_fido2_ctap::cbor::Value::Map(opts) = &v {
                                     let has_cred_mgmt = opts.iter().any(|(opt_key, opt_val)| {
-                                        matches!(opt_key, ciborium::value::Value::Text(k) if k == "credMgmt" || k == "credentialMgmtPreview")
-                                            && matches!(opt_val, ciborium::value::Value::Bool(true))
+                                        matches!(opt_key, soft_fido2_ctap::cbor::Value::Text(k) if k == "credMgmt" || k == "credentialMgmtPreview")
+                                            && matches!(opt_val, soft_fido2_ctap::cbor::Value::Bool(true))
                                     });
                                     println!("  Supports credential management: {}", has_cred_mgmt);
                                 }

@@ -121,7 +121,7 @@ impl<'a> CredentialRef<'a> {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let owned = self.to_owned();
         let mut buf = Vec::new();
-        ciborium::ser::into_writer(&owned, &mut buf).map_err(|_| Error::Other)?;
+        soft_fido2_ctap::cbor::into_writer(&owned, &mut buf).map_err(|_| Error::Other)?;
         Ok(buf)
     }
 }
@@ -130,13 +130,13 @@ impl Credential {
     /// Serialize credential to bytes (CBOR)
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
-        ciborium::ser::into_writer(self, &mut buf).map_err(|_| Error::Other)?;
+        soft_fido2_ctap::cbor::into_writer(self, &mut buf).map_err(|_| Error::Other)?;
         Ok(buf)
     }
 
     /// Deserialize credential from bytes (CBOR)
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
-        ciborium::de::from_reader(data).map_err(|_| Error::Other)
+        soft_fido2_ctap::cbor::decode(data).map_err(|_| Error::Other)
     }
 }
 

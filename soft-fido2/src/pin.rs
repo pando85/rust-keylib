@@ -8,7 +8,7 @@ use crate::transport::Transport;
 
 use soft_fido2_crypto::pin_protocol;
 
-use ciborium::value::Value;
+use soft_fido2_ctap::cbor::Value;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::{PublicKey as P256PublicKey, SecretKey as P256SecretKey};
 use rand::rngs::OsRng;
@@ -116,7 +116,7 @@ impl PinUvAuthEncapsulation {
         ];
 
         let mut request_bytes = Vec::new();
-        ciborium::ser::into_writer(&Value::Map(request_map), &mut request_bytes)
+        soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
         // Send clientPin command (0x06)
@@ -135,7 +135,7 @@ impl PinUvAuthEncapsulation {
 
         // Parse CBOR response (skip status byte)
         let response_value: Value =
-            ciborium::de::from_reader(&response[1..]).map_err(|_| Error::Other)?;
+            soft_fido2_ctap::cbor::decode(&response[1..]).map_err(|_| Error::Other)?;
 
         // Extract keyAgreement from response (should be in response[0x01])
         let authenticator_cose_key = match response_value {
@@ -247,7 +247,7 @@ impl PinUvAuthEncapsulation {
         }
 
         let mut request_bytes = Vec::new();
-        ciborium::ser::into_writer(&Value::Map(request_map), &mut request_bytes)
+        soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
         // Send clientPin command (0x06)
@@ -266,7 +266,7 @@ impl PinUvAuthEncapsulation {
 
         // Parse CBOR response (skip status byte)
         let response_value: Value =
-            ciborium::de::from_reader(&response[1..]).map_err(|_| Error::Other)?;
+            soft_fido2_ctap::cbor::decode(&response[1..]).map_err(|_| Error::Other)?;
 
         let pin_token_enc = match response_value {
             Value::Map(map) => map

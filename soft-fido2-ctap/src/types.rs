@@ -489,7 +489,8 @@ mod tests {
     #[test]
     fn test_cbor_serialization() {
         let rp = RelyingParty::with_name("example.com".to_string(), "Example".to_string());
-        let serialized = ciborium::ser::into_writer(&rp, Vec::new());
-        assert!(serialized.is_ok());
+        let mut buf = Vec::new();
+        let result = crate::cbor::into_writer(&rp, &mut buf);
+        assert!(result.is_ok());
     }
 }

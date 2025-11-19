@@ -108,7 +108,7 @@ fn build_make_credential_cbor(
     user_name: &str,
     user_display_name: &str,
 ) -> Vec<u8> {
-    use ciborium::Value;
+    use soft_fido2_ctap::cbor::Value;
 
     let rp_map = vec![
         (
@@ -161,13 +161,13 @@ fn build_make_credential_cbor(
     ];
 
     let mut buffer = Vec::new();
-    ciborium::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
     buffer
 }
 
 /// Build getAssertion CBOR request
 fn build_get_assertion_cbor(client_data_hash: &[u8], rp_id: &str) -> Vec<u8> {
-    use ciborium::Value;
+    use soft_fido2_ctap::cbor::Value;
 
     let options_map = vec![
         (Value::Text("up".to_string()), Value::Bool(true)),
@@ -184,7 +184,7 @@ fn build_get_assertion_cbor(client_data_hash: &[u8], rp_id: &str) -> Vec<u8> {
     ];
 
     let mut buffer = Vec::new();
-    ciborium::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
     buffer
 }
 

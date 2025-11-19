@@ -65,33 +65,33 @@ pub fn handle<C: AuthenticatorCallbacks>(
     let allow_list: Option<Vec<PublicKeyCredentialDescriptor>> =
         if let Some(raw_allow_list) = parser.get_raw(req_keys::ALLOW_LIST) {
             match raw_allow_list {
-                ciborium::Value::Array(arr) => {
+                crate::cbor::Value::Array(arr) => {
                     let mut descriptors = Vec::new();
                     for elem in arr.iter() {
-                        if let ciborium::Value::Map(map) = elem {
+                        if let crate::cbor::Value::Map(map) = elem {
                             let mut cred_type = None;
                             let mut id = None;
                             let mut transports = None;
 
                             for (key, value) in map {
-                                if let ciborium::Value::Text(key_str) = key {
+                                if let crate::cbor::Value::Text(key_str) = key {
                                     match key_str.as_str() {
                                         "type" => {
-                                            if let ciborium::Value::Text(t) = value {
+                                            if let crate::cbor::Value::Text(t) = value {
                                                 cred_type = Some(t.clone());
                                             }
                                         }
                                         "id" => {
                                             // Handle CBOR byte string (correct) or array (legacy fallback)
                                             match value {
-                                                ciborium::Value::Bytes(bytes) => {
+                                                crate::cbor::Value::Bytes(bytes) => {
                                                     id = Some(bytes.clone());
                                                 }
-                                                ciborium::Value::Array(arr) => {
+                                                crate::cbor::Value::Array(arr) => {
                                                     let bytes: Vec<u8> = arr
                                                         .iter()
                                                         .filter_map(|v| {
-                                                            if let ciborium::Value::Integer(i) = v {
+                                                            if let crate::cbor::Value::Integer(i) = v {
                                                                 let i128_val: i128 = (*i).into();
                                                                 if (0..=255).contains(&i128_val) {
                                                                     Some(i128_val as u8)
@@ -109,11 +109,11 @@ pub fn handle<C: AuthenticatorCallbacks>(
                                             }
                                         }
                                         "transports" => {
-                                            if let ciborium::Value::Array(trans_arr) = value {
+                                            if let crate::cbor::Value::Array(trans_arr) = value {
                                                 let trans: Vec<String> = trans_arr
                                                     .iter()
                                                     .filter_map(|v| {
-                                                        if let ciborium::Value::Text(s) = v {
+                                                        if let crate::cbor::Value::Text(s) = v {
                                                             Some(s.clone())
                                                         } else {
                                                             None
@@ -162,7 +162,7 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // Parse extensions
     let extensions =
-        if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
+        if let Some(ext_value) = parser.get_opt::<crate::cbor::Value>(req_keys::EXTENSIONS)? {
             GetAssertionExtensions::from_cbor(&ext_value)?
         } else {
             GetAssertionExtensions::new()
@@ -335,16 +335,16 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
 /// Parse options from the request
 fn parse_options(parser: &MapParser) -> Result<GetAssertionOptions> {
-    let opts_map: Option<ciborium::Value> = parser.get_opt(req_keys::OPTIONS)?;
+    let opts_map: Option<crate::cbor::Value> = parser.get_opt(req_keys::OPTIONS)?;
 
     let mut options = GetAssertionOptions {
         up: true, // Default to true
         uv: false,
     };
 
-    if let Some(ciborium::Value::Map(opts)) = opts_map {
+    if let Some(crate::cbor::Value::Map(opts)) = opts_map {
         for (k, v) in opts {
-            if let (ciborium::Value::Text(key), ciborium::Value::Bool(val)) = (k, v) {
+            if let (crate::cbor::Value::Text(key), crate::cbor::Value::Bool(val)) = (k, v) {
                 match key.as_str() {
                     "up" => options.up = val,
                     "uv" => options.uv = val,
@@ -365,7 +365,7 @@ fn build_authenticator_data(
     up: bool,
     uv: bool,
     sign_count: u32,
-    extensions: Option<&ciborium::Value>,
+    extensions: Option<&crate::cbor::Value>,
 ) -> Result<Vec<u8>> {
     let mut auth_data = Vec::new();
 
@@ -393,7 +393,7 @@ fn build_authenticator_data(
     // Extensions (CBOR-encoded)
     if let Some(ext_value) = extensions {
         let mut ext_bytes = Vec::new();
-        ciborium::into_writer(ext_value, &mut ext_bytes).map_err(|_| StatusCode::InvalidCbor)?;
+        crate::cbor::into_writer(ext_value, &mut ext_bytes).map_err(|_| StatusCode::InvalidCbor)?;
         auth_data.extend_from_slice(&ext_bytes);
     }
 

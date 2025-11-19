@@ -89,19 +89,19 @@ impl MakeCredentialExtensions {
     }
 
     /// Parse extensions from CBOR value
-    pub fn from_cbor(value: &ciborium::Value) -> Result<Self> {
+    pub fn from_cbor(value: &crate::cbor::Value) -> Result<Self> {
         let mut exts = Self::new();
 
         let map = match value {
-            ciborium::Value::Map(m) => m,
+            crate::cbor::Value::Map(m) => m,
             _ => return Ok(exts), // No extensions is valid
         };
 
         for (key, val) in map {
-            if let ciborium::Value::Text(ext_name) = key {
+            if let crate::cbor::Value::Text(ext_name) = key {
                 match ext_name.as_str() {
                     ext_ids::CRED_PROTECT => {
-                        if let ciborium::Value::Integer(i) = val {
+                        if let crate::cbor::Value::Integer(i) = val {
                             let policy_val: i128 = (*i).into();
                             if let Ok(policy_u8) = u8::try_from(policy_val) {
                                 exts.cred_protect = CredProtectPolicy::from_u8(policy_u8);
@@ -109,22 +109,22 @@ impl MakeCredentialExtensions {
                         }
                     }
                     ext_ids::HMAC_SECRET => {
-                        if let ciborium::Value::Bool(b) = val {
+                        if let crate::cbor::Value::Bool(b) = val {
                             exts.hmac_secret = Some(*b);
                         }
                     }
                     ext_ids::CRED_BLOB => {
-                        if let ciborium::Value::Bytes(b) = val {
+                        if let crate::cbor::Value::Bytes(b) = val {
                             exts.cred_blob = Some(b.clone());
                         }
                     }
                     ext_ids::LARGE_BLOB_KEY => {
-                        if let ciborium::Value::Bool(b) = val {
+                        if let crate::cbor::Value::Bool(b) = val {
                             exts.large_blob_key = Some(*b);
                         }
                     }
                     ext_ids::MIN_PIN_LENGTH => {
-                        if let ciborium::Value::Bool(b) = val
+                        if let crate::cbor::Value::Bool(b) = val
                             && *b
                         {
                             // Request to include min PIN length in response
@@ -140,30 +140,30 @@ impl MakeCredentialExtensions {
     }
 
     /// Build extension outputs for makeCredential response
-    pub fn build_outputs(&self, actual_min_pin_length: Option<usize>) -> Option<ciborium::Value> {
+    pub fn build_outputs(&self, actual_min_pin_length: Option<usize>) -> Option<crate::cbor::Value> {
         let mut outputs = Vec::new();
 
         // credProtect - return the policy that was set
         if let Some(policy) = self.cred_protect {
             outputs.push((
-                ciborium::Value::Text(ext_ids::CRED_PROTECT.to_string()),
-                ciborium::Value::Integer(policy.to_u8().into()),
+                crate::cbor::Value::Text(ext_ids::CRED_PROTECT.to_string()),
+                crate::cbor::Value::Integer(policy.to_u8().into()),
             ));
         }
 
         // hmac-secret - return true if enabled
         if let Some(true) = self.hmac_secret {
             outputs.push((
-                ciborium::Value::Text(ext_ids::HMAC_SECRET.to_string()),
-                ciborium::Value::Bool(true),
+                crate::cbor::Value::Text(ext_ids::HMAC_SECRET.to_string()),
+                crate::cbor::Value::Bool(true),
             ));
         }
 
         // credBlob - return true if credential blob was stored
         if self.cred_blob.is_some() {
             outputs.push((
-                ciborium::Value::Text(ext_ids::CRED_BLOB.to_string()),
-                ciborium::Value::Bool(true),
+                crate::cbor::Value::Text(ext_ids::CRED_BLOB.to_string()),
+                crate::cbor::Value::Bool(true),
             ));
         }
 
@@ -175,8 +175,8 @@ impl MakeCredentialExtensions {
             rand::thread_rng().fill_bytes(&mut key);
 
             outputs.push((
-                ciborium::Value::Text(ext_ids::LARGE_BLOB_KEY.to_string()),
-                ciborium::Value::Bytes(key),
+                crate::cbor::Value::Text(ext_ids::LARGE_BLOB_KEY.to_string()),
+                crate::cbor::Value::Bytes(key),
             ));
         }
 
@@ -185,15 +185,15 @@ impl MakeCredentialExtensions {
             && let Some(len) = actual_min_pin_length
         {
             outputs.push((
-                ciborium::Value::Text(ext_ids::MIN_PIN_LENGTH.to_string()),
-                ciborium::Value::Integer((len as i32).into()),
+                crate::cbor::Value::Text(ext_ids::MIN_PIN_LENGTH.to_string()),
+                crate::cbor::Value::Integer((len as i32).into()),
             ));
         }
 
         if outputs.is_empty() {
             None
         } else {
-            Some(ciborium::Value::Map(outputs))
+            Some(crate::cbor::Value::Map(outputs))
         }
     }
 }
@@ -234,14 +234,14 @@ impl GetAssertionExtensions {
     }
 
     /// Parse extensions from CBOR value
-    pub fn from_cbor(_value: &ciborium::Value) -> Result<Self> {
+    pub fn from_cbor(_value: &crate::cbor::Value) -> Result<Self> {
         // TODO: Implement hmac-secret parsing
         // For now, return empty extensions
         Ok(Self::new())
     }
 
     /// Build extension outputs for getAssertion response
-    pub fn build_outputs(&self) -> Option<ciborium::Value> {
+    pub fn build_outputs(&self) -> Option<crate::cbor::Value> {
         // TODO: Implement extension outputs for getAssertion
         None
     }
@@ -269,9 +269,9 @@ mod tests {
 
     #[test]
     fn test_parse_cred_protect_extension() {
-        let ext_map = ciborium::Value::Map(vec![(
-            ciborium::Value::Text("credProtect".to_string()),
-            ciborium::Value::Integer(0x03.into()),
+        let ext_map = crate::cbor::Value::Map(vec![(
+            crate::cbor::Value::Text("credProtect".to_string()),
+            crate::cbor::Value::Integer(0x03.into()),
         )]);
 
         let exts = MakeCredentialExtensions::from_cbor(&ext_map).unwrap();
@@ -283,9 +283,9 @@ mod tests {
 
     #[test]
     fn test_parse_hmac_secret_extension() {
-        let ext_map = ciborium::Value::Map(vec![(
-            ciborium::Value::Text("hmac-secret".to_string()),
-            ciborium::Value::Bool(true),
+        let ext_map = crate::cbor::Value::Map(vec![(
+            crate::cbor::Value::Text("hmac-secret".to_string()),
+            crate::cbor::Value::Bool(true),
         )]);
 
         let exts = MakeCredentialExtensions::from_cbor(&ext_map).unwrap();
@@ -294,14 +294,14 @@ mod tests {
 
     #[test]
     fn test_parse_multiple_extensions() {
-        let ext_map = ciborium::Value::Map(vec![
+        let ext_map = crate::cbor::Value::Map(vec![
             (
-                ciborium::Value::Text("credProtect".to_string()),
-                ciborium::Value::Integer(0x02.into()),
+                crate::cbor::Value::Text("credProtect".to_string()),
+                crate::cbor::Value::Integer(0x02.into()),
             ),
             (
-                ciborium::Value::Text("hmac-secret".to_string()),
-                ciborium::Value::Bool(true),
+                crate::cbor::Value::Text("hmac-secret".to_string()),
+                crate::cbor::Value::Bool(true),
             ),
         ]);
 
@@ -322,12 +322,12 @@ mod tests {
         let outputs = exts.build_outputs(Some(6));
         assert!(outputs.is_some());
 
-        if let Some(ciborium::Value::Map(m)) = outputs {
+        if let Some(crate::cbor::Value::Map(m)) = outputs {
             assert!(m.len() >= 2);
 
             // Check credProtect is present
             let has_cred_protect = m.iter().any(|(k, v)| {
-                if let (ciborium::Value::Text(name), ciborium::Value::Integer(val)) = (k, v) {
+                if let (crate::cbor::Value::Text(name), crate::cbor::Value::Integer(val)) = (k, v) {
                     name == "credProtect" && {
                         let i: i128 = (*val).into();
                         i == 0x03
@@ -340,7 +340,7 @@ mod tests {
 
             // Check hmac-secret is present
             let has_hmac = m.iter().any(|(k, v)| {
-                if let (ciborium::Value::Text(name), ciborium::Value::Bool(b)) = (k, v) {
+                if let (crate::cbor::Value::Text(name), crate::cbor::Value::Bool(b)) = (k, v) {
                     name == "hmac-secret" && *b
                 } else {
                     false
@@ -361,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_parse_empty_extensions() {
-        let empty = ciborium::Value::Map(vec![]);
+        let empty = crate::cbor::Value::Map(vec![]);
         let exts = MakeCredentialExtensions::from_cbor(&empty).unwrap();
         assert!(exts.cred_protect.is_none());
         assert!(exts.hmac_secret.is_none());
@@ -375,9 +375,9 @@ mod tests {
         let outputs = exts.build_outputs(None);
         assert!(outputs.is_some());
 
-        if let Some(ciborium::Value::Map(m)) = outputs {
+        if let Some(crate::cbor::Value::Map(m)) = outputs {
             let key = m.iter().find_map(|(k, v)| {
-                if let (ciborium::Value::Text(name), ciborium::Value::Bytes(bytes)) = (k, v)
+                if let (crate::cbor::Value::Text(name), crate::cbor::Value::Bytes(bytes)) = (k, v)
                     && name == "largeBlobKey"
                 {
                     return Some(bytes);

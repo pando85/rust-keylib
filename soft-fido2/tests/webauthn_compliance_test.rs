@@ -114,11 +114,11 @@ fn test_authenticator_get_info_compliance() {
     assert_eq!(response[0], 0x00, "getInfo failed with non-zero status");
 
     // Parse CBOR response
-    let info: ciborium::Value =
-        ciborium::from_reader(&response[1..]).expect("Failed to parse getInfo response");
+    let info: soft_fido2_ctap::cbor::Value =
+        soft_fido2_ctap::cbor::decode(&response[1..]).expect("Failed to parse getInfo response");
 
     let map = match info {
-        ciborium::Value::Map(m) => m,
+        soft_fido2_ctap::cbor::Value::Map(m) => m,
         _ => panic!("getInfo response is not a CBOR map"),
     };
 
@@ -126,34 +126,34 @@ fn test_authenticator_get_info_compliance() {
     // Field 0x01: versions (required)
     let versions = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &1.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &1.into()))
         .map(|(_, v)| v);
     assert!(versions.is_some(), "Missing required 'versions' field");
 
-    if let Some(ciborium::Value::Array(vers)) = versions {
+    if let Some(soft_fido2_ctap::cbor::Value::Array(vers)) = versions {
         assert!(!vers.is_empty(), "versions array is empty");
         // Should contain at least "FIDO_2_0" or "FIDO_2_1"
         let has_fido2 = vers
             .iter()
-            .any(|v| matches!(v, ciborium::Value::Text(s) if s.starts_with("FIDO_2_")));
+            .any(|v| matches!(v, soft_fido2_ctap::cbor::Value::Text(s) if s.starts_with("FIDO_2_")));
         assert!(has_fido2, "versions must include FIDO2 version");
     }
 
     // Field 0x03: aaguid (required)
     let aaguid = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &3.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &3.into()))
         .map(|(_, v)| v);
     assert!(aaguid.is_some(), "Missing required 'aaguid' field");
 
-    if let Some(ciborium::Value::Bytes(guid)) = aaguid {
+    if let Some(soft_fido2_ctap::cbor::Value::Bytes(guid)) = aaguid {
         assert_eq!(guid.len(), 16, "AAGUID must be 16 bytes");
     }
 
     // Field 0x04: options (optional but should be present)
     let options = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &4.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &4.into()))
         .map(|(_, v)| v);
     assert!(options.is_some(), "Missing 'options' field");
 }
@@ -199,11 +199,11 @@ fn test_make_credential_compliance() {
     );
 
     // Parse CBOR response
-    let resp: ciborium::Value =
-        ciborium::from_reader(&response[1..]).expect("Failed to parse makeCredential response");
+    let resp: soft_fido2_ctap::cbor::Value =
+        soft_fido2_ctap::cbor::decode(&response[1..]).expect("Failed to parse makeCredential response");
 
     let map = match resp {
-        ciborium::Value::Map(m) => m,
+        soft_fido2_ctap::cbor::Value::Map(m) => m,
         _ => panic!("makeCredential response is not a CBOR map"),
     };
 
@@ -211,9 +211,9 @@ fn test_make_credential_compliance() {
     // Field 0x01: fmt (attestation format)
     let fmt = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &1.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &1.into()))
         .and_then(|(_, v)| match v {
-            ciborium::Value::Text(s) => Some(s.as_str()),
+            soft_fido2_ctap::cbor::Value::Text(s) => Some(s.as_str()),
             _ => None,
         });
     assert!(fmt.is_some(), "Missing required 'fmt' field");
@@ -236,9 +236,9 @@ fn test_make_credential_compliance() {
     // Field 0x02: authData (required)
     let auth_data = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &2.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &2.into()))
         .and_then(|(_, v)| match v {
-            ciborium::Value::Bytes(b) => Some(b),
+            soft_fido2_ctap::cbor::Value::Bytes(b) => Some(b),
             _ => None,
         });
     assert!(auth_data.is_some(), "Missing required 'authData' field");
@@ -337,11 +337,11 @@ fn test_get_assertion_compliance() {
     );
 
     // Parse CBOR response
-    let resp: ciborium::Value =
-        ciborium::from_reader(&response[1..]).expect("Failed to parse getAssertion response");
+    let resp: soft_fido2_ctap::cbor::Value =
+        soft_fido2_ctap::cbor::decode(&response[1..]).expect("Failed to parse getAssertion response");
 
     let map = match resp {
-        ciborium::Value::Map(m) => m,
+        soft_fido2_ctap::cbor::Value::Map(m) => m,
         _ => panic!("getAssertion response is not a CBOR map"),
     };
 
@@ -349,16 +349,16 @@ fn test_get_assertion_compliance() {
     // Field 0x01: credential (optional in some cases, but should be present for resident keys)
     let credential = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &1.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &1.into()))
         .map(|(_, v)| v);
     assert!(credential.is_some(), "Missing 'credential' field");
 
     // Field 0x02: authData (required)
     let auth_data = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &2.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &2.into()))
         .and_then(|(_, v)| match v {
-            ciborium::Value::Bytes(b) => Some(b),
+            soft_fido2_ctap::cbor::Value::Bytes(b) => Some(b),
             _ => None,
         });
     assert!(auth_data.is_some(), "Missing required 'authData' field");
@@ -382,9 +382,9 @@ fn test_get_assertion_compliance() {
     // Field 0x03: signature (required)
     let signature = map
         .iter()
-        .find(|(k, _)| matches!(k, ciborium::Value::Integer(i) if i == &3.into()))
+        .find(|(k, _)| matches!(k, soft_fido2_ctap::cbor::Value::Integer(i) if i == &3.into()))
         .and_then(|(_, v)| match v {
-            ciborium::Value::Bytes(b) => Some(b),
+            soft_fido2_ctap::cbor::Value::Bytes(b) => Some(b),
             _ => None,
         });
     assert!(signature.is_some(), "Missing required 'signature' field");
@@ -467,7 +467,7 @@ fn build_make_credential_cbor(
     user_name: &str,
     user_display_name: &str,
 ) -> Vec<u8> {
-    use ciborium::Value;
+    use soft_fido2_ctap::cbor::Value;
 
     let rp_map = vec![
         (
@@ -520,12 +520,12 @@ fn build_make_credential_cbor(
     ];
 
     let mut buffer = Vec::new();
-    ciborium::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
     buffer
 }
 
 fn build_get_assertion_cbor(client_data_hash: &[u8], rp_id: &str) -> Vec<u8> {
-    use ciborium::Value;
+    use soft_fido2_ctap::cbor::Value;
 
     let options_map = vec![
         (Value::Text("up".to_string()), Value::Bool(true)),
@@ -542,6 +542,6 @@ fn build_get_assertion_cbor(client_data_hash: &[u8], rp_id: &str) -> Vec<u8> {
     ];
 
     let mut buffer = Vec::new();
-    ciborium::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
     buffer
 }

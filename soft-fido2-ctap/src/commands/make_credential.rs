@@ -69,9 +69,9 @@ pub fn handle<C: AuthenticatorCallbacks>(
     let user = parse_user(&parser, req_keys::USER)?;
 
     // Parse pub_key_cred_params as generic CBOR and convert
-    let params_value: ciborium::Value = parser.get(req_keys::PUB_KEY_CRED_PARAMS)?;
+    let params_value: crate::cbor::Value = parser.get(req_keys::PUB_KEY_CRED_PARAMS)?;
     let pub_key_cred_params: Vec<PublicKeyCredentialParameters> =
-        crate::cbor::from_value(params_value)?;
+        crate::cbor::from_value(&params_value)?;
 
     // Parse optional parameters
     let exclude_list: Option<Vec<PublicKeyCredentialDescriptor>> =
@@ -89,7 +89,7 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // Parse extensions
     let extensions =
-        if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
+        if let Some(ext_value) = parser.get_opt::<crate::cbor::Value>(req_keys::EXTENSIONS)? {
             MakeCredentialExtensions::from_cbor(&ext_value)?
         } else {
             MakeCredentialExtensions::new()
@@ -245,10 +245,10 @@ pub fn handle<C: AuthenticatorCallbacks>(
 /// - "name" (optional): CBOR Text
 /// - "displayName" (optional): CBOR Text
 fn parse_user(parser: &MapParser, key: i32) -> Result<User> {
-    let user_value: ciborium::Value = parser.get(key)?;
+    let user_value: crate::cbor::Value = parser.get(key)?;
 
     let user_map = match user_value {
-        ciborium::Value::Map(map) => map,
+        crate::cbor::Value::Map(map) => map,
         _ => return Err(StatusCode::InvalidCbor),
     };
 
@@ -257,20 +257,20 @@ fn parse_user(parser: &MapParser, key: i32) -> Result<User> {
     let mut user_display_name: Option<String> = None;
 
     for (k, v) in user_map {
-        if let ciborium::Value::Text(key_str) = k {
+        if let crate::cbor::Value::Text(key_str) = k {
             match key_str.as_str() {
                 "id" => {
-                    if let ciborium::Value::Bytes(bytes) = v {
+                    if let crate::cbor::Value::Bytes(bytes) = v {
                         user_id = Some(bytes);
                     }
                 }
                 "name" => {
-                    if let ciborium::Value::Text(text) = v {
+                    if let crate::cbor::Value::Text(text) = v {
                         user_name = Some(text);
                     }
                 }
                 "displayName" => {
-                    if let ciborium::Value::Text(text) = v {
+                    if let crate::cbor::Value::Text(text) = v {
                         user_display_name = Some(text);
                     }
                 }
@@ -290,7 +290,7 @@ fn parse_user(parser: &MapParser, key: i32) -> Result<User> {
 
 /// Parse options from the request
 fn parse_options(parser: &MapParser) -> Result<MakeCredentialOptions> {
-    let opts_map: Option<ciborium::Value> = parser.get_opt(req_keys::OPTIONS)?;
+    let opts_map: Option<crate::cbor::Value> = parser.get_opt(req_keys::OPTIONS)?;
 
     let mut options = MakeCredentialOptions {
         rk: false,
@@ -298,9 +298,9 @@ fn parse_options(parser: &MapParser) -> Result<MakeCredentialOptions> {
         uv: false,
     };
 
-    if let Some(ciborium::Value::Map(opts)) = opts_map {
+    if let Some(crate::cbor::Value::Map(opts)) = opts_map {
         for (k, v) in opts {
-            if let (ciborium::Value::Text(key), ciborium::Value::Bool(val)) = (k, v) {
+            if let (crate::cbor::Value::Text(key), crate::cbor::Value::Bool(val)) = (k, v) {
                 match key.as_str() {
                     "rk" => options.rk = val,
                     "up" => options.up = val,
@@ -347,7 +347,7 @@ fn build_authenticator_data(
     uv: bool,
     aaguid: [u8; 16],
     cred: &AttestationCredential,
-    extensions: Option<&ciborium::Value>,
+    extensions: Option<&crate::cbor::Value>,
 ) -> Result<Vec<u8>> {
     let mut auth_data = Vec::new();
 
@@ -390,7 +390,7 @@ fn build_authenticator_data(
     // Extensions (CBOR-encoded)
     if let Some(ext_value) = extensions {
         let mut ext_bytes = Vec::new();
-        ciborium::into_writer(ext_value, &mut ext_bytes).map_err(|_| StatusCode::InvalidCbor)?;
+        crate::cbor::into_writer(ext_value, &mut ext_bytes).map_err(|_| StatusCode::InvalidCbor)?;
         auth_data.extend_from_slice(&ext_bytes);
     }
 
@@ -420,19 +420,19 @@ fn build_cose_public_key(public_key: &[u8], algorithm: i32) -> Result<Vec<u8>> {
 }
 
 /// Build attestation statement
-fn build_attestation_statement(signature: &[u8], alg: i32) -> Result<ciborium::Value> {
+fn build_attestation_statement(signature: &[u8], alg: i32) -> Result<crate::cbor::Value> {
     let map = vec![
         (
-            ciborium::Value::Text("alg".to_string()),
-            ciborium::Value::Integer(alg.into()),
+            crate::cbor::Value::Text("alg".to_string()),
+            crate::cbor::Value::Integer(alg.into()),
         ),
         (
-            ciborium::Value::Text("sig".to_string()),
-            ciborium::Value::Bytes(signature.to_vec()),
+            crate::cbor::Value::Text("sig".to_string()),
+            crate::cbor::Value::Bytes(signature.to_vec()),
         ),
     ];
 
-    Ok(ciborium::Value::Map(map))
+    Ok(crate::cbor::Value::Map(map))
 }
 
 #[cfg(test)]

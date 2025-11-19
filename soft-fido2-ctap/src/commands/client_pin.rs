@@ -108,7 +108,7 @@ fn handle_get_key_agreement<C: AuthenticatorCallbacks>(
         .insert(-1, 1)? // crv: P-256
         .insert_bytes(-2, &x)? // x coordinate
         .insert_bytes(-3, &y)? // y coordinate
-        .build_value();
+        .build_value()?;
 
     MapBuilder::new()
         .insert(resp_keys::KEY_AGREEMENT, key_agreement)?
@@ -129,7 +129,7 @@ fn handle_set_pin<C: AuthenticatorCallbacks>(
     let pin_uv_auth_param: Vec<u8> = parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?;
 
     // Get platform's key agreement key (COSE_Key format)
-    let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
+    let key_agreement: crate::cbor::Value = parser.get(req_keys::KEY_AGREEMENT)?;
     let platform_public_key = parse_cose_key(&key_agreement)?;
 
     // Get stored keypair for this protocol
@@ -206,7 +206,7 @@ fn handle_change_pin<C: AuthenticatorCallbacks>(
     let pin_uv_auth_param: Vec<u8> = parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?;
 
     // Get platform's key agreement key
-    let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
+    let key_agreement: crate::cbor::Value = parser.get(req_keys::KEY_AGREEMENT)?;
     let platform_public_key = parse_cose_key(&key_agreement)?;
 
     // Get stored keypair for this protocol
@@ -299,7 +299,7 @@ fn handle_get_pin_token<C: AuthenticatorCallbacks>(
     let pin_hash_enc: Vec<u8> = parser.get_bytes(req_keys::PIN_HASH_ENC)?;
 
     // Get platform's key agreement key
-    let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
+    let key_agreement: crate::cbor::Value = parser.get(req_keys::KEY_AGREEMENT)?;
     let platform_public_key = parse_cose_key(&key_agreement)?;
 
     // Get stored keypair for this protocol
@@ -373,7 +373,7 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
     let rp_id: Option<String> = parser.get_opt(req_keys::RP_ID)?;
 
     // Get platform's key agreement key
-    let key_agreement: ciborium::Value = parser.get(req_keys::KEY_AGREEMENT)?;
+    let key_agreement: crate::cbor::Value = parser.get(req_keys::KEY_AGREEMENT)?;
     let platform_public_key = parse_cose_key(&key_agreement)?;
 
     // Get stored keypair for this protocol
@@ -449,9 +449,9 @@ fn handle_get_pin_uv_auth_token_using_pin_with_permissions<C: AuthenticatorCallb
 ///
 /// Extracts the x and y coordinates from a COSE_Key structure and
 /// converts to uncompressed SEC1 format (0x04 || x || y).
-fn parse_cose_key(cose_key: &ciborium::Value) -> Result<Vec<u8>> {
+fn parse_cose_key(cose_key: &crate::cbor::Value) -> Result<Vec<u8>> {
     let map = match cose_key {
-        ciborium::Value::Map(m) => m,
+        crate::cbor::Value::Map(m) => m,
         _ => return Err(StatusCode::InvalidParameter),
     };
 
@@ -462,7 +462,7 @@ fn parse_cose_key(cose_key: &ciborium::Value) -> Result<Vec<u8>> {
     for (key, value) in map {
         // Match both positive and negative integer keys
         let key_int = match key {
-            ciborium::Value::Integer(i) => {
+            crate::cbor::Value::Integer(i) => {
                 // Convert ciborium::value::Integer to i128
                 let val: i128 = (*i).into();
                 val
@@ -472,12 +472,12 @@ fn parse_cose_key(cose_key: &ciborium::Value) -> Result<Vec<u8>> {
 
         match key_int {
             -2 => {
-                if let ciborium::Value::Bytes(b) = value {
+                if let crate::cbor::Value::Bytes(b) = value {
                     x_coord = Some(b.clone());
                 }
             }
             -3 => {
-                if let ciborium::Value::Bytes(b) = value {
+                if let crate::cbor::Value::Bytes(b) = value {
                     y_coord = Some(b.clone());
                 }
             }
@@ -626,7 +626,7 @@ mod tests {
 
         let key_response = handle(&mut auth, &get_key_req).unwrap();
         let parser = MapParser::from_bytes(&key_response).unwrap();
-        let auth_cose_key: ciborium::Value = parser.get(resp_keys::KEY_AGREEMENT).unwrap();
+        let auth_cose_key: crate::cbor::Value = parser.get(resp_keys::KEY_AGREEMENT).unwrap();
         let auth_public_key = parse_cose_key(&auth_cose_key).unwrap();
 
         // Step 2: Generate platform keypair and compute shared secret
@@ -662,7 +662,8 @@ mod tests {
             .unwrap()
             .insert_bytes(-3, &py)
             .unwrap()
-            .build_value();
+            .build_value()
+            .unwrap();
 
         // Step 8: Send setPin command
         let set_pin_req = MapBuilder::new()
@@ -704,7 +705,8 @@ mod tests {
             .unwrap()
             .insert_bytes(-3, &y)
             .unwrap()
-            .build_value();
+            .build_value()
+            .unwrap();
 
         let public_key = parse_cose_key(&cose_key).unwrap();
 
@@ -718,11 +720,11 @@ mod tests {
     #[test]
     fn test_parse_cose_key_invalid() {
         // Invalid - not a map
-        let invalid = ciborium::Value::Integer(42.into());
+        let invalid = crate::cbor::Value::Integer(42.into());
         assert!(parse_cose_key(&invalid).is_err());
 
         // Invalid - missing coordinates
-        let invalid_map = MapBuilder::new().insert(1, 2).unwrap().build_value();
+        let invalid_map = MapBuilder::new().insert(1, 2).unwrap().build_value().unwrap();
         assert!(parse_cose_key(&invalid_map).is_err());
     }
 }

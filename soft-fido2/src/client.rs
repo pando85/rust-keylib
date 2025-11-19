@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::request::{GetAssertionRequest, MakeCredentialRequest};
 use crate::transport::Transport;
 
-use ciborium::value::Value;
+use soft_fido2_ctap::cbor::Value;
 
 /// Client for communicating with FIDO2 authenticators
 ///
@@ -111,7 +111,7 @@ impl Client {
 
         // Encode request to CBOR
         let mut request_bytes = Vec::new();
-        ciborium::ser::into_writer(&Value::Map(cbor_request), &mut request_bytes)
+        soft_fido2_ctap::cbor::into_writer(&Value::Map(cbor_request), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
         // Send CTAP command 0x01 (authenticatorMakeCredential)
@@ -197,7 +197,7 @@ impl Client {
 
         // Encode request to CBOR
         let mut request_bytes = Vec::new();
-        ciborium::ser::into_writer(&Value::Map(cbor_request), &mut request_bytes)
+        soft_fido2_ctap::cbor::into_writer(&Value::Map(cbor_request), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
         // Send CTAP command 0x02 (authenticatorGetAssertion)
@@ -331,7 +331,7 @@ impl Client {
 
         // Encode request to CBOR
         let mut request_bytes = Vec::new();
-        ciborium::ser::into_writer(&Value::Map(cbor_request), &mut request_bytes)
+        soft_fido2_ctap::cbor::into_writer(&Value::Map(cbor_request), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
         // Send CTAP command 0x01 (authenticatorMakeCredential) using zero-allocation transport
@@ -428,7 +428,7 @@ impl Client {
 
         // Encode request to CBOR
         let mut request_bytes = Vec::new();
-        ciborium::ser::into_writer(&Value::Map(cbor_request), &mut request_bytes)
+        soft_fido2_ctap::cbor::into_writer(&Value::Map(cbor_request), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
         // Send CTAP command 0x02 (authenticatorGetAssertion) using zero-allocation transport
