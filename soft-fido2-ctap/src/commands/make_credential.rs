@@ -87,48 +87,11 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     let options = parse_options(&parser)?;
 
-    // DEBUG: Log the options being received to diagnose UV Required test
-    #[cfg(debug_assertions)]
-    {
-        eprintln!(
-            "[DEBUG makeCredential] Options received: rk={}, up={}, uv={}",
-            options.rk, options.up, options.uv
-        );
-        eprintln!(
-            "[DEBUG makeCredential] PIN/UV auth: pinUvAuthParam={}, pinUvAuthProtocol={:?}",
-            pin_uv_auth_param.as_ref().map(|p| p.len()).unwrap_or(0),
-            pin_uv_auth_protocol
-        );
-    }
-
     // Parse extensions
     let extensions =
         if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
-            let exts = MakeCredentialExtensions::from_cbor(&ext_value)?;
-
-            // DEBUG: Log extensions being requested
-            #[cfg(debug_assertions)]
-            {
-                eprintln!("[DEBUG makeCredential] Extensions requested:");
-                if let Some(cp) = exts.cred_protect {
-                    eprintln!("  - credProtect: {}", cp.to_u8());
-                }
-                if let Some(hs) = exts.hmac_secret {
-                    eprintln!("  - hmac-secret: {}", hs);
-                }
-                if exts.cred_blob.is_some() {
-                    eprintln!("  - credBlob: present");
-                }
-                if let Some(lbk) = exts.large_blob_key {
-                    eprintln!("  - largeBlobKey: {}", lbk);
-                }
-            }
-
-            exts
+            MakeCredentialExtensions::from_cbor(&ext_value)?
         } else {
-            #[cfg(debug_assertions)]
-            eprintln!("[DEBUG makeCredential] No extensions requested");
-
             MakeCredentialExtensions::new()
         };
 
@@ -214,17 +177,8 @@ pub fn handle<C: AuthenticatorCallbacks>(
             .unwrap_or_else(|| {
                 if options.uv && uv_performed {
                     // UV was required and performed - enforce UV for future authentications
-                    #[cfg(debug_assertions)]
-                    eprintln!(
-                        "[DEBUG makeCredential] UV was required and performed, setting credProtect=0x03"
-                    );
                     CredProtect::UserVerificationRequired as u8
                 } else {
-                    #[cfg(debug_assertions)]
-                    eprintln!(
-                        "[DEBUG makeCredential] Using default credProtect=0x01 (uv={}, uv_performed={})",
-                        options.uv, uv_performed
-                    );
                     CredProtect::UserVerificationOptional as u8
                 }
             });

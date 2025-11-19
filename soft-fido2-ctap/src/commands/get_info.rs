@@ -99,14 +99,6 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
         credential_mgmt_preview: Some(config.options.cred_mgmt),
         cred_mgmt: Some(config.options.cred_mgmt),
     };
-
-    // DEBUG: Log what we're reporting in getInfo
-    #[cfg(debug_assertions)]
-    eprintln!(
-        "[DEBUG getInfo] Reporting: rk={:?}, up={:?}, uv={:?}, plat={:?}, clientPin={:?}",
-        options.rk, options.up, options.uv, options.plat, options.client_pin
-    );
-
     builder = builder.insert(keys::OPTIONS, options)?;
 
     // Max message size (0x05) - SKIP to match Zig (Zig doesn't set this)

@@ -160,13 +160,6 @@ pub fn handle<C: AuthenticatorCallbacks>(
     // Parse options
     let options = parse_options(&parser)?;
 
-    // DEBUG: Log the options being received
-    #[cfg(debug_assertions)]
-    eprintln!(
-        "[DEBUG getAssertion] Options received: up={}, uv={}",
-        options.up, options.uv
-    );
-
     // Parse extensions
     let extensions =
         if let Some(ext_value) = parser.get_opt::<ciborium::Value>(req_keys::EXTENSIONS)? {
