@@ -45,8 +45,8 @@ use serial_test::serial;
 use sha2::{Digest, Sha256};
 
 use soft_fido2::{
-    Authenticator, AuthenticatorConfig, AuthenticatorOptions, CallbacksBuilder, Credential, Error,
-    Result as SoftFido2Result, UpResult, UvResult,
+    Authenticator, AuthenticatorCallbacks, AuthenticatorConfig, AuthenticatorOptions, Credential,
+    CredentialRef, Result as SoftFido2Result, UpResult, UvResult,
 };
 
 // webauthn-rs imports
@@ -59,42 +59,64 @@ const TEST_RP_ID: &str = "localhost";
 const TEST_RP_NAME: &str = "Test Relying Party";
 const TEST_ORIGIN: &str = "http://localhost:8080";
 
+/// Test callbacks for E2E authenticator
+struct TestCallbacks {
+    credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
+}
+
+impl TestCallbacks {
+    #[allow(dead_code)]
+    fn new() -> Self {
+        Self {
+            credentials: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl AuthenticatorCallbacks for TestCallbacks {
+    fn request_up(&self, _info: &str, _user: Option<&str>, _rp: &str) -> SoftFido2Result<UpResult> {
+        Ok(UpResult::Accepted)
+    }
+
+    fn request_uv(&self, _info: &str, _user: Option<&str>, _rp: &str) -> SoftFido2Result<UvResult> {
+        Ok(UvResult::Accepted)
+    }
+
+    fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> SoftFido2Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.insert(cred_id.to_vec(), cred.to_owned());
+        Ok(())
+    }
+
+    fn read_credential(&self, cred_id: &[u8], _rp_id: &str) -> SoftFido2Result<Option<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        Ok(store.get(cred_id).cloned())
+    }
+
+    fn delete_credential(&self, cred_id: &[u8]) -> SoftFido2Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.remove(cred_id);
+        Ok(())
+    }
+
+    fn list_credentials(&self, rp_id: &str, _user_id: Option<&[u8]>) -> SoftFido2Result<Vec<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        let filtered: Vec<Credential> = store
+            .values()
+            .filter(|c| c.rp.id == rp_id)
+            .cloned()
+            .collect();
+        Ok(filtered)
+    }
+}
+
 /// Helper to create test authenticator
 fn create_authenticator(
     credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
-) -> SoftFido2Result<Authenticator> {
-    let creds_write = credentials.clone();
-    let creds_read = credentials.clone();
-    let creds_get = credentials.clone();
-    let creds_delete = credentials.clone();
-
-    let callbacks = CallbacksBuilder::new()
-        .up(Arc::new(|_info, _user, _rp| Ok(UpResult::Accepted)))
-        .uv(Arc::new(|_info, _user, _rp| Ok(UvResult::Accepted)))
-        .write(Arc::new(move |_rp_id, _user_name, cred| {
-            let mut store = creds_write.lock().unwrap();
-            store.insert(cred.id.to_vec(), cred.to_owned());
-            Ok(())
-        }))
-        .read_credentials(Arc::new(move |rp_id, _user_id| {
-            let store = creds_read.lock().unwrap();
-            let filtered: Vec<Credential> = store
-                .values()
-                .filter(|c| c.rp.id == rp_id)
-                .cloned()
-                .collect();
-            Ok(filtered)
-        }))
-        .get_credential(Arc::new(move |cred_id| {
-            let store = creds_get.lock().unwrap();
-            store.get(cred_id).cloned().ok_or(Error::DoesNotExist)
-        }))
-        .delete(Arc::new(move |cred_id| {
-            let mut store = creds_delete.lock().unwrap();
-            store.remove(cred_id.as_bytes());
-            Ok(())
-        }))
-        .build();
+) -> SoftFido2Result<Authenticator<TestCallbacks>> {
+    let callbacks = TestCallbacks {
+        credentials,
+    };
 
     let config = AuthenticatorConfig::builder()
         .aaguid([

@@ -22,7 +22,7 @@
 
 use soft_fido2::AuthenticatorOptions;
 use soft_fido2::authenticator::{
-    Authenticator, AuthenticatorConfig, CallbacksBuilder, UpResult, UvResult,
+    Authenticator, AuthenticatorCallbacks, AuthenticatorConfig, UpResult, UvResult,
 };
 use soft_fido2::uhid::Uhid;
 use soft_fido2::{Credential, CredentialRef, Result};
@@ -50,56 +50,69 @@ fn get_pin_hash() -> [u8; 32] {
     hasher.finalize().into()
 }
 
+/// Simple authenticator callbacks for testing
+struct SimpleCallbacks {
+    credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
+}
+
+impl SimpleCallbacks {
+    fn new() -> Self {
+        Self {
+            credentials: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl AuthenticatorCallbacks for SimpleCallbacks {
+    fn request_up(&self, _info: &str, _user: Option<&str>, _rp: &str) -> Result<UpResult> {
+        Ok(UpResult::Accepted)
+    }
+
+    fn request_uv(&self, _info: &str, _user: Option<&str>, _rp: &str) -> Result<UvResult> {
+        Ok(UvResult::Accepted)
+    }
+
+    fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.insert(cred_id.to_vec(), cred.to_owned());
+        Ok(())
+    }
+
+    fn read_credential(&self, cred_id: &[u8], _rp_id: &str) -> Result<Option<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        Ok(store.get(cred_id).cloned())
+    }
+
+    fn delete_credential(&self, cred_id: &[u8]) -> Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.remove(cred_id);
+        Ok(())
+    }
+
+    fn list_credentials(&self, rp_id: &str, user_id: Option<&[u8]>) -> Result<Vec<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        let filtered: Vec<Credential> = store
+            .values()
+            .filter(|c| {
+                c.rp.id == rp_id && (user_id.is_none() || user_id == Some(c.user.id.as_slice()))
+            })
+            .cloned()
+            .collect();
+        Ok(filtered)
+    }
+}
+
 fn main() -> Result<()> {
     println!("╔════════════════════════════════════════════════╗");
     println!("║     Virtual FIDO2 Authenticator                ║");
     println!("╚════════════════════════════════════════════════╝\n");
 
-    // Create credential storage
-    let credentials = Arc::new(Mutex::new(HashMap::<Vec<u8>, Credential>::new()));
-
     // Setup PIN
-    Authenticator::set_pin_hash(&get_pin_hash());
+    Authenticator::<SimpleCallbacks>::set_pin_hash(&get_pin_hash());
     println!("[Setup] PIN configured: 123456");
 
-    // Setup callbacks
-    let creds_write = credentials.clone();
-    let creds_read = credentials.clone();
-    let creds_get = credentials.clone();
-    let creds_delete = credentials.clone();
-
-    let callbacks = CallbacksBuilder::new()
-        .up(Arc::new(|_info, _user, _rp| Ok(UpResult::Accepted)))
-        .uv(Arc::new(|_info, _user, _rp| Ok(UvResult::Accepted)))
-        .write(Arc::new(move |_id, _rp, cred: CredentialRef| {
-            let mut store = creds_write.lock().unwrap();
-            store.insert(cred.id.to_vec(), cred.to_owned());
-            Ok(())
-        }))
-        .read_credentials(Arc::new(move |rp_id, user_id| {
-            let store = creds_read.lock().unwrap();
-            let filtered: Vec<Credential> = store
-                .values()
-                .filter(|c| {
-                    c.rp.id == rp_id && (user_id.is_none() || user_id == Some(c.user.id.as_slice()))
-                })
-                .cloned()
-                .collect();
-            Ok(filtered)
-        }))
-        .get_credential(Arc::new(move |cred_id| {
-            let store = creds_get.lock().unwrap();
-            store
-                .get(cred_id)
-                .cloned()
-                .ok_or(soft_fido2::Error::DoesNotExist)
-        }))
-        .delete(Arc::new(move |cred_id| {
-            let mut store = creds_delete.lock().unwrap();
-            store.remove(cred_id.as_bytes());
-            Ok(())
-        }))
-        .build();
+    // Create callbacks
+    let callbacks = SimpleCallbacks::new();
 
     // Configure authenticator
     let config = AuthenticatorConfig::builder()
@@ -217,8 +230,8 @@ fn main() -> Result<()> {
 }
 
 /// Process a complete CTAP HID message
-fn process_message(
-    auth: &mut Authenticator,
+fn process_message<C: AuthenticatorCallbacks>(
+    auth: &mut Authenticator<C>,
     uhid: &Uhid,
     packets: &[Packet],
     response_buffer: &mut Vec<u8>,

@@ -48,8 +48,8 @@ use serial_test::serial;
 use sha2::{Digest, Sha256};
 
 use soft_fido2::{
-    Authenticator, AuthenticatorConfig, AuthenticatorOptions, CallbacksBuilder, Credential, Error,
-    Result as SoftFido2Result, UpResult, UvResult,
+    Authenticator, AuthenticatorCallbacks, AuthenticatorConfig, AuthenticatorOptions, Credential,
+    CredentialRef, Result as SoftFido2Result, UpResult, UvResult,
 };
 
 // webauthn-rs imports
@@ -62,13 +62,13 @@ const TEST_RP_ID: &str = "localhost";
 const TEST_RP_NAME: &str = "Test Relying Party";
 const TEST_ORIGIN: &str = "http://localhost:8080";
 
-/// Shared authenticator state for comprehensive testing
-struct TestState {
+/// Test callbacks with user verification support
+struct UvTestCallbacks {
     credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
     user_mappings: Arc<Mutex<HashMap<String, Vec<Vec<u8>>>>>, // username -> credential_ids
 }
 
-impl TestState {
+impl UvTestCallbacks {
     fn new() -> Self {
         Self {
             credentials: Arc::new(Mutex::new(HashMap::new())),
@@ -77,64 +77,65 @@ impl TestState {
     }
 }
 
-/// Helper to create test authenticator with user verification
-fn create_uv_authenticator(state: &TestState) -> SoftFido2Result<Authenticator> {
-    let creds_write = state.credentials.clone();
-    let creds_read = state.credentials.clone();
-    let creds_get = state.credentials.clone();
-    let creds_delete = state.credentials.clone();
-    let user_map = state.user_mappings.clone();
+impl AuthenticatorCallbacks for UvTestCallbacks {
+    fn request_up(&self, _info: &str, _user: Option<&str>, _rp: &str) -> SoftFido2Result<UpResult> {
+        eprintln!("    [Auth] User presence: APPROVED");
+        Ok(UpResult::Accepted)
+    }
 
-    let callbacks = CallbacksBuilder::new()
-        .up(Arc::new(|_info, _user, _rp| {
-            eprintln!("    [Auth] User presence: APPROVED");
-            Ok(UpResult::Accepted)
-        }))
-        .uv(Arc::new(|_info, _user, _rp| {
-            eprintln!("    [Auth] User verification: APPROVED");
-            Ok(UvResult::Accepted)
-        }))
-        .write(Arc::new(move |_rp_id, user_name, cred| {
-            let mut store = creds_write.lock().unwrap();
-            store.insert(cred.id.to_vec(), cred.to_owned());
+    fn request_uv(&self, _info: &str, _user: Option<&str>, _rp: &str) -> SoftFido2Result<UvResult> {
+        eprintln!("    [Auth] User verification: APPROVED");
+        Ok(UvResult::Accepted)
+    }
 
-            // Track user -> credential mapping
+    fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> SoftFido2Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.insert(cred_id.to_vec(), cred.to_owned());
+
+        // Track user -> credential mapping
+        if let Some(user_name) = cred.user_name {
             if !user_name.is_empty() {
-                let mut mappings = user_map.lock().unwrap();
+                let mut mappings = self.user_mappings.lock().unwrap();
                 mappings
                     .entry(user_name.to_string())
                     .or_default()
-                    .push(cred.id.to_vec());
+                    .push(cred_id.to_vec());
             }
+        }
 
-            eprintln!("    [Auth] Stored credential (total: {})", store.len());
-            Ok(())
-        }))
-        .read_credentials(Arc::new(move |rp_id, _user_id| {
-            let store = creds_read.lock().unwrap();
-            let filtered: Vec<Credential> = store
-                .values()
-                .filter(|c| c.rp.id == rp_id)
-                .cloned()
-                .collect();
-            eprintln!(
-                "    [Auth] Found {} credential(s) for RP: {}",
-                filtered.len(),
-                rp_id
-            );
-            Ok(filtered)
-        }))
-        .get_credential(Arc::new(move |cred_id| {
-            let store = creds_get.lock().unwrap();
-            store.get(cred_id).cloned().ok_or(Error::DoesNotExist)
-        }))
-        .delete(Arc::new(move |cred_id| {
-            let mut store = creds_delete.lock().unwrap();
-            store.remove(cred_id.as_bytes());
-            Ok(())
-        }))
-        .build();
+        eprintln!("    [Auth] Stored credential (total: {})", store.len());
+        Ok(())
+    }
 
+    fn read_credential(&self, cred_id: &[u8], _rp_id: &str) -> SoftFido2Result<Option<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        Ok(store.get(cred_id).cloned())
+    }
+
+    fn delete_credential(&self, cred_id: &[u8]) -> SoftFido2Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.remove(cred_id);
+        Ok(())
+    }
+
+    fn list_credentials(&self, rp_id: &str, _user_id: Option<&[u8]>) -> SoftFido2Result<Vec<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        let filtered: Vec<Credential> = store
+            .values()
+            .filter(|c| c.rp.id == rp_id)
+            .cloned()
+            .collect();
+        eprintln!(
+            "    [Auth] Found {} credential(s) for RP: {}",
+            filtered.len(),
+            rp_id
+        );
+        Ok(filtered)
+    }
+}
+
+/// Helper to create test authenticator with user verification
+fn create_uv_authenticator(callbacks: UvTestCallbacks) -> SoftFido2Result<Authenticator<UvTestCallbacks>> {
     let config = AuthenticatorConfig::builder()
         .aaguid([
             0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d, 0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29,
@@ -153,46 +154,61 @@ fn create_uv_authenticator(state: &TestState) -> SoftFido2Result<Authenticator> 
     Authenticator::with_config(callbacks, config)
 }
 
-/// Helper to create test authenticator with user presence only (no UV)
-fn create_up_only_authenticator(state: &TestState) -> SoftFido2Result<Authenticator> {
-    let creds_write = state.credentials.clone();
-    let creds_read = state.credentials.clone();
-    let creds_get = state.credentials.clone();
-    let creds_delete = state.credentials.clone();
+/// Test callbacks for UP-only (no UV) authenticator
+struct UpOnlyTestCallbacks {
+    credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
+}
 
-    let callbacks = CallbacksBuilder::new()
-        .up(Arc::new(|_info, _user, _rp| {
-            eprintln!("    [Auth] User presence: APPROVED (UP-only mode)");
-            Ok(UpResult::Accepted)
-        }))
-        .uv(Arc::new(|_info, _user, _rp| {
-            eprintln!("    [Auth] User verification: NOT SUPPORTED");
-            Ok(UvResult::Denied)
-        }))
-        .write(Arc::new(move |_rp_id, _user_name, cred| {
-            let mut store = creds_write.lock().unwrap();
-            store.insert(cred.id.to_vec(), cred.to_owned());
-            Ok(())
-        }))
-        .read_credentials(Arc::new(move |rp_id, _user_id| {
-            let store = creds_read.lock().unwrap();
-            let filtered: Vec<Credential> = store
-                .values()
-                .filter(|c| c.rp.id == rp_id)
-                .cloned()
-                .collect();
-            Ok(filtered)
-        }))
-        .get_credential(Arc::new(move |cred_id| {
-            let store = creds_get.lock().unwrap();
-            store.get(cred_id).cloned().ok_or(Error::DoesNotExist)
-        }))
-        .delete(Arc::new(move |cred_id| {
-            let mut store = creds_delete.lock().unwrap();
-            store.remove(cred_id.as_bytes());
-            Ok(())
-        }))
-        .build();
+impl UpOnlyTestCallbacks {
+    fn new() -> Self {
+        Self {
+            credentials: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl AuthenticatorCallbacks for UpOnlyTestCallbacks {
+    fn request_up(&self, _info: &str, _user: Option<&str>, _rp: &str) -> SoftFido2Result<UpResult> {
+        eprintln!("    [Auth] User presence: APPROVED (UP-only mode)");
+        Ok(UpResult::Accepted)
+    }
+
+    fn request_uv(&self, _info: &str, _user: Option<&str>, _rp: &str) -> SoftFido2Result<UvResult> {
+        eprintln!("    [Auth] User verification: NOT SUPPORTED");
+        Ok(UvResult::Denied)
+    }
+
+    fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> SoftFido2Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.insert(cred_id.to_vec(), cred.to_owned());
+        Ok(())
+    }
+
+    fn read_credential(&self, cred_id: &[u8], _rp_id: &str) -> SoftFido2Result<Option<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        Ok(store.get(cred_id).cloned())
+    }
+
+    fn delete_credential(&self, cred_id: &[u8]) -> SoftFido2Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.remove(cred_id);
+        Ok(())
+    }
+
+    fn list_credentials(&self, rp_id: &str, _user_id: Option<&[u8]>) -> SoftFido2Result<Vec<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        let filtered: Vec<Credential> = store
+            .values()
+            .filter(|c| c.rp.id == rp_id)
+            .cloned()
+            .collect();
+        Ok(filtered)
+    }
+}
+
+/// Helper to create test authenticator with user presence only (no UV)
+fn create_up_only_authenticator() -> SoftFido2Result<Authenticator<UpOnlyTestCallbacks>> {
+    let callbacks = UpOnlyTestCallbacks::new();
 
     let config = AuthenticatorConfig::builder()
         .aaguid([
@@ -475,9 +491,10 @@ fn test_comprehensive_webauthn_flows() {
     let builder = WebauthnBuilder::new(TEST_RP_ID, &rp_origin).expect("Invalid config");
     let webauthn = builder.build().expect("Failed to build webauthn");
 
-    let state = TestState::new();
+    let callbacks = UvTestCallbacks::new();
+    let credentials = callbacks.credentials.clone();
     let mut authenticator =
-        create_uv_authenticator(&state).expect("Failed to create authenticator");
+        create_uv_authenticator(callbacks).expect("Failed to create authenticator");
 
     // ============================================================
     // TEST 1: Basic Passkey Registration + Authentication
@@ -699,7 +716,7 @@ fn test_comprehensive_webauthn_flows() {
     eprintln!("  ✓ Credential IDs are unique");
     eprintln!(
         "  ✓ Total credentials: {}\n",
-        state.credentials.lock().unwrap().len()
+        credentials.lock().unwrap().len()
     );
 
     // ============================================================
@@ -709,9 +726,8 @@ fn test_comprehensive_webauthn_flows() {
     eprintln!("│ TEST 5: Security Key Flow (UP-only, no UV requirement)     │");
     eprintln!("└─────────────────────────────────────────────────────────────┘");
 
-    let state_sk = TestState::new();
     let mut sk_authenticator =
-        create_up_only_authenticator(&state_sk).expect("Failed to create UP-only authenticator");
+        create_up_only_authenticator().expect("Failed to create UP-only authenticator");
 
     let user3_uuid = Uuid::new_v4();
     let user3_name = "charlie@example.com";
@@ -760,6 +776,6 @@ fn test_comprehensive_webauthn_flows() {
     eprintln!("  ✓ webauthn-rs integration validated");
     eprintln!(
         "\n  Total credentials registered: {}",
-        state.credentials.lock().unwrap().len()
+        credentials.lock().unwrap().len()
     );
 }

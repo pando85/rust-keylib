@@ -1,6 +1,6 @@
 //! FIDO2 Authenticator Implementation
 //!
-//! Provides a high-level FIDO2 authenticator with callback-based user interaction.
+//! Provides a high-level FIDO2 authenticator with trait-based callbacks for user interaction.
 
 use crate::error::{Error, Result};
 use crate::types::{Credential, CredentialRef};
@@ -91,202 +91,144 @@ impl From<CtapUvResult> for UvResult {
     }
 }
 
-/// User presence callback type
-pub type UpCallback =
-    Arc<dyn Fn(&str, Option<&str>, Option<&str>) -> Result<UpResult> + Send + Sync>;
-
-/// User verification callback type
-pub type UvCallback =
-    Arc<dyn Fn(&str, Option<&str>, Option<&str>) -> Result<UvResult> + Send + Sync>;
-
-/// Select callback type for choosing which user to authenticate with
+/// Trait for handling authenticator callbacks
 ///
-/// Parameters: (rp_id) -> user names
-pub type SelectCallback = Arc<dyn Fn(&str) -> Result<Vec<String>> + Send + Sync>;
-
-/// Read callback type for retrieving credential data
+/// Implement this trait to provide custom user interaction and credential storage logic.
 ///
-/// Parameters: (credential_id, rp_id) -> credential_data
-pub type ReadCallback = Arc<dyn Fn(&str, &str) -> Result<Vec<u8>> + Send + Sync>;
-
-/// Write callback type for storing credential data
+/// # Example
 ///
-/// Parameters: (credential_id, rp_id, credential_ref)
-pub type WriteCallback = Arc<dyn Fn(&str, &str, CredentialRef) -> Result<()> + Send + Sync>;
-
-/// Delete callback type for removing credential data
+/// ```no_run
+/// use soft_fido2::{AuthenticatorCallbacks, UpResult, UvResult, Credential, CredentialRef};
+/// use std::collections::HashMap;
 ///
-/// Parameters: (credential_id)
-pub type DeleteCallback = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
-
-/// Read first callback type for starting credential iteration
+/// struct MyCallbacks {
+///     store: HashMap<Vec<u8>, Credential>,
+/// }
 ///
-/// Parameters: (rp_id, user_id, pin_hash) -> first_credential
-pub type ReadFirstCallback =
-    Arc<dyn Fn(Option<&str>, Option<&str>, Option<[u8; 32]>) -> Result<Credential> + Send + Sync>;
-
-/// Read next callback type for continuing credential iteration
+/// impl AuthenticatorCallbacks for MyCallbacks {
+///     fn request_up(&self, _info: &str, _user: Option<&str>, _rp: &str) -> soft_fido2::Result<UpResult> {
+///         Ok(UpResult::Accepted)
+///     }
 ///
-/// Returns: next_credential
-pub type ReadNextCallback = Arc<dyn Fn() -> Result<Credential> + Send + Sync>;
-
-/// Read credentials callback type (pure-rust legacy, kept for backward compatibility)
-pub type ReadCredentialsCallback =
-    Arc<dyn Fn(&str, Option<&[u8]>) -> Result<Vec<Credential>> + Send + Sync>;
-
-/// Get credential callback type (legacy, kept for backward compatibility)
-pub type GetCredentialCallback = Arc<dyn Fn(&[u8]) -> Result<Credential> + Send + Sync>;
-
-/// Callback wrapper for authenticator user interaction and storage
-#[derive(Clone, Default)]
-pub struct Callbacks {
-    pub up: Option<UpCallback>,
-    pub uv: Option<UvCallback>,
-    pub select: Option<SelectCallback>,
-    pub read: Option<ReadCallback>,
-    pub write: Option<WriteCallback>,
-    pub delete: Option<DeleteCallback>,
-    pub read_first: Option<ReadFirstCallback>,
-    pub read_next: Option<ReadNextCallback>,
-    // Legacy pure-rust callbacks (kept for backward compatibility)
-    pub read_credentials: Option<ReadCredentialsCallback>,
-    pub get_credential: Option<GetCredentialCallback>,
-}
-
-/// Builder for creating Callbacks instances
-#[derive(Default)]
-pub struct CallbacksBuilder {
-    up: Option<UpCallback>,
-    uv: Option<UvCallback>,
-    select: Option<SelectCallback>,
-    read: Option<ReadCallback>,
-    write: Option<WriteCallback>,
-    delete: Option<DeleteCallback>,
-    read_first: Option<ReadFirstCallback>,
-    read_next: Option<ReadNextCallback>,
-    read_credentials: Option<ReadCredentialsCallback>,
-    get_credential: Option<GetCredentialCallback>,
-}
-
-impl CallbacksBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn up(mut self, callback: UpCallback) -> Self {
-        self.up = Some(callback);
-        self
-    }
-
-    pub fn uv(mut self, callback: UvCallback) -> Self {
-        self.uv = Some(callback);
-        self
-    }
-
-    pub fn select(mut self, callback: SelectCallback) -> Self {
-        self.select = Some(callback);
-        self
-    }
-
-    pub fn read(mut self, callback: ReadCallback) -> Self {
-        self.read = Some(callback);
-        self
-    }
-
-    pub fn write(mut self, callback: WriteCallback) -> Self {
-        self.write = Some(callback);
-        self
-    }
-
-    pub fn delete(mut self, callback: DeleteCallback) -> Self {
-        self.delete = Some(callback);
-        self
-    }
-
-    pub fn read_first(mut self, callback: ReadFirstCallback) -> Self {
-        self.read_first = Some(callback);
-        self
-    }
-
-    pub fn read_next(mut self, callback: ReadNextCallback) -> Self {
-        self.read_next = Some(callback);
-        self
-    }
-
-    pub fn read_credentials(mut self, callback: ReadCredentialsCallback) -> Self {
-        self.read_credentials = Some(callback);
-        self
-    }
-
-    pub fn get_credential(mut self, callback: GetCredentialCallback) -> Self {
-        self.get_credential = Some(callback);
-        self
-    }
-
-    pub fn build(self) -> Callbacks {
-        Callbacks {
-            up: self.up,
-            uv: self.uv,
-            select: self.select,
-            read: self.read,
-            write: self.write,
-            delete: self.delete,
-            read_first: self.read_first,
-            read_next: self.read_next,
-            read_credentials: self.read_credentials,
-            get_credential: self.get_credential,
-        }
-    }
-}
-
-impl Callbacks {
-    /// Create a new Callbacks instance
+///     fn request_uv(&self, _info: &str, _user: Option<&str>, _rp: &str) -> soft_fido2::Result<UvResult> {
+///         Ok(UvResult::Accepted)
+///     }
+///
+///     fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> soft_fido2::Result<()> {
+///         // Store credential
+///         Ok(())
+///     }
+///
+///     fn read_credential(&self, cred_id: &[u8], _rp_id: &str) -> soft_fido2::Result<Option<Credential>> {
+///         // Retrieve credential
+///         Ok(None)
+///     }
+///
+///     fn delete_credential(&self, cred_id: &[u8]) -> soft_fido2::Result<()> {
+///         // Delete credential
+///         Ok(())
+///     }
+///
+///     fn list_credentials(&self, rp_id: &str, _user_id: Option<&[u8]>) -> soft_fido2::Result<Vec<Credential>> {
+///         // List credentials for RP
+///         Ok(vec![])
+///     }
+/// }
+/// ```
+pub trait AuthenticatorCallbacks: Send + Sync {
+    /// Request user presence (e.g., tap security key, press button)
     ///
-    /// For a more ergonomic API, consider using `CallbacksBuilder` instead.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        up: Option<UpCallback>,
-        uv: Option<UvCallback>,
-        select: Option<SelectCallback>,
-        read: Option<ReadCallback>,
-        write: Option<WriteCallback>,
-        delete: Option<DeleteCallback>,
-        read_first: Option<ReadFirstCallback>,
-        read_next: Option<ReadNextCallback>,
-    ) -> Self {
-        Self {
-            up,
-            uv,
-            select,
-            read,
-            write,
-            delete,
-            read_first,
-            read_next,
-            read_credentials: None,
-            get_credential: None,
-        }
+    /// # Arguments
+    ///
+    /// * `info` - Information about the request
+    /// * `user_name` - Optional user name
+    /// * `rp_id` - Relying party identifier
+    fn request_up(&self, info: &str, user_name: Option<&str>, rp_id: &str) -> Result<UpResult>;
+
+    /// Request user verification (e.g., PIN, biometric, password)
+    ///
+    /// # Arguments
+    ///
+    /// * `info` - Information about the request
+    /// * `user_name` - Optional user name
+    /// * `rp_id` - Relying party identifier
+    fn request_uv(&self, info: &str, user_name: Option<&str>, rp_id: &str) -> Result<UvResult>;
+
+    /// Store a credential
+    ///
+    /// # Arguments
+    ///
+    /// * `cred_id` - Credential ID (binary data)
+    /// * `rp_id` - Relying party identifier
+    /// * `credential` - Credential data to store
+    fn write_credential(&self, cred_id: &[u8], rp_id: &str, credential: &CredentialRef)
+        -> Result<()>;
+
+    /// Read a specific credential
+    ///
+    /// # Arguments
+    ///
+    /// * `cred_id` - Credential ID (binary data)
+    /// * `rp_id` - Relying party identifier
+    ///
+    /// # Returns
+    ///
+    /// The credential if found, None otherwise
+    fn read_credential(&self, cred_id: &[u8], rp_id: &str) -> Result<Option<Credential>>;
+
+    /// Delete a credential
+    ///
+    /// # Arguments
+    ///
+    /// * `cred_id` - Credential ID (binary data)
+    fn delete_credential(&self, cred_id: &[u8]) -> Result<()>;
+
+    /// List all credentials for a relying party
+    ///
+    /// # Arguments
+    ///
+    /// * `rp_id` - Relying party identifier
+    /// * `user_id` - Optional user ID to filter by
+    ///
+    /// # Returns
+    ///
+    /// Vector of credentials matching the filter criteria
+    fn list_credentials(&self, rp_id: &str, user_id: Option<&[u8]>) -> Result<Vec<Credential>>;
+
+    /// Select which credential to use from multiple matches
+    ///
+    /// Default implementation returns the first credential (index 0).
+    ///
+    /// # Arguments
+    ///
+    /// * `rp_id` - Relying party identifier
+    /// * `credentials` - Available credentials to choose from
+    ///
+    /// # Returns
+    ///
+    /// Index of the selected credential
+    fn select_credential(&self, _rp_id: &str, _credentials: &[Credential]) -> Result<usize> {
+        Ok(0) // Default: select first credential
     }
 }
 
-/// Callback adapter that implements keylib-ctap traits
-struct CallbackAdapter {
-    callbacks: Callbacks,
+/// Callback adapter that implements soft-fido2-ctap traits
+struct CallbackAdapter<C: AuthenticatorCallbacks> {
+    callbacks: Arc<C>,
 }
 
-impl UserInteractionCallbacks for CallbackAdapter {
+impl<C: AuthenticatorCallbacks> UserInteractionCallbacks for CallbackAdapter<C> {
     fn request_up(
         &self,
         info: &str,
         user_name: Option<&str>,
         rp_id: &str,
     ) -> soft_fido2_ctap::Result<CtapUpResult> {
-        if let Some(up_cb) = &self.callbacks.up {
-            let result = up_cb(info, user_name, Some(rp_id)).map_err(|_| StatusCode::Other)?;
-            Ok(result.into())
-        } else {
-            Ok(CtapUpResult::Accepted) // Default to accepted
-        }
+        let result = self
+            .callbacks
+            .request_up(info, user_name, rp_id)
+            .map_err(|_| StatusCode::Other)?;
+        Ok(result.into())
     }
 
     fn request_uv(
@@ -295,12 +237,11 @@ impl UserInteractionCallbacks for CallbackAdapter {
         user_name: Option<&str>,
         rp_id: &str,
     ) -> soft_fido2_ctap::Result<CtapUvResult> {
-        if let Some(uv_cb) = &self.callbacks.uv {
-            let result = uv_cb(info, user_name, Some(rp_id)).map_err(|_| StatusCode::Other)?;
-            Ok(result.into())
-        } else {
-            Ok(CtapUvResult::Accepted) // Default to accepted
-        }
+        let result = self
+            .callbacks
+            .request_uv(info, user_name, rp_id)
+            .map_err(|_| StatusCode::Other)?;
+        Ok(result.into())
     }
 
     fn select_credential(
@@ -308,58 +249,46 @@ impl UserInteractionCallbacks for CallbackAdapter {
         rp_id: &str,
         _user_names: &[String],
     ) -> soft_fido2_ctap::Result<usize> {
-        if let Some(select_cb) = &self.callbacks.select {
-            // Call select callback which returns the list of users
-            // We ignore the returned user list and just return 0
-            select_cb(rp_id).map(|_| 0).map_err(|_| StatusCode::Other)
-        } else {
-            Ok(0) // Default to first credential
-        }
+        // Note: We don't use user_names from CTAP layer since we use credential-based selection
+        // Get credentials for this RP and let the trait implementation choose
+        let credentials = self
+            .callbacks
+            .list_credentials(rp_id, None)
+            .map_err(|_| StatusCode::Other)?;
+
+        self.callbacks
+            .select_credential(rp_id, &credentials)
+            .map_err(|_| StatusCode::Other)
     }
 }
 
-impl CredentialStorageCallbacks for CallbackAdapter {
+impl<C: AuthenticatorCallbacks> CredentialStorageCallbacks for CallbackAdapter<C> {
     fn write_credential(&self, credential: &CtapCredential) -> soft_fido2_ctap::Result<()> {
-        if let Some(write_cb) = &self.callbacks.write {
-            // Convert credential id to string for callback signature
-            // TODO: Consider using &[u8] instead of &str for better type safety
-            let id_str = std::str::from_utf8(&credential.id).unwrap_or_else(|_| {
-                std::str::from_utf8(&credential.id[..credential.id.len().min(16)]).unwrap_or("")
-            });
+        // Convert CTAP credential to CredentialRef
+        let cred_ref = CredentialRef {
+            id: &credential.id,
+            rp_id: &credential.rp_id,
+            rp_name: credential.rp_name.as_deref(),
+            user_id: &credential.user_id,
+            user_name: credential.user_name.as_deref(),
+            user_display_name: credential.user_display_name.as_deref(),
+            sign_count: credential.sign_count,
+            alg: credential.algorithm,
+            private_key: &credential.private_key,
+            created: credential.created,
+            discoverable: credential.discoverable,
+            cred_protect: Some(credential.cred_protect),
+        };
 
-            // Convert CTAP credential to CredentialRef
-            let cred_ref = CredentialRef {
-                id: &credential.id,
-                rp_id: &credential.rp_id,
-                rp_name: credential.rp_name.as_deref(),
-                user_id: &credential.user_id,
-                user_name: credential.user_name.as_deref(),
-                user_display_name: credential.user_display_name.as_deref(),
-                sign_count: credential.sign_count,
-                alg: credential.algorithm,
-                private_key: &credential.private_key,
-                created: credential.created,
-                discoverable: credential.discoverable,
-                cred_protect: Some(credential.cred_protect),
-            };
-            // Call write callback: (credential_id, rp_id, credential_ref)
-            write_cb(id_str, &credential.rp_id, cred_ref).map_err(|_| StatusCode::Other)
-        } else {
-            Ok(()) // No-op if no callback
-        }
+        self.callbacks
+            .write_credential(&credential.id, &credential.rp_id, &cred_ref)
+            .map_err(|_| StatusCode::Other)
     }
 
     fn delete_credential(&self, credential_id: &[u8]) -> soft_fido2_ctap::Result<()> {
-        if let Some(delete_cb) = &self.callbacks.delete {
-            // Convert credential id to string for callback signature
-            // TODO: Consider using &[u8] instead of &str for better type safety
-            let id_str = std::str::from_utf8(credential_id).unwrap_or_else(|_| {
-                std::str::from_utf8(&credential_id[..credential_id.len().min(16)]).unwrap_or("")
-            });
-            delete_cb(id_str).map_err(|_| StatusCode::Other)
-        } else {
-            Ok(()) // No-op if no callback
-        }
+        self.callbacks
+            .delete_credential(credential_id)
+            .map_err(|_| StatusCode::Other)
     }
 
     fn read_credentials(
@@ -367,29 +296,28 @@ impl CredentialStorageCallbacks for CallbackAdapter {
         rp_id: &str,
         user_id: Option<&[u8]>,
     ) -> soft_fido2_ctap::Result<Vec<CtapCredential>> {
-        if let Some(read_cb) = &self.callbacks.read_credentials {
-            let credentials = read_cb(rp_id, user_id).map_err(|_| StatusCode::NoCredentials)?;
-            Ok(credentials.into_iter().map(|c| c.into()).collect())
-        } else {
-            Ok(vec![]) // Empty list if no callback
-        }
+        let credentials = self
+            .callbacks
+            .list_credentials(rp_id, user_id)
+            .map_err(|_| StatusCode::NoCredentials)?;
+        Ok(credentials.into_iter().map(|c| c.into()).collect())
     }
 
     fn credential_exists(&self, credential_id: &[u8]) -> soft_fido2_ctap::Result<bool> {
-        if let Some(get_cb) = &self.callbacks.get_credential {
-            Ok(get_cb(credential_id).is_ok())
-        } else {
-            Ok(false)
-        }
+        // Try to read the credential with a placeholder RP ID
+        // Note: This is a limitation of the current design
+        Ok(self.callbacks.read_credential(credential_id, "").is_ok())
     }
 
     fn get_credential(&self, credential_id: &[u8]) -> soft_fido2_ctap::Result<CtapCredential> {
-        if let Some(get_cb) = &self.callbacks.get_credential {
-            let cred = get_cb(credential_id).map_err(|_| StatusCode::NoCredentials)?;
-            Ok(cred.into())
-        } else {
-            Err(StatusCode::NoCredentials)
-        }
+        // Try to read the credential with a placeholder RP ID
+        // Note: This is a limitation of the current design
+        let cred = self
+            .callbacks
+            .read_credential(credential_id, "")
+            .map_err(|_| StatusCode::NoCredentials)?
+            .ok_or(StatusCode::NoCredentials)?;
+        Ok(cred.into())
     }
 
     fn update_credential(&self, credential: &CtapCredential) -> soft_fido2_ctap::Result<()> {
@@ -398,7 +326,7 @@ impl CredentialStorageCallbacks for CallbackAdapter {
     }
 
     fn enumerate_rps(&self) -> soft_fido2_ctap::Result<Vec<(String, Option<String>, usize)>> {
-        // Not directly supported in callback model, would need to enumerate all RPs
+        // Not directly supported in callback model
         Ok(vec![])
     }
 
@@ -533,11 +461,11 @@ impl AuthenticatorConfigBuilder {
 /// High-level FIDO2 authenticator
 ///
 /// Provides a thread-safe authenticator that processes CTAP commands via callbacks.
-pub struct Authenticator {
-    dispatcher: Arc<Mutex<CommandDispatcher<CallbackAdapter>>>,
+pub struct Authenticator<C: AuthenticatorCallbacks> {
+    dispatcher: Arc<Mutex<CommandDispatcher<CallbackAdapter<C>>>>,
 }
 
-impl Authenticator {
+impl<C: AuthenticatorCallbacks> Authenticator<C> {
     /// Set the PIN hash for the authenticator (must be called before creating instance)
     ///
     /// The PIN hash will be applied to the next authenticator instance created.
@@ -570,13 +498,21 @@ impl Authenticator {
     }
 
     /// Create a new authenticator with default configuration
-    pub fn new(callbacks: Callbacks) -> Result<Self> {
+    pub fn new(callbacks: C) -> Result<Self>
+    where
+        C: 'static,
+    {
         Self::with_config(callbacks, AuthenticatorConfig::default())
     }
 
     /// Create a new authenticator with custom configuration
-    pub fn with_config(callbacks: Callbacks, config: AuthenticatorConfig) -> Result<Self> {
-        let adapter = CallbackAdapter { callbacks };
+    pub fn with_config(callbacks: C, config: AuthenticatorConfig) -> Result<Self>
+    where
+        C: 'static,
+    {
+        let adapter = CallbackAdapter {
+            callbacks: Arc::new(callbacks),
+        };
 
         // Create CTAP authenticator config
         let mut ctap_config = CtapConfig::new()
@@ -672,14 +608,41 @@ impl Authenticator {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_callback_builder() {
-        let callbacks = CallbacksBuilder::new()
-            .up(Arc::new(|_, _, _| Ok(UpResult::Accepted)))
-            .build();
+    // Simple test implementation of AuthenticatorCallbacks
+    struct TestCallbacks;
 
-        assert!(callbacks.up.is_some());
-        assert!(callbacks.uv.is_none());
+    impl AuthenticatorCallbacks for TestCallbacks {
+        fn request_up(&self, _: &str, _: Option<&str>, _: &str) -> Result<UpResult> {
+            Ok(UpResult::Accepted)
+        }
+
+        fn request_uv(&self, _: &str, _: Option<&str>, _: &str) -> Result<UvResult> {
+            Ok(UvResult::Accepted)
+        }
+
+        fn write_credential(&self, _: &[u8], _: &str, _: &CredentialRef) -> Result<()> {
+            Ok(())
+        }
+
+        fn read_credential(&self, _: &[u8], _: &str) -> Result<Option<Credential>> {
+            Ok(None)
+        }
+
+        fn delete_credential(&self, _: &[u8]) -> Result<()> {
+            Ok(())
+        }
+
+        fn list_credentials(&self, _: &str, _: Option<&[u8]>) -> Result<Vec<Credential>> {
+            Ok(vec![])
+        }
+    }
+
+    #[test]
+    fn test_authenticator_creation() {
+        let callbacks = TestCallbacks;
+        let config = AuthenticatorConfig::default();
+        let result = Authenticator::with_config(callbacks, config);
+        assert!(result.is_ok());
     }
 
     #[test]

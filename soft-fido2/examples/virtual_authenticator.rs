@@ -55,25 +55,25 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use soft_fido2::{
-    Authenticator, AuthenticatorConfig, AuthenticatorOptions, CallbacksBuilder, Credential, Error,
-    Result, UpResult, UvResult,
+    Authenticator, AuthenticatorCallbacks, AuthenticatorConfig, AuthenticatorOptions, Credential,
+    CredentialRef, Error, Result, UpResult, UvResult,
 };
 use soft_fido2_transport::{CommandHandler, UhidDevice};
 
 /// Wrapper that implements CommandHandler for the high-level Authenticator
-struct AuthenticatorHandler {
-    authenticator: Mutex<Authenticator>,
+struct AuthenticatorHandler<C: AuthenticatorCallbacks> {
+    authenticator: Mutex<Authenticator<C>>,
 }
 
-impl AuthenticatorHandler {
-    fn new(authenticator: Authenticator) -> Self {
+impl<C: AuthenticatorCallbacks> AuthenticatorHandler<C> {
+    fn new(authenticator: Authenticator<C>) -> Self {
         Self {
             authenticator: Mutex::new(authenticator),
         }
     }
 }
 
-impl CommandHandler for AuthenticatorHandler {
+impl<C: AuthenticatorCallbacks> CommandHandler for AuthenticatorHandler<C> {
     fn handle_command(
         &mut self,
         cmd: soft_fido2_transport::Cmd,
@@ -99,13 +99,13 @@ impl CommandHandler for AuthenticatorHandler {
 /// UHID Virtual Authenticator Runner
 ///
 /// Manages the complete stack: UHID I/O → CTAP HID protocol → Authenticator
-struct UhidAuthenticator {
+struct UhidAuthenticator<C: AuthenticatorCallbacks> {
     device: UhidDevice,
-    handler: soft_fido2_transport::CtapHidHandler<AuthenticatorHandler>,
+    handler: soft_fido2_transport::CtapHidHandler<AuthenticatorHandler<C>>,
 }
 
-impl UhidAuthenticator {
-    fn new(authenticator: Authenticator) -> Result<Self> {
+impl<C: AuthenticatorCallbacks> UhidAuthenticator<C> {
+    fn new(authenticator: Authenticator<C>) -> Result<Self> {
         let device = UhidDevice::create_fido_device().map_err(|_| Error::Other)?;
 
         let auth_handler = AuthenticatorHandler::new(authenticator);
@@ -176,115 +176,124 @@ impl UhidAuthenticator {
     }
 }
 
+/// Virtual authenticator callbacks with user-friendly logging
+struct VirtualAuthCallbacks {
+    credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
+}
+
+impl VirtualAuthCallbacks {
+    fn new() -> Self {
+        Self {
+            credentials: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl AuthenticatorCallbacks for VirtualAuthCallbacks {
+    fn request_up(&self, info: &str, user: Option<&str>, rp: &str) -> Result<UpResult> {
+        println!("\n  [UP] 👆 User Presence Requested");
+        println!("       Info: {}", info);
+        if let Some(u) = user {
+            println!("       User: {}", u);
+        }
+        println!("       RP: {}", rp);
+        println!("       ✓ AUTO-APPROVED");
+        Ok(UpResult::Accepted)
+    }
+
+    fn request_uv(&self, info: &str, user: Option<&str>, rp: &str) -> Result<UvResult> {
+        println!("\n  [UV] 🔐 User Verification Requested");
+        println!("       Info: {}", info);
+        if let Some(u) = user {
+            println!("       User: {}", u);
+        }
+        println!("       RP: {}", rp);
+        println!("       ✓ AUTO-APPROVED (biometric/PIN simulated)");
+        Ok(UvResult::Accepted)
+    }
+
+    fn write_credential(&self, cred_id: &[u8], rp_id: &str, cred: &CredentialRef) -> Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.insert(cred_id.to_vec(), cred.to_owned());
+
+        println!("\n✓ CREDENTIAL REGISTERED");
+        println!("  RP ID: {}", rp_id);
+        if let Some(user_name) = cred.user_name {
+            println!("  User: {}", user_name);
+        }
+        if let Some(rp_name) = cred.rp_name {
+            println!("  RP Name: {}", rp_name);
+        }
+        println!("  User ID: {} bytes", cred.user_id.len());
+        println!("  Credential ID: {} bytes", cred.id.len());
+        println!("  Discoverable: {}", cred.discoverable);
+        if let Some(cp) = cred.cred_protect {
+            println!("  CredProtect: 0x{:02x}", cp);
+        }
+        println!("  Total credentials stored: {}\n", store.len());
+
+        Ok(())
+    }
+
+    fn read_credential(&self, cred_id: &[u8], _rp_id: &str) -> Result<Option<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        match store.get(cred_id) {
+            Some(cred) => {
+                println!("\n  [AUTH] 🔑 Credential Retrieved");
+                println!("         RP: {}", cred.rp.id);
+                if let Some(ref name) = cred.user.name {
+                    println!("         User: {}", name);
+                }
+                println!("         Sign count: {}", cred.sign_count);
+                Ok(Some(cred.clone()))
+            }
+            None => {
+                println!("\n  [AUTH] ✗ Credential not found");
+                Ok(None)
+            }
+        }
+    }
+
+    fn delete_credential(&self, cred_id: &[u8]) -> Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.remove(cred_id);
+        println!("  [DELETE] Credential removed\n");
+        Ok(())
+    }
+
+    fn list_credentials(&self, rp_id: &str, user_id: Option<&[u8]>) -> Result<Vec<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        let filtered: Vec<Credential> = store
+            .values()
+            .filter(|c| {
+                if c.rp.id != rp_id {
+                    return false;
+                }
+                if let Some(uid) = user_id {
+                    c.user.id == uid
+                } else {
+                    true
+                }
+            })
+            .cloned()
+            .collect();
+
+        println!(
+            "  [READ] Found {} credential(s) for RP: {}",
+            filtered.len(),
+            rp_id
+        );
+        Ok(filtered)
+    }
+}
+
 fn main() -> Result<()> {
     println!("╔═══════════════════════════════════════════════════════════╗");
     println!("║  Virtual FIDO2 Authenticator (UHID)                      ║");
     println!("╚═══════════════════════════════════════════════════════════╝\n");
 
-    // Create credential storage
-    let credentials = Arc::new(Mutex::new(HashMap::<Vec<u8>, Credential>::new()));
-    let creds_write = credentials.clone();
-    let creds_read = credentials.clone();
-    let creds_get = credentials.clone();
-    let creds_delete = credentials.clone();
-
-    // Setup callbacks with user-friendly logging
-    let callbacks = CallbacksBuilder::new()
-        .up(Arc::new(|info, user, rp| {
-            println!("\n  [UP] 👆 User Presence Requested");
-            println!("       Info: {}", info);
-            if let Some(u) = user {
-                println!("       User: {}", u);
-            }
-            if let Some(r) = rp {
-                println!("       RP: {}", r);
-            }
-            println!("       ✓ AUTO-APPROVED");
-            Ok(UpResult::Accepted)
-        }))
-        .uv(Arc::new(|info, user, rp| {
-            println!("\n  [UV] 🔐 User Verification Requested");
-            println!("       Info: {}", info);
-            if let Some(u) = user {
-                println!("       User: {}", u);
-            }
-            if let Some(r) = rp {
-                println!("       RP: {}", r);
-            }
-            println!("       ✓ AUTO-APPROVED (biometric/PIN simulated)");
-            Ok(UvResult::Accepted)
-        }))
-        .write(Arc::new(move |_id, rp_id, cred| {
-            let mut store = creds_write.lock().unwrap();
-            store.insert(cred.id.to_vec(), cred.to_owned());
-
-            println!("\n✓ CREDENTIAL REGISTERED");
-            println!("  RP ID: {}", rp_id);
-            if let Some(user_name) = cred.user_name {
-                println!("  User: {}", user_name);
-            }
-            if let Some(rp_name) = cred.rp_name {
-                println!("  RP Name: {}", rp_name);
-            }
-            println!("  User ID: {} bytes", cred.user_id.len());
-            println!("  Credential ID: {} bytes", cred.id.len());
-            println!("  Discoverable: {}", cred.discoverable);
-            if let Some(cp) = cred.cred_protect {
-                println!("  CredProtect: 0x{:02x}", cp);
-            }
-            println!("  Total credentials stored: {}\n", store.len());
-
-            Ok(())
-        }))
-        .read_credentials(Arc::new(move |rp_id, user_id| {
-            let store = creds_read.lock().unwrap();
-            let filtered: Vec<Credential> = store
-                .values()
-                .filter(|c| {
-                    if c.rp.id != rp_id {
-                        return false;
-                    }
-                    if let Some(uid) = user_id {
-                        c.user.id == uid
-                    } else {
-                        true
-                    }
-                })
-                .cloned()
-                .collect();
-
-            println!(
-                "  [READ] Found {} credential(s) for RP: {}",
-                filtered.len(),
-                rp_id
-            );
-            Ok(filtered)
-        }))
-        .get_credential(Arc::new(move |cred_id| {
-            let store = creds_get.lock().unwrap();
-            match store.get(cred_id) {
-                Some(cred) => {
-                    println!("\n  [AUTH] 🔑 Credential Retrieved");
-                    println!("         RP: {}", cred.rp.id);
-                    if let Some(ref name) = cred.user.name {
-                        println!("         User: {}", name);
-                    }
-                    println!("         Sign count: {}", cred.sign_count);
-                    Ok(cred.clone())
-                }
-                None => {
-                    println!("\n  [AUTH] ✗ Credential not found");
-                    Err(Error::DoesNotExist)
-                }
-            }
-        }))
-        .delete(Arc::new(move |cred_id| {
-            let mut store = creds_delete.lock().unwrap();
-            store.remove(cred_id.as_bytes());
-            println!("  [DELETE] Credential removed\n");
-            Ok(())
-        }))
-        .build();
+    // Create callbacks
+    let callbacks = VirtualAuthCallbacks::new();
 
     // Configure authenticator with full FIDO2 capabilities
     let config = AuthenticatorConfig::builder()

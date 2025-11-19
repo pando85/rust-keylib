@@ -10,8 +10,8 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
 use soft_fido2::{
-    Authenticator, AuthenticatorConfig, AuthenticatorOptions, CallbacksBuilder, Credential, Error,
-    UpResult, UvResult,
+    Authenticator, AuthenticatorCallbacks, AuthenticatorConfig, AuthenticatorOptions, Credential,
+    CredentialRef, Result, UpResult, UvResult,
 };
 
 const RP_ID: &str = "example.com";
@@ -20,42 +20,64 @@ const USER_ID: &[u8] = b"user-123";
 const USER_NAME: &str = "alice@example.com";
 const USER_DISPLAY_NAME: &str = "Alice";
 
+/// Test callbacks for compliance tests
+struct TestCallbacks {
+    credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
+}
+
+impl TestCallbacks {
+    #[allow(dead_code)]
+    fn new() -> Self {
+        Self {
+            credentials: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl AuthenticatorCallbacks for TestCallbacks {
+    fn request_up(&self, _info: &str, _user: Option<&str>, _rp: &str) -> Result<UpResult> {
+        Ok(UpResult::Accepted)
+    }
+
+    fn request_uv(&self, _info: &str, _user: Option<&str>, _rp: &str) -> Result<UvResult> {
+        Ok(UvResult::Accepted)
+    }
+
+    fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.insert(cred_id.to_vec(), cred.to_owned());
+        Ok(())
+    }
+
+    fn read_credential(&self, cred_id: &[u8], _rp_id: &str) -> Result<Option<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        Ok(store.get(cred_id).cloned())
+    }
+
+    fn delete_credential(&self, cred_id: &[u8]) -> Result<()> {
+        let mut store = self.credentials.lock().unwrap();
+        store.remove(cred_id);
+        Ok(())
+    }
+
+    fn list_credentials(&self, rp_id: &str, _user_id: Option<&[u8]>) -> Result<Vec<Credential>> {
+        let store = self.credentials.lock().unwrap();
+        let filtered: Vec<Credential> = store
+            .values()
+            .filter(|c| c.rp.id == rp_id)
+            .cloned()
+            .collect();
+        Ok(filtered)
+    }
+}
+
 /// Helper to create authenticator
 fn create_test_authenticator(
     credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
-) -> Authenticator {
-    let creds_write = credentials.clone();
-    let creds_read = credentials.clone();
-    let creds_get = credentials.clone();
-    let creds_delete = credentials.clone();
-
-    let callbacks = CallbacksBuilder::new()
-        .up(Arc::new(|_info, _user, _rp| Ok(UpResult::Accepted)))
-        .uv(Arc::new(|_info, _user, _rp| Ok(UvResult::Accepted)))
-        .write(Arc::new(move |_rp_id, _user_name, cred| {
-            let mut store = creds_write.lock().unwrap();
-            store.insert(cred.id.to_vec(), cred.to_owned());
-            Ok(())
-        }))
-        .read_credentials(Arc::new(move |rp_id, _user_id| {
-            let store = creds_read.lock().unwrap();
-            let filtered: Vec<Credential> = store
-                .values()
-                .filter(|c| c.rp.id == rp_id)
-                .cloned()
-                .collect();
-            Ok(filtered)
-        }))
-        .get_credential(Arc::new(move |cred_id| {
-            let store = creds_get.lock().unwrap();
-            store.get(cred_id).cloned().ok_or(Error::DoesNotExist)
-        }))
-        .delete(Arc::new(move |cred_id| {
-            let mut store = creds_delete.lock().unwrap();
-            store.remove(cred_id.as_bytes());
-            Ok(())
-        }))
-        .build();
+) -> Authenticator<TestCallbacks> {
+    let callbacks = TestCallbacks {
+        credentials,
+    };
 
     let config = AuthenticatorConfig::builder()
         .aaguid([
