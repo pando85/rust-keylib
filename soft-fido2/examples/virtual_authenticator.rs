@@ -302,7 +302,7 @@ fn main() -> Result<()> {
                 .with_resident_keys(true) // Support discoverable credentials
                 .with_user_presence(true) // Support UP
                 .with_user_verification(Some(true)) // Support UV capability
-                .with_client_pin(Some(false)), // No PIN required (auto-approve UV)
+                .with_client_pin(Some(true)), // Report PIN as set so browser requests UV
         )
         .force_resident_keys(true) // CRITICAL: Store ALL credentials (not just rk=true requests)
         .build();
@@ -316,12 +316,19 @@ fn main() -> Result<()> {
     println!("  Force Resident Keys: ✓ ALL credentials stored (for testing)");
     println!("  User Presence (up): ✓ Supported (auto-approved)");
     println!("  User Verification (uv): ✓ Supported (auto-approved)");
-    println!("  Client PIN: Not set (UV works without PIN)");
+    println!("  Client PIN: Reported as SET (virtual - UV auto-approved)");
     println!("  Extensions: credProtect, hmac-secret, largeBlobKey");
     println!("  Max Credentials: 100");
     println!();
 
-    // Create authenticator
+    // Set a virtual PIN hash before creating authenticator
+    // This makes getInfo report clientPin=true so browsers request UV
+    // We still auto-approve UV in callbacks, no actual PIN verification
+    use sha2::{Digest, Sha256};
+    let pin_hash: [u8; 32] = Sha256::digest(b"virtual-pin-1234").into();
+    Authenticator::set_pin_hash(&pin_hash);
+
+    // Create authenticator (will pick up the preset PIN hash)
     let auth = Authenticator::with_config(callbacks, config)?;
 
     // Create UHID virtual device
