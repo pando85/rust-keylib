@@ -302,7 +302,8 @@ fn main() -> Result<()> {
                 .with_resident_keys(true) // Support discoverable credentials
                 .with_user_presence(true) // Support UP
                 .with_user_verification(Some(true)) // Support UV capability
-                .with_client_pin(Some(true)), // Report PIN as set so browser requests UV
+                .with_always_uv(Some(true)) // Always perform UV (like built-in biometric)
+                .with_client_pin(Some(false)), // No PIN (using built-in UV instead)
         )
         .build();
 
@@ -313,15 +314,16 @@ fn main() -> Result<()> {
     println!("  Algorithms: ES256 (-7)");
     println!("  Resident Keys (rk): ✓ Supported");
     println!("  User Presence (up): ✓ Supported (auto-approved)");
-    println!("  User Verification (uv): ✓ Supported (auto-approved)");
-    println!("  Client PIN: Reported as SET (virtual - UV auto-approved)");
+    println!("  User Verification (uv): ✓ ALWAYS (like built-in biometric)");
+    println!("  UV Method: Built-in (alwaysUV=true, no PIN required)");
     println!("  Extensions: credProtect, hmac-secret, largeBlobKey");
     println!("  Max Credentials: 100");
     println!();
 
     // Create authenticator
-    // Note: clientPin=true is set via options config, which tells browsers we support UV
-    // We auto-approve all UV requests in callbacks (no actual PIN verification)
+    // Note: alwaysUV=true mimics a platform authenticator with built-in biometric UV
+    // This provides consistent UV behavior for webauthn-rs compatibility tests
+    // We auto-approve all UV requests in callbacks (no actual biometric verification)
     let auth = Authenticator::with_config(callbacks, config)?;
 
     // Create UHID virtual device
