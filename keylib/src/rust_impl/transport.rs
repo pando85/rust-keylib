@@ -287,6 +287,32 @@ impl Transport {
     /// * `cmd` - CTAP authenticator command (0x01=makeCredential, 0x02=getAssertion, 0x04=getInfo, etc.)
     /// * `data` - CBOR-encoded command parameters
     pub fn send_ctap_command(&mut self, cmd: u8, data: &[u8]) -> Result<Vec<u8>> {
+        // Use zero-allocation variant and convert to Vec
+        let mut buffer = vec![0u8; 7609]; // Max CTAP response size
+        let len = self.send_ctap_command_buf(cmd, data, &mut buffer)?;
+        buffer.truncate(len);
+        Ok(buffer)
+    }
+
+    /// Send a CTAP command and write response to provided buffer (zero-allocation variant)
+    ///
+    /// This is the zero-allocation version of `send_ctap_command`. The caller provides
+    /// a buffer to write the response into, and this method returns the number of bytes written.
+    ///
+    /// # Arguments
+    ///
+    /// * `cmd` - CTAP command byte (e.g., 0x01 for makeCredential, 0x02 for getAssertion)
+    /// * `data` - CBOR-encoded command parameters
+    /// * `response` - Buffer to write the response into (should be at least 7609 bytes for max CTAP response)
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written to the response buffer
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Other` if the buffer is too small for the response
+    pub fn send_ctap_command_buf(&mut self, cmd: u8, data: &[u8], response: &mut [u8]) -> Result<usize> {
         use keylib_transport::Cmd;
 
         // CTAP authenticator commands are sent via CTAP HID Cbor (0x10) command
@@ -399,11 +425,17 @@ impl Transport {
             }
         }
 
-        // Reassemble message
+        // Reassemble message directly into response buffer
         let response_message =
             Message::from_packets(&response_packets).map_err(|_| Error::Other)?;
 
-        Ok(response_message.data)
+        let response_len = response_message.data.len();
+        if response_len > response.len() {
+            return Err(Error::Other); // Buffer too small
+        }
+
+        response[..response_len].copy_from_slice(&response_message.data);
+        Ok(response_len)
     }
 
     /// Get a description of the transport

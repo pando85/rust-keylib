@@ -45,14 +45,15 @@ impl From<PinUvAuthProtocol> for PinProtocol {
 pub struct PinUvAuthEncapsulation {
     protocol: PinProtocol,
     /// Platform's persistent key pair (for multiple operations)
-    platform_secret: Option<Vec<u8>>,
-    platform_public: Option<Vec<u8>>,
+    /// P-256 secret key is 32 bytes, public key uncompressed is 65 bytes
+    platform_secret: Option<[u8; 32]>,
+    platform_public: Option<[u8; 65]>,
     /// Authenticator's public key (from getKeyAgreement)
     authenticator_key: Option<P256PublicKey>,
-    /// Shared secret derived from ECDH
-    shared_secret: Option<Vec<u8>>,
-    /// PIN token (from getPinToken or getPinUvAuthTokenUsingPinWithPermissions)
-    pin_token: Option<Vec<u8>>,
+    /// Shared secret derived from ECDH (32 bytes for P-256)
+    shared_secret: Option<[u8; 32]>,
+    /// PIN token (32 bytes for both V1 and V2)
+    pin_token: Option<[u8; 32]>,
 }
 
 impl PinUvAuthEncapsulation {
@@ -87,9 +88,13 @@ impl PinUvAuthEncapsulation {
         let platform_public_key = platform_secret_key.public_key();
         let platform_public_point = platform_public_key.to_encoded_point(false);
 
-        // Store platform keys
-        self.platform_secret = Some(platform_secret_key.to_bytes().to_vec());
-        self.platform_public = Some(platform_public_point.as_bytes().to_vec());
+        // Store platform keys (using fixed-size arrays for zero allocation)
+        self.platform_secret = Some(*platform_secret_key.to_bytes().as_ref());
+
+        let public_bytes = platform_public_point.as_bytes();
+        let mut public_array = [0u8; 65];
+        public_array.copy_from_slice(public_bytes);
+        self.platform_public = Some(public_array);
 
         // Build getKeyAgreement request
         let request_map = vec![
@@ -150,11 +155,13 @@ impl PinUvAuthEncapsulation {
             platform_secret_key.to_nonzero_scalar(),
             authenticator_public_key.as_affine(),
         );
-        let shared_secret_bytes = shared_secret.raw_secret_bytes().to_vec();
 
-        // Store authenticator key and shared secret
+        // Store authenticator key and shared secret (using fixed-size array)
         self.authenticator_key = Some(authenticator_public_key);
-        self.shared_secret = Some(shared_secret_bytes);
+        let shared_secret_bytes = shared_secret.raw_secret_bytes();
+        let mut secret_array = [0u8; 32];
+        secret_array.copy_from_slice(shared_secret_bytes.as_slice());
+        self.shared_secret = Some(secret_array);
 
         Ok(())
     }
@@ -178,33 +185,23 @@ impl PinUvAuthEncapsulation {
     ) -> Result<Vec<u8>> {
         let shared_secret = self.shared_secret.as_ref().ok_or(Error::Other)?;
 
-        // Encrypt PIN with shared secret
-        let pin_hash = {
+        // Encrypt PIN with shared secret (using fixed-size array for zero allocation)
+        let pin_hash: [u8; 32] = {
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             hasher.update(pin.as_bytes());
-            hasher.finalize().to_vec()
+            hasher.finalize().into()
         };
 
         let pin_hash_enc = match self.protocol {
             PinProtocol::V1 => {
                 // Derive encryption key for PIN protocol v1
-                let (enc_key, _) = pin_protocol::v1::derive_keys(
-                    &shared_secret
-                        .as_slice()
-                        .try_into()
-                        .map_err(|_| Error::Other)?,
-                );
+                let (enc_key, _) = pin_protocol::v1::derive_keys(shared_secret);
                 pin_protocol::v1::encrypt(&enc_key, &pin_hash[..16]).map_err(|_| Error::Other)?
             }
             PinProtocol::V2 => {
                 // Derive encryption key for PIN protocol v2
-                let enc_key = pin_protocol::v2::derive_encryption_key(
-                    &shared_secret
-                        .as_slice()
-                        .try_into()
-                        .map_err(|_| Error::Other)?,
-                );
+                let enc_key = pin_protocol::v2::derive_encryption_key(shared_secret);
                 pin_protocol::v2::encrypt(&enc_key, &pin_hash[..16]).map_err(|_| Error::Other)?
             }
         };
@@ -282,32 +279,28 @@ impl PinUvAuthEncapsulation {
             _ => return Err(Error::Other),
         };
 
-        // Decrypt PIN token
-        let pin_token = match self.protocol {
+        // Decrypt PIN token (fixed-size array for zero allocation)
+        let pin_token: [u8; 32] = match self.protocol {
             PinProtocol::V1 => {
-                let (enc_key, _) = pin_protocol::v1::derive_keys(
-                    &shared_secret
-                        .as_slice()
-                        .try_into()
-                        .map_err(|_| Error::Other)?,
-                );
-                pin_protocol::v1::decrypt(&enc_key, &pin_token_enc).map_err(|_| Error::Other)?
+                let (enc_key, _) = pin_protocol::v1::derive_keys(shared_secret);
+                let decrypted = pin_protocol::v1::decrypt(&enc_key, &pin_token_enc).map_err(|_| Error::Other)?;
+                let mut token = [0u8; 32];
+                token.copy_from_slice(&decrypted[..32]);
+                token
             }
             PinProtocol::V2 => {
-                let enc_key = pin_protocol::v2::derive_encryption_key(
-                    &shared_secret
-                        .as_slice()
-                        .try_into()
-                        .map_err(|_| Error::Other)?,
-                );
-                pin_protocol::v2::decrypt(&enc_key, &pin_token_enc).map_err(|_| Error::Other)?
+                let enc_key = pin_protocol::v2::derive_encryption_key(shared_secret);
+                let decrypted = pin_protocol::v2::decrypt(&enc_key, &pin_token_enc).map_err(|_| Error::Other)?;
+                let mut token = [0u8; 32];
+                token.copy_from_slice(&decrypted[..32]);
+                token
             }
         };
 
         // Store PIN token
-        self.pin_token = Some(pin_token.clone());
+        self.pin_token = Some(pin_token);
 
-        Ok(pin_token)
+        Ok(pin_token.to_vec())
     }
 
     /// Calculate pinUvAuthParam for a request
@@ -330,7 +323,7 @@ impl PinUvAuthEncapsulation {
     fn get_key_agreement_cose(&self) -> Result<Value> {
         let secret_bytes = self.platform_secret.as_ref().ok_or(Error::Other)?;
         let secret_key =
-            P256SecretKey::from_bytes(secret_bytes.as_slice().into()).map_err(|_| Error::Other)?;
+            P256SecretKey::from_bytes(secret_bytes.into()).map_err(|_| Error::Other)?;
         let public_key = secret_key.public_key();
         let point = public_key.to_encoded_point(false);
 
