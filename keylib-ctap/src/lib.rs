@@ -5,6 +5,10 @@
 //! Implements the FIDO2 specification:
 //! <https://fidoalliance.org/specs/fido-v2.2-rd-20230321/fido-client-to-authenticator-protocol-v2.2-rd-20230321.html>
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 pub mod authenticator;
 #[cfg(feature = "transport")]
 pub mod bridge;

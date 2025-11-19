@@ -7,6 +7,10 @@
 
 use crate::error::{CryptoError, Result};
 
+extern crate alloc;
+use alloc::vec;
+use alloc::vec::Vec;
+
 use aes::Aes256;
 use cbc::{
     Decryptor, Encryptor,

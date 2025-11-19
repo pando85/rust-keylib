@@ -8,6 +8,9 @@
 //! - Hash: SHA-256
 //! - Signature format: DER-encoded or raw (r || s)
 
+extern crate alloc;
+use alloc::vec::Vec;
+
 use crate::error::{CryptoError, Result};
 
 use p256::ecdsa::{Signature, SigningKey, VerifyingKey, signature::Signer, signature::Verifier};

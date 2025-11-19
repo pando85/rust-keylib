@@ -9,6 +9,8 @@
 //! All implementations follow the FIDO2 specification:
 //! <https://fidoalliance.org/specs/fido-v2.2-rd-20230321/fido-client-to-authenticator-protocol-v2.2-rd-20230321.html>
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
 pub mod ecdh;
 pub mod ecdsa;
 pub mod error;

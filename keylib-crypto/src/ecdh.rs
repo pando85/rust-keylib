@@ -3,6 +3,9 @@
 //! Implements key agreement per FIDO2 spec:
 //! <https://fidoalliance.org/specs/fido-v2.2-rd-20230321/fido-client-to-authenticator-protocol-v2.2-rd-20230321.html#sctn-pin-protocol>
 
+extern crate alloc;
+use alloc::vec::Vec;
+
 use crate::error::{CryptoError, Result};
 
 use p256::{PublicKey, SecretKey, elliptic_curve::sec1::ToEncodedPoint};

@@ -5,8 +5,8 @@
 
 use crate::status::{Result, StatusCode};
 
-use std::collections::HashMap;
-use std::io::Cursor;
+use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
 
 use ciborium::Value;
 use serde::{Deserialize, Serialize};
@@ -97,14 +97,14 @@ impl Default for MapBuilder {
 
 /// Parse a CBOR map with integer keys
 pub struct MapParser {
-    map: HashMap<i128, Value>,
+    map: BTreeMap<i128, Value>,
 }
 
 impl MapParser {
     /// Parse from CBOR bytes
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         let value: Value =
-            ciborium::from_reader(Cursor::new(data)).map_err(|_| StatusCode::InvalidCbor)?;
+            ciborium::from_reader(data).map_err(|_| StatusCode::InvalidCbor)?;
 
         Self::from_value(value)
     }
@@ -113,7 +113,7 @@ impl MapParser {
     pub fn from_value(value: Value) -> Result<Self> {
         match value {
             Value::Map(pairs) => {
-                let mut map = HashMap::new();
+                let mut map = BTreeMap::new();
                 for (k, v) in pairs {
                     if let Value::Integer(int_key) = k {
                         map.insert(int_key.into(), v);

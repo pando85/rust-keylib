@@ -10,17 +10,19 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-default = ["usb"]
-# Enable USB HID transport (requires libudev on Linux)
-usb = ["keylib-transport/usb"]
+default = ["std", "usb"]
+# Enable standard library (required for transport layers)
+std = ["keylib-crypto/std", "keylib-ctap/std", "keylib-transport"]
+# Enable USB HID transport (requires std and libudev on Linux)
+usb = ["std", "keylib-transport/usb"]
 # Integration tests
 integration-tests = []
 
 [dependencies]
 # Pure Rust implementation
-keylib-crypto = { path = "../keylib-crypto" }
-keylib-ctap = { path = "../keylib-ctap", features = ["transport"] }
-keylib-transport = { path = "../keylib-transport" }
+keylib-crypto = { path = "../keylib-crypto", default-features = false }
+keylib-ctap = { path = "../keylib-ctap", default-features = false }
+keylib-transport = { path = "../keylib-transport", optional = true }
 
 # CBOR and cryptography
 ciborium.workspace = true
@@ -34,6 +36,9 @@ hmac.workspace = true
 hkdf.workspace = true
 hex.workspace = true
 smallvec.workspace = true
+
+# no_std synchronization primitives
+spin.workspace = true
 
 [dev-dependencies]
 lazy_static.workspace = true

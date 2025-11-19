@@ -8,6 +8,10 @@ license-file.workspace = true
 repository.workspace = true
 readme.workspace = true
 
+[features]
+default = ["std"]
+std = []
+
 [dependencies]
 # Cryptography
 p256.workspace = true

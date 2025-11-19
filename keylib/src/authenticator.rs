@@ -15,11 +15,22 @@ use keylib_ctap::{
     types::Credential as CtapCredential,
 };
 
-use std::sync::{Arc, Mutex, OnceLock};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
 
-/// Global PIN hash storage for zig-ffi API compatibility
-/// This allows set_pin_hash to be called before creating an authenticator
+#[cfg(feature = "std")]
+use std::sync::{Mutex, OnceLock};
+
+#[cfg(not(feature = "std"))]
+use spin::Mutex;
+
+/// Global PIN hash storage (std version with lazy initialization)
+#[cfg(feature = "std")]
 static PRESET_PIN_HASH: OnceLock<Mutex<Option<[u8; 32]>>> = OnceLock::new();
+
+/// Global PIN hash storage (no_std version, always initialized)
+#[cfg(not(feature = "std"))]
+static PRESET_PIN_HASH: Mutex<Option<[u8; 32]>> = Mutex::new(None);
 
 /// User presence result (matches zig-ffi)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -494,12 +505,13 @@ pub struct Authenticator {
 impl Authenticator {
     /// Set the PIN hash for the authenticator (must be called before creating instance)
     ///
-    /// This is a compatibility method for zig-ffi API. The PIN hash will be applied
-    /// to the next authenticator instance created.
+    /// This is a compatibility method. The PIN hash will be applied to the next
+    /// authenticator instance created.
     ///
     /// # Arguments
     ///
     /// * `pin_hash` - SHA-256 hash of the PIN (32 bytes)
+    #[cfg(feature = "std")]
     pub fn set_pin_hash(pin_hash: &[u8]) {
         if pin_hash.len() == 32 {
             let mut hash = [0u8; 32];
@@ -509,6 +521,16 @@ impl Authenticator {
             if let Ok(mut guard) = lock.lock() {
                 *guard = Some(hash);
             }
+        }
+    }
+
+    /// Set the PIN hash for the authenticator (no_std version)
+    #[cfg(not(feature = "std"))]
+    pub fn set_pin_hash(pin_hash: &[u8]) {
+        if pin_hash.len() == 32 {
+            let mut hash = [0u8; 32];
+            hash.copy_from_slice(pin_hash);
+            *PRESET_PIN_HASH.lock() = Some(hash);
         }
     }
 
@@ -534,14 +556,22 @@ impl Authenticator {
 
         let mut authenticator = CtapAuthenticator::new(ctap_config, adapter);
 
-        // Apply preset PIN hash if available (for zig-ffi API compatibility)
+        // Apply preset PIN hash if available (std version)
+        #[cfg(feature = "std")]
         if let Some(lock) = PRESET_PIN_HASH.get()
             && let Ok(mut guard) = lock.lock()
             && let Some(pin_hash) = guard.take()
         {
-            // Set the PIN hash directly on the authenticator
-            // We use the internal method that sets the hash without validation
             authenticator.set_pin_hash_for_testing(pin_hash);
+        }
+
+        // Apply preset PIN hash if available (no_std version)
+        #[cfg(not(feature = "std"))]
+        {
+            let mut guard = PRESET_PIN_HASH.lock();
+            if let Some(pin_hash) = guard.take() {
+                authenticator.set_pin_hash_for_testing(pin_hash);
+            }
         }
 
         let dispatcher = CommandDispatcher::new(authenticator);

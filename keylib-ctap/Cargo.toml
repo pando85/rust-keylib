@@ -10,7 +10,7 @@ readme.workspace = true
 
 [dependencies]
 # Internal dependencies
-keylib-crypto = { path = "../keylib-crypto" }
+keylib-crypto = { path = "../keylib-crypto", default-features = false }
 keylib-transport = { path = "../keylib-transport", optional = true }
 
 # CBOR serialization
@@ -30,5 +30,6 @@ hex.workspace = true
 keylib-transport = { path = "../keylib-transport" }
 
 [features]
-default = []
-transport = ["dep:keylib-transport"]
+default = ["std"]
+std = ["keylib-crypto/std"]
+transport = ["dep:keylib-transport", "std"]

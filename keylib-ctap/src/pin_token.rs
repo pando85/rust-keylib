@@ -7,6 +7,10 @@
 //! Reference: FIDO2 CTAP 2.1 specification, Section 6.5.5.7
 
 use crate::StatusCode;
+
+use alloc::string::String;
+
+#[cfg(feature = "std")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// PIN token usage window in milliseconds (19 seconds)
@@ -297,11 +301,18 @@ impl Default for PinTokenManager {
 }
 
 /// Get current timestamp in milliseconds since UNIX epoch
+#[cfg(feature = "std")]
 fn current_timestamp_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+
+/// Get current timestamp (no_std: always returns 0, tokens don't expire)
+#[cfg(not(feature = "std"))]
+fn current_timestamp_ms() -> u64 {
+    0
 }
 
 #[cfg(test)]

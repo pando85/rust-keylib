@@ -9,8 +9,10 @@ use crate::{CoseAlgorithm, StatusCode};
 
 use keylib_crypto::pin_protocol;
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
 
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
@@ -251,11 +253,11 @@ pub struct Authenticator<C: AuthenticatorCallbacks> {
     min_pin_length: usize,
 
     /// Custom command handlers (command code -> handler)
-    custom_commands: HashMap<u8, CustomCommandHandler>,
+    custom_commands: BTreeMap<u8, CustomCommandHandler>,
 
     /// Ephemeral ECDH keypair for PIN protocol (protocol version -> keypair)
     /// This is used for key agreement in PIN operations
-    pin_protocol_keypairs: HashMap<u8, keylib_crypto::ecdh::KeyPair>,
+    pin_protocol_keypairs: BTreeMap<u8, keylib_crypto::ecdh::KeyPair>,
 
     /// Credential wrapping key for non-resident credentials
     /// Generated at runtime if not provided in config
@@ -286,8 +288,8 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
             pin_tokens: PinTokenManager::new(),
             force_change_pin: false,
             min_pin_length: 4, // Default minimum PIN length
-            custom_commands: HashMap::new(),
-            pin_protocol_keypairs: HashMap::new(),
+            custom_commands: BTreeMap::new(),
+            pin_protocol_keypairs: BTreeMap::new(),
             credential_wrapping_key,
         }
     }
