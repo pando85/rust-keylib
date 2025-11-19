@@ -1,5 +1,5 @@
 [workspace]
-members = ["keylib", "keylib-crypto", "keylib-ctap", "keylib-transport"]
+members = ["soft-fido2", "soft-fido2-crypto", "soft-fido2-ctap", "soft-fido2-transport"]
 resolver = "2"
 
 
@@ -9,7 +9,7 @@ authors = ["Pando85 <pando855@gmail.com>"]
 rust-version = "1.91"
 edition = "2024"
 license-file = "LICENSE"
-repository = "https://github.com/pando85/rust-keylib"
+repository = "https://github.com/pando85/soft-fido2"
 readme = "README.md"
 
 [workspace.dependencies]

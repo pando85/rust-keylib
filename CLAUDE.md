@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`rust-keylib` is a pure Rust FIDO2/WebAuthn CTAP2 implementation providing virtual authenticator capabilities for testing and development.
+`soft-fido2` is a pure Rust FIDO2/WebAuthn CTAP2 implementation providing virtual authenticator capabilities for testing and development.
 
 **Workspace Structure:**
-- **keylib-crypto**: Cryptographic primitives (ECDSA, ECDH, PIN protocols)
-- **keylib-ctap**: CTAP2 protocol implementation (authenticator, commands, callbacks)
-- **keylib-transport**: Transport layer (USB HID via hidapi, Linux UHID virtual devices)
+- **soft-fido2-crypto**: Cryptographic primitives (ECDSA, ECDH, PIN protocols)
+- **soft-fido2-ctap**: CTAP2 protocol implementation (authenticator, commands, callbacks)
+- **soft-fido2-transport**: Transport layer (USB HID via hidapi, Linux UHID virtual devices)
 - **keylib**: High-level API combining all components
 
 ## Common Commands
@@ -71,19 +71,19 @@ make pre-commit          # Run pre-commit on all files
 
 ### Multi-Layer Design
 
-**Layer 1: Cryptography (keylib-crypto/)**
+**Layer 1: Cryptography (soft-fido2-crypto/)**
 - ECDSA signing/verification using P-256 curve
 - ECDH key agreement for PIN protocols
 - PIN protocol V1 (AES-256-CBC) and V2 (HMAC-based)
 - Uses well-audited crates: p256, sha2, aes, hmac, hkdf
 
-**Layer 2: CTAP Protocol (keylib-ctap/)**
+**Layer 2: CTAP Protocol (soft-fido2-ctap/)**
 - CTAP2 command handlers (getInfo, makeCredential, getAssertion, clientPIN, etc.)
 - Authenticator state management with thread-safe callbacks
 - CBOR serialization/deserialization
 - Extension support (credProtect, hmac-secret, etc.)
 
-**Layer 3: Transport (keylib-transport/)**
+**Layer 3: Transport (soft-fido2-transport/)**
 - USB HID transport via hidapi (optional `usb` feature)
 - Linux UHID virtual device support for testing
 - CTAP HID protocol implementation
@@ -96,13 +96,13 @@ make pre-commit          # Run pre-commit on all files
 
 ### Core Components
 
-**Authenticator (keylib-ctap/src/authenticator.rs)**
+**Authenticator (soft-fido2-ctap/src/authenticator.rs)**
 - Virtual FIDO2 authenticator with callback-based user interaction
 - Configurable via `AuthenticatorConfig` and `AuthenticatorOptions`
 - Stores credentials in memory (HashMap)
 - Thread-safe state management using Arc and Mutex
 
-**CTAP Commands (keylib-ctap/src/commands/)**
+**CTAP Commands (soft-fido2-ctap/src/commands/)**
 - `get_info.rs`: Authenticator metadata and capabilities
 - `make_credential.rs`: Create new credentials (WebAuthn registration)
 - `get_assertion.rs`: Authenticate with existing credentials (WebAuthn login)
@@ -110,13 +110,13 @@ make pre-commit          # Run pre-commit on all files
 - `credential_management.rs`: Manage stored credentials
 - `selection.rs`: User verification and credential selection
 
-**Callbacks (keylib-ctap/src/callbacks.rs)**
+**Callbacks (soft-fido2-ctap/src/callbacks.rs)**
 - Six callback types: UP (user presence), UV (user verification), Select, Read, Write, Delete
 - Thread-safe via `Arc<dyn Fn + Send + Sync>`
 - Global state synchronized with `Mutex`
 - Zero-copy design with borrowed data
 
-**Transport Layer (keylib-transport/src/)**
+**Transport Layer (soft-fido2-transport/src/)**
 - `usb.rs`: USB HID transport via hidapi (optional, requires `usb` feature)
 - `uhid.rs`: Linux UHID virtual device support for testing
 - `ctaphid.rs`: CTAP HID protocol (initialization, fragmentation, keepalive)
@@ -144,7 +144,7 @@ make pre-commit          # Run pre-commit on all files
 
 ### Error Handling
 - Return `Result<T>` for all fallible operations
-- Custom error types per crate (e.g., `keylib_transport::Error`, `keylib_crypto::Error`)
+- Custom error types per crate (e.g., `soft-fido2_transport::Error`, `soft-fido2_crypto::Error`)
 - Use `?` operator, avoid `unwrap()`/`expect()` in library code
 - Provide descriptive error messages with context
 
@@ -160,7 +160,7 @@ make pre-commit          # Run pre-commit on all files
 All imports must follow this order (separated by blank lines):
 1. `super` imports
 2. `crate` imports
-3. Same workspace crates (keylib-crypto, keylib-ctap, keylib-transport)
+3. Same workspace crates (soft-fido2-crypto, soft-fido2-ctap, soft-fido2-transport)
 4. `std` imports
 5. External crates (third-party dependencies)
 
@@ -212,7 +212,7 @@ Run manually with: `make pre-commit`
 - `credential_storage_test.rs` - Credential storage tests
 - `e2e_webauthn_test.rs` - Full end-to-end WebAuthn flow with UHID virtual device
 
-**Examples as documentation**: All examples in `keylib/examples/` serve as usage documentation
+**Examples as documentation**: All examples in `soft-fido2/examples/` serve as usage documentation
 
 ### Hardware-Dependent Tests
 
@@ -281,5 +281,5 @@ let config = AuthenticatorConfig::builder()
 
 - **CTAP Specification**: https://fidoalliance.org/specs/fido-v2.1-ps-20210615/
 - **WebAuthn Specification**: https://www.w3.org/TR/webauthn-2/
-- **Repository**: https://github.com/pando85/rust-keylib
+- **Repository**: https://github.com/pando85/soft-fido2
 - **Pre-commit**: https://pre-commit.com/
