@@ -134,7 +134,7 @@ fn main() -> Result<()> {
             0x7c, 0x88,
         ])
         .max_credentials(100)
-        .extensions(vec!["credProtect".to_string()])  // Match Zig: only credProtect (hmac-secret triggers U2F probing!)
+        .extensions(vec!["credProtect".to_string(), "federationId".to_string()])  // Match Zig exactly
         .firmware_version(0xcafe)  // Match Zig firmware version
         .force_resident_keys(true)  // For testing: always store credentials
         .build();
@@ -504,9 +504,10 @@ fn process_message(
                 println!("[CTAP]   U2F command: 0x{:02x} ({})", u2f_cmd, u2f_cmd_name);
             }
 
-            println!("[CTAP]   Echoing request unchanged (Zig-compatible behavior)");
-            // Echo the request back - matches Zig implementation exactly
-            let response_msg = Message::new(cid, Cmd::Msg, message.data);
+            println!("[CTAP]   Sending CTAPHID_ERR_INVALID_CMD error (U2F not supported)");
+            // Send CTAPHID error: ERR_INVALID_CMD (0x01) - U2F not supported
+            let error_data = vec![0x01]; // ERR_INVALID_CMD
+            let response_msg = Message::new(cid, Cmd::Error, error_data);
             send_message(uhid, &response_msg)?;
         }
         _ => {
