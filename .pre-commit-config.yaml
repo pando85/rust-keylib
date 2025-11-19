@@ -40,3 +40,11 @@ repos:
         types: [rust]
         pass_filenames: false
         args: ["--all-targets", "--", "-D", "warnings"]
+      - id: test
+        name: cargo test (inmemory)
+        description: Run in-memory WebAuthn integration test
+        entry: cargo test
+        language: system
+        types: [rust]
+        pass_filenames: false
+        args: ["--test", "webauthn_inmemory_test", "--no-default-features"]

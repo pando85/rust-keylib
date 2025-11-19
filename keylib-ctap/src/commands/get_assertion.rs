@@ -60,93 +60,92 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // Parse allowList - manual parsing required to handle CBOR byte strings correctly
     // (automatic serde deserialization fails on CBOR Bytes type for credential IDs)
-    let allow_list: Option<Vec<PublicKeyCredentialDescriptor>> = if let Some(raw_allow_list) =
-        parser.get_raw(req_keys::ALLOW_LIST)
-    {
-        match raw_allow_list {
-            ciborium::Value::Array(arr) => {
-                let mut descriptors = Vec::new();
-                for elem in arr.iter() {
-                    if let ciborium::Value::Map(map) = elem {
-                        let mut cred_type = None;
-                        let mut id = None;
-                        let mut transports = None;
+    let allow_list: Option<Vec<PublicKeyCredentialDescriptor>> =
+        if let Some(raw_allow_list) = parser.get_raw(req_keys::ALLOW_LIST) {
+            match raw_allow_list {
+                ciborium::Value::Array(arr) => {
+                    let mut descriptors = Vec::new();
+                    for elem in arr.iter() {
+                        if let ciborium::Value::Map(map) = elem {
+                            let mut cred_type = None;
+                            let mut id = None;
+                            let mut transports = None;
 
-                        for (key, value) in map {
-                            if let ciborium::Value::Text(key_str) = key {
-                                match key_str.as_str() {
-                                    "type" => {
-                                        if let ciborium::Value::Text(t) = value {
-                                            cred_type = Some(t.clone());
-                                        }
-                                    }
-                                    "id" => {
-                                        // Handle CBOR byte string (correct) or array (legacy fallback)
-                                        match value {
-                                            ciborium::Value::Bytes(bytes) => {
-                                                id = Some(bytes.clone());
+                            for (key, value) in map {
+                                if let ciborium::Value::Text(key_str) = key {
+                                    match key_str.as_str() {
+                                        "type" => {
+                                            if let ciborium::Value::Text(t) = value {
+                                                cred_type = Some(t.clone());
                                             }
-                                            ciborium::Value::Array(arr) => {
-                                                let bytes: Vec<u8> = arr
-                                                    .iter()
-                                                    .filter_map(|v| {
-                                                        if let ciborium::Value::Integer(i) = v {
-                                                            let i128_val: i128 = (*i).into();
-                                                            if (0..=255).contains(&i128_val) {
-                                                                Some(i128_val as u8)
+                                        }
+                                        "id" => {
+                                            // Handle CBOR byte string (correct) or array (legacy fallback)
+                                            match value {
+                                                ciborium::Value::Bytes(bytes) => {
+                                                    id = Some(bytes.clone());
+                                                }
+                                                ciborium::Value::Array(arr) => {
+                                                    let bytes: Vec<u8> = arr
+                                                        .iter()
+                                                        .filter_map(|v| {
+                                                            if let ciborium::Value::Integer(i) = v {
+                                                                let i128_val: i128 = (*i).into();
+                                                                if (0..=255).contains(&i128_val) {
+                                                                    Some(i128_val as u8)
+                                                                } else {
+                                                                    None
+                                                                }
                                                             } else {
                                                                 None
                                                             }
+                                                        })
+                                                        .collect();
+                                                    id = Some(bytes);
+                                                }
+                                                _ => return Err(StatusCode::InvalidCbor),
+                                            }
+                                        }
+                                        "transports" => {
+                                            if let ciborium::Value::Array(trans_arr) = value {
+                                                let trans: Vec<String> = trans_arr
+                                                    .iter()
+                                                    .filter_map(|v| {
+                                                        if let ciborium::Value::Text(s) = v {
+                                                            Some(s.clone())
                                                         } else {
                                                             None
                                                         }
                                                     })
                                                     .collect();
-                                                id = Some(bytes);
+                                                transports = Some(trans);
                                             }
-                                            _ => return Err(StatusCode::InvalidCbor),
                                         }
+                                        _ => {} // Ignore unknown keys
                                     }
-                                    "transports" => {
-                                        if let ciborium::Value::Array(trans_arr) = value {
-                                            let trans: Vec<String> = trans_arr
-                                                .iter()
-                                                .filter_map(|v| {
-                                                    if let ciborium::Value::Text(s) = v {
-                                                        Some(s.clone())
-                                                    } else {
-                                                        None
-                                                    }
-                                                })
-                                                .collect();
-                                            transports = Some(trans);
-                                        }
-                                    }
-                                    _ => {} // Ignore unknown keys
                                 }
                             }
-                        }
 
-                        if let (Some(cred_type), Some(id)) = (cred_type, id) {
-                            descriptors.push(PublicKeyCredentialDescriptor {
-                                cred_type,
-                                id,
-                                transports,
-                            });
+                            if let (Some(cred_type), Some(id)) = (cred_type, id) {
+                                descriptors.push(PublicKeyCredentialDescriptor {
+                                    cred_type,
+                                    id,
+                                    transports,
+                                });
+                            } else {
+                                return Err(StatusCode::InvalidCbor);
+                            }
                         } else {
                             return Err(StatusCode::InvalidCbor);
                         }
-                    } else {
-                        return Err(StatusCode::InvalidCbor);
                     }
+                    Some(descriptors)
                 }
-                Some(descriptors)
+                _ => return Err(StatusCode::InvalidCbor),
             }
-            _ => return Err(StatusCode::InvalidCbor),
-        }
-    } else {
-        None
-    };
+        } else {
+            None
+        };
 
     let pin_uv_auth_param: Option<Vec<u8>> =
         if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {

@@ -49,9 +49,13 @@ lint: fmt-check clippy ## run all linting checks (fmt + clippy)
 .PHONY: lint-fix
 lint-fix: fmt clippy-fix ## run all linting with automatic fixes
 
+.PHONY: test-inmemory
+test-inmemory:	## run in-memory WebAuthn integration test (no hardware required)
+	cargo test --test webauthn_inmemory_test --no-default-features
+
 .PHONY: test
 test:	## run tests
-test: lint
+test: lint test-inmemory
 	cargo test
 
 .PHONY: test-integration

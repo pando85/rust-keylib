@@ -142,7 +142,11 @@ impl Transport {
     }
 
     /// Read data from the transport with timeout
-    pub fn read(&mut self, buffer: &mut [u8], _timeout_ms: i32) -> Result<usize> {
+    pub fn read(
+        &mut self,
+        buffer: &mut [u8],
+        #[allow(unused_variables)] timeout_ms: i32,
+    ) -> Result<usize> {
         let inner = self.inner.lock().unwrap();
         match &*inner {
             #[cfg(feature = "usb")]
