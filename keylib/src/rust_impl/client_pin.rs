@@ -82,15 +82,10 @@ impl PinUvAuthEncapsulation {
     ///
     /// This sends clientPin subcommand 0x02 (getKeyAgreement) to the authenticator.
     pub fn initialize(&mut self, transport: &mut Transport) -> Result<()> {
-        eprintln!("[DEBUG][client_pin] Initializing PIN encapsulation");
-        eprintln!("[DEBUG][client_pin]   Protocol: {:?}", self.protocol);
-
         // Generate platform key pair (using SecretKey for persistence)
         let platform_secret_key = P256SecretKey::random(&mut OsRng);
         let platform_public_key = platform_secret_key.public_key();
         let platform_public_point = platform_public_key.to_encoded_point(false);
-
-        eprintln!("[DEBUG][client_pin] Platform key pair generated");
 
         // Store platform keys
         self.platform_secret = Some(platform_secret_key.to_bytes().to_vec());
@@ -118,22 +113,8 @@ impl PinUvAuthEncapsulation {
         ciborium::ser::into_writer(&Value::Map(request_map), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
-        eprintln!("[DEBUG][client_pin] Sending getKeyAgreement (subcommand 0x02)");
-
         // Send clientPin command (0x06)
-        let response = match transport.send_ctap_command(0x06, &request_bytes) {
-            Ok(resp) => {
-                eprintln!(
-                    "[DEBUG][client_pin] Received response ({} bytes)",
-                    resp.len()
-                );
-                resp
-            }
-            Err(e) => {
-                eprintln!("[DEBUG][client_pin] Failed to get key agreement: {:?}", e);
-                return Err(e);
-            }
-        };
+        let response = transport.send_ctap_command(0x06, &request_bytes)?;
 
         // Parse response to get authenticator's public key
         let response_value: Value =
@@ -151,7 +132,6 @@ impl PinUvAuthEncapsulation {
 
         // Parse COSE key to get P-256 public key
         let authenticator_public_key = Self::parse_cose_key(&authenticator_cose_key)?;
-        eprintln!("[DEBUG][client_pin] Parsed authenticator public key");
 
         // Perform ECDH to derive shared secret
         use p256::ecdh::diffie_hellman;
@@ -161,16 +141,9 @@ impl PinUvAuthEncapsulation {
         );
         let shared_secret_bytes = shared_secret.raw_secret_bytes().to_vec();
 
-        eprintln!(
-            "[DEBUG][client_pin] Derived shared secret ({} bytes)",
-            shared_secret_bytes.len()
-        );
-
         // Store authenticator key and shared secret
         self.authenticator_key = Some(authenticator_public_key);
         self.shared_secret = Some(shared_secret_bytes);
-
-        eprintln!("[DEBUG][client_pin] ✓ Initialization complete");
 
         Ok(())
     }
@@ -192,17 +165,7 @@ impl PinUvAuthEncapsulation {
         permissions: u8,
         rp_id: Option<&str>,
     ) -> Result<Vec<u8>> {
-        eprintln!("[DEBUG][client_pin] Getting PIN token with permissions:");
-        eprintln!("[DEBUG][client_pin]   PIN length: {} bytes", pin.len());
-        eprintln!("[DEBUG][client_pin]   Permissions: 0x{:02x}", permissions);
-        eprintln!("[DEBUG][client_pin]   RP ID: {:?}", rp_id);
-        eprintln!("[DEBUG][client_pin]   Protocol: {:?}", self.protocol);
-
         let shared_secret = self.shared_secret.as_ref().ok_or(Error::Other)?;
-        eprintln!(
-            "[DEBUG][client_pin] Using shared secret ({} bytes)",
-            shared_secret.len()
-        );
 
         // Encrypt PIN with shared secret
         let pin_hash = {
@@ -211,15 +174,6 @@ impl PinUvAuthEncapsulation {
             hasher.update(pin.as_bytes());
             hasher.finalize().to_vec()
         };
-
-        eprintln!(
-            "[DEBUG][client_pin] Computed PIN hash ({} bytes)",
-            pin_hash.len()
-        );
-        eprintln!(
-            "[DEBUG][client_pin] PIN hash (first 16 bytes): {:02x?}",
-            &pin_hash[..16]
-        );
 
         let pin_hash_enc = match self.protocol {
             PinProtocol::V1 => {
@@ -243,11 +197,6 @@ impl PinUvAuthEncapsulation {
                 pin_protocol::v2::encrypt(&enc_key, &pin_hash[..16]).map_err(|_| Error::Other)?
             }
         };
-
-        eprintln!(
-            "[DEBUG][client_pin] Encrypted PIN hash ({} bytes)",
-            pin_hash_enc.len()
-        );
 
         // Get platform key agreement parameter
         let platform_key_agreement = self.get_key_agreement_cose()?;
@@ -292,28 +241,8 @@ impl PinUvAuthEncapsulation {
         ciborium::ser::into_writer(&Value::Map(request_map), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
-        eprintln!(
-            "[DEBUG][client_pin] Sending getPinUvAuthTokenUsingPinWithPermissions (subcommand 0x09)"
-        );
-
         // Send clientPin command (0x06)
-        let response = match transport.send_ctap_command(0x06, &request_bytes) {
-            Ok(resp) => {
-                eprintln!(
-                    "[DEBUG][client_pin] Received response ({} bytes)",
-                    resp.len()
-                );
-                resp
-            }
-            Err(e) => {
-                eprintln!("[DEBUG][client_pin] Failed to get PIN token: {:?}", e);
-                eprintln!("[DEBUG][client_pin] This typically means:");
-                eprintln!("[DEBUG][client_pin]   - Incorrect PIN");
-                eprintln!("[DEBUG][client_pin]   - PIN not set on authenticator");
-                eprintln!("[DEBUG][client_pin]   - Authenticator returned CTAP error");
-                return Err(e);
-            }
-        };
+        let response = transport.send_ctap_command(0x06, &request_bytes)?;
 
         // Parse response to get pinUvAuthToken
         let response_value: Value =
@@ -330,11 +259,6 @@ impl PinUvAuthEncapsulation {
                 .ok_or(Error::Other)?,
             _ => return Err(Error::Other),
         };
-
-        eprintln!(
-            "[DEBUG][client_pin] Received encrypted PIN token ({} bytes)",
-            pin_token_enc.len()
-        );
 
         // Decrypt PIN token
         let pin_token = match self.protocol {
@@ -357,12 +281,6 @@ impl PinUvAuthEncapsulation {
                 pin_protocol::v2::decrypt(&enc_key, &pin_token_enc).map_err(|_| Error::Other)?
             }
         };
-
-        eprintln!(
-            "[DEBUG][client_pin] Decrypted PIN token ({} bytes)",
-            pin_token.len()
-        );
-        eprintln!("[DEBUG][client_pin] ✓ PIN token obtained successfully");
 
         // Store PIN token
         self.pin_token = Some(pin_token.clone());

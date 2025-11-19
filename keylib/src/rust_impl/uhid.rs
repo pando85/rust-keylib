@@ -19,16 +19,7 @@ impl Uhid {
     ///
     /// Creates a virtual FIDO2 HID device via Linux UHID interface.
     pub fn open() -> Result<Self> {
-        println!("[UHID] Creating virtual FIDO2 device...");
-        let device = UhidDevice::create_fido_device().map_err(|e| {
-            eprintln!("[UHID] ✗ Failed to create UHID device: {:?}", e);
-            Error::Other
-        })?;
-
-        println!("[UHID] ✓ Virtual FIDO2 device created successfully");
-        println!("[UHID] Device should appear as /dev/hidrawN");
-        println!("[UHID] Waiting for HID packets from clients...");
-
+        let device = UhidDevice::create_fido_device().map_err(|_| Error::Other)?;
         Ok(Self { device })
     }
 
@@ -38,19 +29,9 @@ impl Uhid {
     /// Non-blocking: returns immediately if no packet is available.
     pub fn read_packet(&self, out: &mut [u8; 64]) -> Result<usize> {
         match self.device.read_packet(out) {
-            Ok(Some(len)) => {
-                println!(
-                    "[UHID] ← Read {} bytes: {}",
-                    len,
-                    hex::encode(&out[..len.min(16)])
-                );
-                Ok(len)
-            }
+            Ok(Some(len)) => Ok(len),
             Ok(None) => Ok(0), // No packet available
-            Err(e) => {
-                eprintln!("[UHID] ✗ Read error: {:?}", e);
-                Err(Error::Other)
-            }
+            Err(_) => Err(Error::Other),
         }
     }
 
@@ -58,17 +39,7 @@ impl Uhid {
     ///
     /// Returns the number of bytes written (always 64 on success).
     pub fn write_packet(&self, data: &[u8; 64]) -> Result<usize> {
-        println!(
-            "[UHID] → Write 64 bytes: {}",
-            hex::encode(&data[..16.min(data.len())])
-        );
-
-        self.device.write_packet(data).map_err(|e| {
-            eprintln!("[UHID] ✗ Write error: {:?}", e);
-            Error::Other
-        })?;
-
-        println!("[UHID] ✓ Write successful");
+        self.device.write_packet(data).map_err(|_| Error::Other)?;
         Ok(64) // Return number of bytes written
     }
 }
