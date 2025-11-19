@@ -4,10 +4,12 @@
 //! CTAP uses CBOR (RFC 8949) for all command and response data.
 
 use crate::status::{Result, StatusCode};
-use ciborium::Value;
-use serde::{Deserialize, Serialize};
+
 use std::collections::HashMap;
 use std::io::Cursor;
+
+use ciborium::Value;
+use serde::{Deserialize, Serialize};
 
 /// Encode a value to CBOR bytes
 pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>> {

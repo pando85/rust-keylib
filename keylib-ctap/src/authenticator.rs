@@ -6,10 +6,13 @@
 use crate::callbacks::AuthenticatorCallbacks;
 use crate::pin_token::{Permission, PinToken, PinTokenManager};
 use crate::{CoseAlgorithm, StatusCode};
+
 use keylib_crypto::pin_protocol;
-use sha2::{Digest, Sha256};
+
 use std::collections::HashMap;
 use std::sync::Arc;
+
+use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
 /// Maximum PIN retries before blocking

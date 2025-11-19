@@ -3,6 +3,9 @@
 //! This test ensures a complete WebAuthn registration and authentication flow
 //! works correctly without requiring any hardware or USB support.
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
 use base64::Engine;
 use keylib::common::Credential;
 use keylib::rust_impl::authenticator::{
@@ -10,8 +13,6 @@ use keylib::rust_impl::authenticator::{
 };
 use keylib::rust_impl::authenticator_options::AuthenticatorOptions;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 const PIN: &str = "123456";
 const RP_ID: &str = "example.com";

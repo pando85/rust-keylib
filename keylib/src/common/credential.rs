@@ -1,8 +1,8 @@
 //! Unified credential types for both zig-ffi and pure-rust implementations
 
-use serde::{Deserialize, Serialize};
-
 use super::error::{Error, Result};
+
+use serde::{Deserialize, Serialize};
 
 /// Relying party information
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

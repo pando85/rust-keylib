@@ -13,7 +13,9 @@ use crate::types::{
     PublicKeyCredentialDescriptor, PublicKeyCredentialParameters, RelyingParty, User,
 };
 use crate::{CredProtect, UpResult, UvResult};
+
 use keylib_crypto::ecdsa;
+
 use sha2::{Digest, Sha256};
 
 /// MakeCredential request parameter keys

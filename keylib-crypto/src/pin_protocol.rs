@@ -6,6 +6,7 @@
 //! Protocol V2: HMAC-SHA-256 only (FIPS-approved, no encryption for auth)
 
 use crate::error::{CryptoError, Result};
+
 use aes::Aes256;
 use cbc::{
     Decryptor, Encryptor,

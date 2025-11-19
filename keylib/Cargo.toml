@@ -23,23 +23,23 @@ keylib-ctap = { path = "../keylib-ctap", features = ["transport"] }
 keylib-transport = { path = "../keylib-transport" }
 
 # CBOR and cryptography
-ciborium = "0.2"
-p256 = { version = "0.13", features = ["ecdh"] }
-rand = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-sha2 = "0.10"
-aes = "0.8"
-cbc = { version = "0.1", features = ["alloc"] }
-hmac = "0.12"
-hkdf = "0.12"
-hex = { workspace = true }
+ciborium.workspace = true
+p256.workspace = true
+rand.workspace = true
+serde.workspace = true
+sha2.workspace = true
+aes.workspace = true
+cbc.workspace = true
+hmac.workspace = true
+hkdf.workspace = true
+hex.workspace = true
 
 [dev-dependencies]
-lazy_static = "1.4"
-base64 = "0.22"
-serial_test = "3.0"
-hex = "0.4"
-serde_cbor = "0.11"
+lazy_static.workspace = true
+base64.workspace = true
+serial_test.workspace = true
+hex.workspace = true
+serde_cbor.workspace = true
 
 # Examples
 [[example]]

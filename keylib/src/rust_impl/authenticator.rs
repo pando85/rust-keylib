@@ -14,9 +14,7 @@ use keylib_ctap::{
     types::Credential as CtapCredential,
 };
 
-use std::sync::{Arc, Mutex};
-
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// Global PIN hash storage for zig-ffi API compatibility
 /// This allows set_pin_hash to be called before creating an authenticator

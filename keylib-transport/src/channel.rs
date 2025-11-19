@@ -8,6 +8,7 @@
 
 use crate::ctaphid::{BROADCAST_CID, Message, Packet};
 use crate::error::{Error, Result};
+
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 

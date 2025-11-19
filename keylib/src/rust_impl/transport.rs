@@ -4,13 +4,11 @@
 
 use crate::common::{Error, Result};
 
-#[cfg(feature = "usb")]
-use keylib_transport::{UsbTransport as RawUsbTransport, enumerate_devices, init_usb};
-
 #[cfg(target_os = "linux")]
 use keylib_transport::UhidDevice;
-
 use keylib_transport::{ChannelManager, Message, Packet};
+#[cfg(feature = "usb")]
+use keylib_transport::{UsbTransport as RawUsbTransport, enumerate_devices, init_usb};
 
 use std::sync::{Arc, Mutex};
 

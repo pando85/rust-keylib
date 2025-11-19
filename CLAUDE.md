@@ -4,25 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`rust-keylib` is a safe Rust FFI wrapper around a Zig-based FIDO2/WebAuthn implementation (keylib). It provides idiomatic Rust abstractions over the C API exposed by the keylib Zig library.
+`rust-keylib` is a pure Rust FIDO2/WebAuthn CTAP2 implementation providing virtual authenticator capabilities for testing and development.
 
 **Workspace Structure:**
-- **keylib-sys**: Low-level FFI bindings (auto-generated via bindgen from C headers)
-- **keylib**: Safe, high-level Rust API with RAII resource management
+- **keylib-crypto**: Cryptographic primitives (ECDSA, ECDH, PIN protocols)
+- **keylib-ctap**: CTAP2 protocol implementation (authenticator, commands, callbacks)
+- **keylib-transport**: Transport layer (USB HID via hidapi, Linux UHID virtual devices)
+- **keylib**: High-level API combining all components
 
 ## Common Commands
 
 ### Building
 ```bash
-# Standard build
+# Standard build (requires libudev-dev on Linux for USB support)
 cargo build
 
-# Build with prebuilt libraries (no Zig/libudev required)
-cargo build --features bundled
-
-# Build from source (requires Zig compiler and libudev-dev)
-git submodule update --init
-cargo build
+# Build without USB support (no libudev required)
+cargo build --no-default-features
 ```
 
 ### Testing
@@ -30,10 +28,10 @@ cargo build
 # Run basic tests with linting
 make test
 
-# Run integration tests (requires hardware or virtual authenticator)
+# Run integration tests (in-memory WebAuthn, no hardware required)
 make test-integration
 
-# Run E2E WebAuthn tests (requires UHID permissions - see DEVELOPMENT.md)
+# Run E2E WebAuthn tests (requires UHID permissions and hardware/virtual device)
 make test-e2e
 
 # Run all tests
@@ -56,12 +54,11 @@ cargo clippy --all-targets --all-features -- -D warnings  # Lint
 ### Examples
 ```bash
 # Run examples (located in keylib/examples/)
-cargo run --example authenticator
-cargo run --example client
-cargo run --example credential_management
-cargo run --example pin_protocol
-cargo run --example custom_commands
-cargo run --example webauthn_flow
+cargo run --example authenticator      # Virtual authenticator demo
+cargo run --example client              # CTAP client demo
+cargo run --example credential_management  # Credential management demo
+cargo run --example pin_protocol        # PIN protocol demo
+cargo run --example webauthn_flow       # Complete WebAuthn flow demo
 ```
 
 ### Pre-commit
@@ -74,71 +71,62 @@ make pre-commit          # Run pre-commit on all files
 
 ### Multi-Layer Design
 
-**Layer 1: Zig Core (keylib-sys/keylib/)**
-- Core FIDO2/CTAP implementation in Zig
-- Exposes C API via `bindings/c/include/keylib.h`
-- Statically linked into Rust binary
+**Layer 1: Cryptography (keylib-crypto/)**
+- ECDSA signing/verification using P-256 curve
+- ECDH key agreement for PIN protocols
+- PIN protocol V1 (AES-256-CBC) and V2 (HMAC-based)
+- Uses well-audited crates: p256, sha2, aes, hmac, hkdf
 
-**Layer 2: FFI Bindings (keylib-sys/)**
-- `build.rs` invokes `zig build install` to compile keylib C library
-- `bindgen` generates Rust bindings from C headers
-- Provides raw unsafe FFI functions
+**Layer 2: CTAP Protocol (keylib-ctap/)**
+- CTAP2 command handlers (getInfo, makeCredential, getAssertion, clientPIN, etc.)
+- Authenticator state management with thread-safe callbacks
+- CBOR serialization/deserialization
+- Extension support (credProtect, hmac-secret, etc.)
 
-**Layer 3: Safe Rust API (keylib/)**
-- Safe wrappers with RAII resource management
-- Type-safe CTAP protocol operations
+**Layer 3: Transport (keylib-transport/)**
+- USB HID transport via hidapi (optional `usb` feature)
+- Linux UHID virtual device support for testing
+- CTAP HID protocol implementation
+- Channel management and packet fragmentation
+
+**Layer 4: High-Level API (keylib/)**
+- Combines all components into ergonomic API
 - Builder patterns for complex configuration
+- Examples and integration tests
 
 ### Core Components
 
-**Authenticator (keylib/src/authenticator.rs)**
+**Authenticator (keylib-ctap/src/authenticator.rs)**
 - Virtual FIDO2 authenticator with callback-based user interaction
 - Configurable via `AuthenticatorConfig` and `AuthenticatorOptions`
-- Supports custom CTAP commands (0x40-0xFF range)
 - Stores credentials in memory (HashMap)
+- Thread-safe state management using Arc and Mutex
 
-**Client (keylib/src/client/)**
-- CTAP client for communicating with authenticators
-- Issues commands: getInfo, makeCredential, getAssertion, clientPin
-- Uses builder pattern for request construction
-- Asynchronous-style command execution via `CborCommand`/`CborCommandResult`
+**CTAP Commands (keylib-ctap/src/commands/)**
+- `get_info.rs`: Authenticator metadata and capabilities
+- `make_credential.rs`: Create new credentials (WebAuthn registration)
+- `get_assertion.rs`: Authenticate with existing credentials (WebAuthn login)
+- `client_pin.rs`: PIN protocol operations (set PIN, get PIN token, change PIN)
+- `credential_management.rs`: Manage stored credentials
+- `selection.rs`: User verification and credential selection
 
-**Transport Layer (keylib/src/client/mod.rs)**
-- USB HID communication via hidapi
-- Transport enumeration and lifecycle management
-- CTAP HID protocol implementation in `ctaphid.rs`
-
-**Credential Management (keylib/src/credential_management.rs)**
-- Full CTAP 2.1 credential management operations
-- Query metadata, enumerate RPs, enumerate credentials
-- Delete credentials, update user information
-- All operations require PIN token with credential management permission (0x04)
-
-**Callbacks (keylib/src/callbacks.rs)**
-- Bridges Rust closures to C function pointers via trampolines
+**Callbacks (keylib-ctap/src/callbacks.rs)**
 - Six callback types: UP (user presence), UV (user verification), Select, Read, Write, Delete
 - Thread-safe via `Arc<dyn Fn + Send + Sync>`
 - Global state synchronized with `Mutex`
+- Zero-copy design with borrowed data
 
-**PIN/UV Protocol (keylib/src/client_pin.rs)**
-- CTAP 2.0/2.1 PIN protocol support
-- ECDH key agreement (P-256)
-- PIN protocol V1 (AES-256-CBC) and V2 (HMAC-based)
-- PIN token retrieval with granular permissions
+**Transport Layer (keylib-transport/src/)**
+- `usb.rs`: USB HID transport via hidapi (optional, requires `usb` feature)
+- `uhid.rs`: Linux UHID virtual device support for testing
+- `ctaphid.rs`: CTAP HID protocol (initialization, fragmentation, keepalive)
+- `channel.rs`: Channel ID management
+- `runner.rs`: Command execution loop
 
-**Virtual Device Support (keylib/src/uhid.rs)**
-- Linux UHID kernel module integration
-- Creates virtual USB HID devices at `/dev/uhid`
-- Enables E2E testing without physical hardware
-- Requires specific permissions (fido group membership)
-
-### Bundled Feature
-
-The `bundled` feature flag enables zero-setup builds:
-- Downloads prebuilt native libraries for your platform during build
-- Eliminates need for Zig compiler and libudev-dev
-- Implemented in `keylib-sys/build/bundled.rs`
-- Supported platforms: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, x86_64-unknown-linux-musl
+**Client API (keylib/src/rust_impl/client.rs)**
+- High-level CTAP client for communicating with authenticators
+- Issues commands: getInfo, makeCredential, getAssertion, clientPIN
+- Transport enumeration and lifecycle management
 
 ## Code Style & Safety
 
@@ -149,23 +137,68 @@ The `bundled` feature flag enables zero-setup builds:
 
 ### Safety Rules
 1. **Document safety requirements** - Use `# Safety` sections for all `unsafe` functions
-2. **RAII pattern** - Implement `Drop` for all types wrapping raw pointers; no manual cleanup exposed
-3. **Zero-copy string handling** - Use `CStr::to_bytes()` + `str::from_utf8()` to avoid allocations
-4. **Validate FFI boundaries** - Check for null pointers, validate UTF-8, check array bounds
-5. **Global state synchronization** - Use `Mutex` for callback storage accessed from C
+2. **RAII pattern** - Implement `Drop` for resource cleanup; no manual cleanup exposed
+3. **Zero-copy design** - Pass borrowed data when possible, provide `to_owned()` methods for lifetime extension
+4. **Global state synchronization** - Use `Mutex` for shared mutable state, especially in callbacks
+5. **Thread safety** - Use `Arc<dyn Fn + Send + Sync>` for callbacks shared across threads
 
 ### Error Handling
 - Return `Result<T>` for all fallible operations
-- Custom error type: `KeylibError` enum
+- Custom error types per crate (e.g., `keylib_transport::Error`, `keylib_crypto::Error`)
 - Use `?` operator, avoid `unwrap()`/`expect()` in library code
-- Convert C error codes via `From<i32> for KeylibError`
+- Provide descriptive error messages with context
 
 ### Naming Conventions
-- **FFI wrappers**: Prefix raw C types with `Raw` (e.g., `RawTransport`)
 - **Modules**: snake_case
 - **Types**: PascalCase
 - **Functions**: snake_case
 - **Constants**: SCREAMING_SNAKE_CASE
+
+### Production Standards
+
+**Import Ordering:**
+All imports must follow this order (separated by blank lines):
+1. `super` imports
+2. `crate` imports
+3. Same workspace crates (keylib-crypto, keylib-ctap, keylib-transport)
+4. `std` imports
+5. External crates (third-party dependencies)
+
+Example:
+```rust
+use super::SomeType;
+
+use crate::error::Error;
+
+use keylib_crypto::ecdsa;
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use ciborium::cbor;
+use serde::Serialize;
+```
+
+**Workspace Dependencies:**
+- All common dependencies MUST be defined in workspace `Cargo.toml` with versions
+- Individual crate `Cargo.toml` files use `dependency.workspace = true`
+- This ensures consistent versions across the workspace and prevents duplication
+- Common dependencies: ciborium, serde, p256, sha2, rand, hex, thiserror, subtle, etc.
+
+**Debug Output:**
+- ❌ NEVER use `println!`, `eprintln!`, or `dbg!` in production code
+- ✅ Debug output is ONLY allowed in test code (within `#[cfg(test)]` modules)
+- ✅ Use proper error types and `Result<T>` for error handling
+- Production code must be silent unless returning errors
+
+**Pre-commit Workflow:**
+The repository uses Python `pre-commit` tool (NOT shell scripts) with the following hooks:
+- **cargo fmt**: Format all Rust code
+- **cargo clippy**: Lint with `-D warnings` (all warnings are errors)
+- **cargo test --test webauthn_inmemory_test**: Run in-memory integration test
+
+Install hooks with: `make pre-commit-install`
+Run manually with: `make pre-commit`
 
 ## Testing Architecture
 
@@ -174,11 +207,12 @@ The `bundled` feature flag enables zero-setup builds:
 **Unit tests**: In `#[cfg(test)] mod tests` within source files
 
 **Integration tests** (keylib/tests/):
+- `webauthn_inmemory_test.rs` - In-memory WebAuthn flow (no hardware required, runs in CI)
 - `integration.rs` - Basic integration tests
 - `credential_storage_test.rs` - Credential storage tests
-- `e2e_webauthn_test.rs` - Full end-to-end WebAuthn flow
+- `e2e_webauthn_test.rs` - Full end-to-end WebAuthn flow with UHID virtual device
 
-**Examples as tests**: All examples in `keylib/examples/` serve as integration tests
+**Examples as documentation**: All examples in `keylib/examples/` serve as usage documentation
 
 ### Hardware-Dependent Tests
 
@@ -228,34 +262,24 @@ let config = AuthenticatorConfig::builder()
 - Provide `to_owned()` methods for lifetime extension
 
 ### Resource Lifetime
-- Rust types own their FFI resources
-- `Drop` implementation automatically frees C resources
-- Users never call `free` or `deinit` directly
-
-## Key Abstractions
-
-**CborCommand/CborCommandResult**: Async-style CTAP command execution with polling:
-```rust
-let command = client.make_credential().rp(...).user(...).send()?;
-let result = command.wait()?; // Poll until complete
-```
-
-**CredentialRef**: Zero-copy credential view that borrows from FFI layer. Use `to_owned()` to extend lifetime beyond callback scope.
-
-**CustomCommand**: Extend CTAP protocol with vendor-specific commands (0x40-0xFF). Provide handler closure that processes request and writes response.
+- Rust types own their resources
+- `Drop` implementation automatically performs cleanup
+- Users never manually manage resource lifecycle
 
 ## What NOT to Do
 
-- ❌ Expose raw pointers in public APIs (except in internal modules)
+- ❌ Use `println!`, `eprintln!`, or `dbg!` in production code (only in tests)
 - ❌ Use `unwrap()` or `expect()` in library code
-- ❌ Allocate unnecessarily when converting C strings
+- ❌ Declare dependencies in multiple crates (use workspace dependencies)
 - ❌ Forget `Send + Sync` bounds for callbacks
+- ❌ Mix import ordering (follow the standard: super → crate → workspace → std → external)
 - ❌ Implement manual memory management (always use RAII)
 - ❌ Create summary documentation files (IMPLEMENTATION.md, TESTING.md, etc.)
+- ❌ Skip pre-commit hooks (always run before committing)
 
 ## Additional Resources
 
 - **CTAP Specification**: https://fidoalliance.org/specs/fido-v2.1-ps-20210615/
 - **WebAuthn Specification**: https://www.w3.org/TR/webauthn-2/
-- **Zig keylib**: Located in `keylib-sys/keylib/` (git submodule)
 - **Repository**: https://github.com/pando85/rust-keylib
+- **Pre-commit**: https://pre-commit.com/

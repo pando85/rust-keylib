@@ -11,7 +11,9 @@ use crate::extensions::GetAssertionExtensions;
 use crate::status::{Result, StatusCode};
 use crate::types::PublicKeyCredentialDescriptor;
 use crate::{UpResult, UvResult};
+
 use keylib_crypto::ecdsa;
+
 use sha2::{Digest, Sha256};
 
 /// GetAssertion request parameter keys

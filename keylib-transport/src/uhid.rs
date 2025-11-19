@@ -28,6 +28,7 @@
 //! ```
 
 use crate::{Error, Result};
+
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::io::{AsRawFd, RawFd};
@@ -165,9 +166,7 @@ impl UhidDevice {
     ///
     /// Creates a virtual HID device with FIDO2 usage page and 64-byte reports.
     pub fn create_fido_device() -> Result<Self> {
-        println!("[UHID-Transport] Opening /dev/uhid...");
         let mut device = Self::open()?;
-        println!("[UHID-Transport] Creating FIDO2 device (Vendor: 0x15d9, Product: 0x0a37)...");
         device.create_device(
             "Virtual FIDO2 Authenticator",
             "virtual-fido",
@@ -178,7 +177,6 @@ impl UhidDevice {
             0x0001, // Version
             FIDO_HID_REPORT_DESCRIPTOR,
         )?;
-        println!("[UHID-Transport] FIDO2 device created and ready");
         Ok(device)
     }
 
@@ -255,36 +253,21 @@ impl UhidDevice {
     ///
     /// Both indicate the device is ready to use.
     fn wait_for_start(&mut self) -> Result<()> {
-        println!("[UHID-Transport] Waiting for UHID_OPEN or UHID_START event...");
         let mut buffer = vec![0u8; 4096];
 
-        // Try to read events with a timeout
-        for i in 0..50 {
-            // 5 second timeout (50 * 100ms)
-            if i > 0 && i % 10 == 0 {
-                println!(
-                    "[UHID-Transport] Still waiting... ({} seconds elapsed)",
-                    i / 10
-                );
-            }
-
+        // Try to read events with a timeout (5 second timeout: 50 * 100ms)
+        for _i in 0..50 {
             match self.read_event(&mut buffer) {
                 Ok(Some(UHID_OPEN)) => {
-                    println!("[UHID-Transport] ✓ Received UHID_OPEN (2) - device ready");
                     self.started = true;
                     return Ok(());
                 }
                 Ok(Some(UHID_START)) => {
-                    println!("[UHID-Transport] ✓ Received UHID_START (4) - device ready");
                     self.started = true;
                     return Ok(());
                 }
-                Ok(Some(event_type)) => {
+                Ok(Some(_event_type)) => {
                     // Other event, continue waiting
-                    println!(
-                        "[UHID-Transport] Received event type {} (not START/OPEN), continuing...",
-                        event_type
-                    );
                     continue;
                 }
                 Ok(None) => {
@@ -293,13 +276,11 @@ impl UhidDevice {
                     continue;
                 }
                 Err(e) => {
-                    eprintln!("[UHID-Transport] ✗ Error while waiting: {:?}", e);
                     return Err(e);
                 }
             }
         }
 
-        eprintln!("[UHID-Transport] ✗ Timeout waiting for START/OPEN event");
         Err(Error::Timeout)
     }
 
@@ -365,32 +346,18 @@ impl UhidDevice {
                     event_buffer[3],
                 ]);
 
-                println!(
-                    "[UHID-Transport] Read {} bytes, event_type={}",
-                    n, event_type
-                );
-
                 match event_type {
                     UHID_OUTPUT => {
                         // Parse OUTPUT event
                         if n >= std::mem::size_of::<UhidOutput>() {
                             let output = unsafe { &*(event_buffer.as_ptr() as *const UhidOutput) };
                             let size = output.size as usize;
-                            println!(
-                                "[UHID-Transport] UHID_OUTPUT event: size={}, data={}",
-                                size,
-                                hex::encode(&output.data[..size.min(16)])
-                            );
 
                             // UHID prepends a report ID byte (0x00) to HID packets
                             // We need to skip it and only return the 64-byte HID packet
                             if size == 65 && output.data[0] == 0x00 {
                                 // Skip report ID, copy actual 64-byte packet
                                 buffer[..64].copy_from_slice(&output.data[1..65]);
-                                println!(
-                                    "[UHID-Transport] Stripped report ID, returning 64-byte packet: {}",
-                                    hex::encode(&buffer[..16])
-                                );
                                 return Ok(Some(64));
                             } else if size <= 64 {
                                 // No report ID, copy directly
@@ -402,10 +369,6 @@ impl UhidDevice {
                     }
                     _ => {
                         // Other event types, skip
-                        println!(
-                            "[UHID-Transport] Skipping non-OUTPUT event: type={}",
-                            event_type
-                        );
                         Ok(None)
                     }
                 }
@@ -421,11 +384,6 @@ impl UhidDevice {
         if !self.started {
             return Err(Error::Other("Device not started".to_string()));
         }
-
-        println!(
-            "[UHID-Transport] Writing INPUT2 event (64 bytes), data={}",
-            hex::encode(&data[..16.min(data.len())])
-        );
 
         let mut event = UhidInput2 {
             event_type: UHID_INPUT2,
@@ -448,7 +406,6 @@ impl UhidDevice {
             .write_all(event_bytes)
             .map_err(|e| Error::Other(format!("Failed to write packet: {}", e)))?;
 
-        println!("[UHID-Transport] INPUT2 event written successfully");
         Ok(())
     }
 

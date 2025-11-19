@@ -26,12 +26,14 @@ use keylib::rust_impl::authenticator::{
 };
 use keylib::rust_impl::authenticator_options::AuthenticatorOptions;
 use keylib::rust_impl::uhid::Uhid;
+
 use keylib_transport::{Cmd, Message, Packet};
 
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+use sha2::{Digest, Sha256};
 
 const UHID_ERROR_MESSAGE: &str = "Make sure you have the uhid kernel module loaded and proper permissions.\n\
 Run the following commands as root:\n\

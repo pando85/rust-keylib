@@ -9,10 +9,12 @@
 use crate::ctaphid::Packet;
 #[cfg(feature = "usb")]
 use crate::error::{Error, Result};
-#[cfg(feature = "usb")]
-use hidapi::{HidApi, HidDevice};
+
 #[cfg(feature = "usb")]
 use std::ffi::CString;
+
+#[cfg(feature = "usb")]
+use hidapi::{HidApi, HidDevice};
 
 /// FIDO2 HID usage page
 #[cfg(feature = "usb")]
