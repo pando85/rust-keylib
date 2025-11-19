@@ -59,8 +59,8 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
         builder = builder.insert(keys::EXTENSIONS, &config.extensions)?;
     }
 
-    // AAGUID (0x03) - required
-    builder = builder.insert(keys::AAGUID, config.aaguid.as_slice())?;
+    // AAGUID (0x03) - required (must be CBOR bytes, not array!)
+    builder = builder.insert_bytes(keys::AAGUID, &config.aaguid)?;
 
     // Options (0x04) - optional but recommended
     #[derive(Serialize)]
