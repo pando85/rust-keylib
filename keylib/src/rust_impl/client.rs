@@ -83,70 +83,35 @@ impl Client {
         // 0x06: extensions (optional)
 
         // 0x07: options (optional)
-        eprintln!(
-            "[DEBUG][client] MakeCredential options: rk={:?}, uv={:?}",
-            request.resident_key, request.user_verification
-        );
         if request.resident_key.is_some() || request.user_verification.is_some() {
             let mut options_map = Vec::new();
             if let Some(rk) = request.resident_key {
-                eprintln!("[DEBUG][client] Adding rk={} to options", rk);
                 options_map.push((Value::Text("rk".to_string()), Value::Bool(rk)));
             }
             if let Some(uv) = request.user_verification {
-                eprintln!("[DEBUG][client] Adding uv={} to options", uv);
                 options_map.push((Value::Text("uv".to_string()), Value::Bool(uv)));
             }
-            eprintln!(
-                "[DEBUG][client] Adding options map with {} entries to request",
-                options_map.len()
-            );
             cbor_request.push((Value::Integer(7.into()), Value::Map(options_map)));
-        } else {
-            eprintln!("[DEBUG][client] No options being added (both rk and uv are None)");
         }
 
         // 0x08: pinUvAuthParam (optional)
         if let Some(pin_auth) = request.pin_uv_auth() {
-            eprintln!(
-                "[DEBUG][client] Adding pinUvAuthParam ({} bytes)",
-                pin_auth.param().len()
-            );
             cbor_request.push((
                 Value::Integer(8.into()),
                 Value::Bytes(pin_auth.param().to_vec()),
             ));
 
             // 0x09: pinUvAuthProtocol (required if pinUvAuthParam is present)
-            eprintln!(
-                "[DEBUG][client] Adding pinUvAuthProtocol: {}",
-                pin_auth.protocol_u8()
-            );
             cbor_request.push((
                 Value::Integer(9.into()),
                 Value::Integer(pin_auth.protocol_u8().into()),
             ));
-        } else {
-            eprintln!("[DEBUG][client] No pinUvAuth present");
         }
 
         // Encode request to CBOR
-        eprintln!("[DEBUG][client] CBOR request map keys before encoding:");
-        for (k, _) in &cbor_request {
-            if let Value::Integer(i) = k {
-                let key_num: i128 = (*i).into();
-                eprintln!("[DEBUG][client]   0x{:02x}", key_num);
-            }
-        }
-
         let mut request_bytes = Vec::new();
         ciborium::ser::into_writer(&Value::Map(cbor_request), &mut request_bytes)
             .map_err(|_| Error::Other)?;
-
-        eprintln!(
-            "[DEBUG][client] Encoded CBOR request: {} bytes",
-            request_bytes.len()
-        );
 
         // Send CTAP command 0x01 (authenticatorMakeCredential)
         let response = transport.send_ctap_command(0x01, &request_bytes)?;
@@ -253,6 +218,245 @@ impl Client {
         // authenticatorGetInfo has no parameters
         let response = transport.send_ctap_command(0x04, &[])?;
         Ok(response)
+    }
+
+    /// Create a new credential (zero-allocation variant)
+    ///
+    /// This is the zero-allocation version of `make_credential`. The caller provides
+    /// a buffer to write the response into, and this method returns the number of bytes written.
+    ///
+    /// # Arguments
+    ///
+    /// * `transport` - The transport to communicate with the authenticator
+    /// * `request` - A `MakeCredentialRequest` built using the builder pattern
+    /// * `response` - Buffer to write the response into (should be at least 7609 bytes for max CTAP response)
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written to the response buffer
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Other` if the buffer is too small for the response
+    ///
+    /// # Note
+    ///
+    /// This method still performs internal allocations for CBOR encoding (using ciborium).
+    /// To achieve fully zero-allocation operation, a custom CBOR encoder would be needed.
+    /// However, it eliminates the final response allocation by writing directly to the caller's buffer.
+    pub fn make_credential_buf(
+        transport: &mut Transport,
+        request: MakeCredentialRequest,
+        response: &mut [u8],
+    ) -> Result<usize> {
+        // Build the CTAP2 authenticatorMakeCredential request
+        let mut cbor_request = Vec::new();
+
+        // 0x01: clientDataHash (required)
+        cbor_request.push((
+            Value::Integer(1.into()),
+            Value::Bytes(request.client_data_hash().as_slice().to_vec()),
+        ));
+
+        // 0x02: rp (required)
+        let mut rp_map = Vec::new();
+        rp_map.push((
+            Value::Text("id".to_string()),
+            Value::Text(request.rp().id.clone()),
+        ));
+        if let Some(name) = &request.rp().name {
+            rp_map.push((Value::Text("name".to_string()), Value::Text(name.clone())));
+        }
+        cbor_request.push((Value::Integer(2.into()), Value::Map(rp_map)));
+
+        // 0x03: user (required)
+        let mut user_map = Vec::new();
+        user_map.push((
+            Value::Text("id".to_string()),
+            Value::Bytes(request.user().id.clone()),
+        ));
+        if let Some(name) = &request.user().name {
+            user_map.push((Value::Text("name".to_string()), Value::Text(name.clone())));
+        }
+        if let Some(display_name) = &request.user().display_name {
+            user_map.push((
+                Value::Text("displayName".to_string()),
+                Value::Text(display_name.clone()),
+            ));
+        }
+        cbor_request.push((Value::Integer(3.into()), Value::Map(user_map)));
+
+        // 0x04: pubKeyCredParams (required) - ES256 only for now
+        let alg_param = vec![
+            (Value::Text("alg".to_string()), Value::Integer((-7).into())),
+            (
+                Value::Text("type".to_string()),
+                Value::Text("public-key".to_string()),
+            ),
+        ];
+        cbor_request.push((
+            Value::Integer(4.into()),
+            Value::Array(vec![Value::Map(alg_param)]),
+        ));
+
+        // 0x05: excludeList (optional, empty for now)
+        // 0x06: extensions (optional)
+
+        // 0x07: options (optional)
+        if request.resident_key.is_some() || request.user_verification.is_some() {
+            let mut options_map = Vec::new();
+            if let Some(rk) = request.resident_key {
+                options_map.push((Value::Text("rk".to_string()), Value::Bool(rk)));
+            }
+            if let Some(uv) = request.user_verification {
+                options_map.push((Value::Text("uv".to_string()), Value::Bool(uv)));
+            }
+            cbor_request.push((Value::Integer(7.into()), Value::Map(options_map)));
+        }
+
+        // 0x08: pinUvAuthParam (optional)
+        if let Some(pin_auth) = request.pin_uv_auth() {
+            cbor_request.push((
+                Value::Integer(8.into()),
+                Value::Bytes(pin_auth.param().to_vec()),
+            ));
+
+            // 0x09: pinUvAuthProtocol (required if pinUvAuthParam is present)
+            cbor_request.push((
+                Value::Integer(9.into()),
+                Value::Integer(pin_auth.protocol_u8().into()),
+            ));
+        }
+
+        // Encode request to CBOR
+        let mut request_bytes = Vec::new();
+        ciborium::ser::into_writer(&Value::Map(cbor_request), &mut request_bytes)
+            .map_err(|_| Error::Other)?;
+
+        // Send CTAP command 0x01 (authenticatorMakeCredential) using zero-allocation transport
+        transport.send_ctap_command_buf(0x01, &request_bytes, response)
+    }
+
+    /// Get an assertion (zero-allocation variant)
+    ///
+    /// This is the zero-allocation version of `get_assertion`. The caller provides
+    /// a buffer to write the response into, and this method returns the number of bytes written.
+    ///
+    /// # Arguments
+    ///
+    /// * `transport` - The transport to communicate with the authenticator
+    /// * `request` - A `GetAssertionRequest` built using the builder pattern
+    /// * `response` - Buffer to write the response into (should be at least 7609 bytes for max CTAP response)
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written to the response buffer
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Other` if the buffer is too small for the response
+    ///
+    /// # Note
+    ///
+    /// This method still performs internal allocations for CBOR encoding (using ciborium).
+    /// To achieve fully zero-allocation operation, a custom CBOR encoder would be needed.
+    /// However, it eliminates the final response allocation by writing directly to the caller's buffer.
+    pub fn get_assertion_buf(
+        transport: &mut Transport,
+        request: GetAssertionRequest,
+        response: &mut [u8],
+    ) -> Result<usize> {
+        // Build the CTAP2 authenticatorGetAssertion request
+        let mut cbor_request = Vec::new();
+
+        // 0x01: rpId (required)
+        cbor_request.push((
+            Value::Integer(1.into()),
+            Value::Text(request.rp_id().to_string()),
+        ));
+
+        // 0x02: clientDataHash (required)
+        cbor_request.push((
+            Value::Integer(2.into()),
+            Value::Bytes(request.client_data_hash().as_slice().to_vec()),
+        ));
+
+        // 0x03: allowList (optional)
+        if !request.allow_list().is_empty() {
+            let allow_list: Vec<Value> = request
+                .allow_list()
+                .iter()
+                .map(|cred| {
+                    let cred_map = vec![
+                        (Value::Text("id".to_string()), Value::Bytes(cred.id.clone())),
+                        (
+                            Value::Text("type".to_string()),
+                            Value::Text(cred.credential_type.as_str().to_string()),
+                        ),
+                    ];
+                    Value::Map(cred_map)
+                })
+                .collect();
+            cbor_request.push((Value::Integer(3.into()), Value::Array(allow_list)));
+        }
+
+        // 0x04: extensions (optional)
+
+        // 0x05: options (optional)
+        if request.user_verification.is_some() {
+            let mut options_map = Vec::new();
+            if let Some(uv) = request.user_verification {
+                options_map.push((Value::Text("uv".to_string()), Value::Bool(uv)));
+            }
+            cbor_request.push((Value::Integer(5.into()), Value::Map(options_map)));
+        }
+
+        // 0x06: pinUvAuthParam (optional)
+        if let Some(pin_auth) = request.pin_uv_auth() {
+            cbor_request.push((
+                Value::Integer(6.into()),
+                Value::Bytes(pin_auth.param().to_vec()),
+            ));
+
+            // 0x07: pinUvAuthProtocol (required if pinUvAuthParam is present)
+            cbor_request.push((
+                Value::Integer(7.into()),
+                Value::Integer(pin_auth.protocol_u8().into()),
+            ));
+        }
+
+        // Encode request to CBOR
+        let mut request_bytes = Vec::new();
+        ciborium::ser::into_writer(&Value::Map(cbor_request), &mut request_bytes)
+            .map_err(|_| Error::Other)?;
+
+        // Send CTAP command 0x02 (authenticatorGetAssertion) using zero-allocation transport
+        transport.send_ctap_command_buf(0x02, &request_bytes, response)
+    }
+
+    /// Send authenticatorGetInfo command (zero-allocation variant)
+    ///
+    /// This is the zero-allocation version of `authenticator_get_info`. The caller provides
+    /// a buffer to write the response into, and this method returns the number of bytes written.
+    ///
+    /// # Arguments
+    ///
+    /// * `transport` - The transport to communicate with the authenticator
+    /// * `response` - Buffer to write the response into (should be at least 7609 bytes for max CTAP response)
+    ///
+    /// # Returns
+    ///
+    /// Number of bytes written to the response buffer
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Other` if the buffer is too small for the response
+    pub fn authenticator_get_info_buf(
+        transport: &mut Transport,
+        response: &mut [u8],
+    ) -> Result<usize> {
+        // authenticatorGetInfo has no parameters
+        transport.send_ctap_command_buf(0x04, &[], response)
     }
 }
 

@@ -12,6 +12,8 @@ use keylib_transport::{UsbTransport as RawUsbTransport, enumerate_devices, init_
 
 use std::sync::{Arc, Mutex};
 
+use smallvec::SmallVec;
+
 /// Safe Rust wrapper for Transport
 ///
 /// Matches the API of the zig-ffi Transport type.
@@ -212,8 +214,9 @@ impl Transport {
             self.write(packet.as_bytes())?;
         }
 
-        // Read INIT response
-        let mut response_packets = Vec::new();
+        // Read INIT response (use SmallVec for stack allocation)
+        // INIT responses are small (17 bytes), so we can stack-allocate
+        let mut response_packets: SmallVec<[Packet; 4]> = SmallVec::new();
 
         loop {
             let mut buffer = [0u8; 64];
@@ -317,7 +320,9 @@ impl Transport {
 
         // CTAP authenticator commands are sent via CTAP HID Cbor (0x10) command
         // Payload format: [ctap_cmd, ...cbor_data]
-        let mut payload = vec![cmd];
+        // Use SmallVec: most CTAP requests are <256 bytes (getInfo, PIN ops, etc.)
+        let mut payload: SmallVec<[u8; 256]> = SmallVec::new();
+        payload.push(cmd);
         payload.extend_from_slice(data);
 
         let cmd_enum = Cmd::Cbor;
@@ -365,8 +370,8 @@ impl Transport {
             _ => return Err(Error::Other),
         };
 
-        // Build CTAP HID message
-        let message = Message::new(channel_id, cmd_enum, payload);
+        // Build CTAP HID message (convert SmallVec to Vec for Message API)
+        let message = Message::new(channel_id, cmd_enum, payload.to_vec());
 
         // Fragment into packets
         let packets = message.to_packets().map_err(|_| Error::Other)?;
@@ -379,8 +384,9 @@ impl Transport {
             inner = self.inner.lock().unwrap();
         }
 
-        // Read response packets
-        let mut response_packets = Vec::new();
+        // Read response packets (use SmallVec to avoid allocation for small responses)
+        // Most CTAP responses are ≤200 bytes (~4 packets), so we can stack-allocate
+        let mut response_packets: SmallVec<[Packet; 4]> = SmallVec::new();
 
         loop {
             drop(inner); // Release lock before read

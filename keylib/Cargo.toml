@@ -33,6 +33,7 @@ cbc.workspace = true
 hmac.workspace = true
 hkdf.workspace = true
 hex.workspace = true
+smallvec.workspace = true
 
 [dev-dependencies]
 lazy_static.workspace = true

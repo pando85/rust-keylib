@@ -32,6 +32,7 @@ thiserror = "1.0"
 
 # Utilities
 hex = "0.4"
+smallvec = "1.13"
 
 # Transport
 hidapi = "2.6"
