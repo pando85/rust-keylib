@@ -135,6 +135,7 @@ fn main() -> Result<()> {
         ])
         .max_credentials(100)
         .extensions(vec!["credProtect".to_string()])  // Match Zig: only credProtect (hmac-secret triggers U2F probing!)
+        .firmware_version(0xcafe)  // Match Zig firmware version
         .force_resident_keys(true)  // For testing: always store credentials
         .build();
 

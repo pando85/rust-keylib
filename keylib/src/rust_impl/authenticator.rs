@@ -402,6 +402,7 @@ pub struct AuthenticatorConfig {
     pub max_credentials: usize,
     pub extensions: Vec<String>,
     pub force_resident_keys: bool,
+    pub firmware_version: Option<u32>,
 }
 
 impl Default for AuthenticatorConfig {
@@ -413,6 +414,7 @@ impl Default for AuthenticatorConfig {
             max_credentials: 100,
             extensions: vec![],
             force_resident_keys: false,
+            firmware_version: None,
         }
     }
 }
@@ -432,6 +434,7 @@ pub struct AuthenticatorConfigBuilder {
     max_credentials: usize,
     extensions: Vec<String>,
     force_resident_keys: bool,
+    firmware_version: Option<u32>,
 }
 
 impl AuthenticatorConfigBuilder {
@@ -469,6 +472,11 @@ impl AuthenticatorConfigBuilder {
         self
     }
 
+    pub fn firmware_version(mut self, version: u32) -> Self {
+        self.firmware_version = Some(version);
+        self
+    }
+
     pub fn build(self) -> AuthenticatorConfig {
         AuthenticatorConfig {
             aaguid: self.aaguid,
@@ -485,6 +493,7 @@ impl AuthenticatorConfigBuilder {
             },
             extensions: self.extensions,
             force_resident_keys: self.force_resident_keys,
+            firmware_version: self.firmware_version,
         }
     }
 }
@@ -527,11 +536,15 @@ impl Authenticator {
         let adapter = CallbackAdapter { callbacks };
 
         // Create CTAP authenticator config
-        let ctap_config = CtapConfig::new()
+        let mut ctap_config = CtapConfig::new()
             .with_aaguid(config.aaguid)
             .with_max_credentials(config.max_credentials)
             .with_extensions(config.extensions)
             .with_force_resident_keys(config.force_resident_keys);
+
+        if let Some(fw_version) = config.firmware_version {
+            ctap_config = ctap_config.with_firmware_version(fw_version);
+        }
 
         let mut authenticator = CtapAuthenticator::new(ctap_config, adapter);
 
