@@ -214,14 +214,17 @@ fn main() -> Result<()> {
             println!("       ✓ AUTO-APPROVED (biometric/PIN simulated)");
             Ok(UvResult::Accepted)
         }))
-        .write(Arc::new(move |rp_id, user_name, cred| {
+        .write(Arc::new(move |_id, rp_id, cred| {
             let mut store = creds_write.lock().unwrap();
             store.insert(cred.id.to_vec(), cred.to_owned());
 
             println!("\n✓ CREDENTIAL REGISTERED");
             println!("  RP ID: {}", rp_id);
-            if !user_name.is_empty() {
+            if let Some(user_name) = cred.user_name {
                 println!("  User: {}", user_name);
+            }
+            if let Some(rp_name) = cred.rp_name {
+                println!("  RP Name: {}", rp_name);
             }
             println!("  User ID: {} bytes", cred.user_id.len());
             println!("  Credential ID: {} bytes", cred.id.len());
