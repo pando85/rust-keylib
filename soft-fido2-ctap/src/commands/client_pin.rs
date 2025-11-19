@@ -642,7 +642,8 @@ mod tests {
         padded_pin[..pin.len()].copy_from_slice(pin.as_bytes());
 
         // Step 5: Encrypt PIN
-        let new_pin_enc = soft_fido2_crypto::pin_protocol::v1::encrypt(&enc_key, &padded_pin).unwrap();
+        let new_pin_enc =
+            soft_fido2_crypto::pin_protocol::v1::encrypt(&enc_key, &padded_pin).unwrap();
 
         // Step 6: Compute pinUvAuthParam
         let pin_uv_auth_param =

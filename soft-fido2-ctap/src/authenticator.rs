@@ -612,7 +612,10 @@ impl<C: AuthenticatorCallbacks> Authenticator<C> {
     /// # Returns
     ///
     /// Reference to stored keypair, or None if not found
-    pub fn get_pin_protocol_keypair(&self, protocol: u8) -> Option<&soft_fido2_crypto::ecdh::KeyPair> {
+    pub fn get_pin_protocol_keypair(
+        &self,
+        protocol: u8,
+    ) -> Option<&soft_fido2_crypto::ecdh::KeyPair> {
         self.pin_protocol_keypairs.get(&protocol)
     }
 

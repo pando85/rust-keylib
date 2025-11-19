@@ -292,7 +292,9 @@ fn process_message(
 
 /// Send a CTAP HID message via UHID
 fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
-    let packets = message.to_packets().map_err(|_e| soft_fido2::Error::Other)?;
+    let packets = message
+        .to_packets()
+        .map_err(|_e| soft_fido2::Error::Other)?;
 
     for packet in packets.iter() {
         match uhid.write_packet(packet.as_bytes()) {

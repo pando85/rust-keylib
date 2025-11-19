@@ -54,17 +54,13 @@ test:	## run tests
 test: lint
 	cargo test
 
-.PHONY: test-integration
-test-integration:	## run integration tests (in-memory WebAuthn test, no hardware required)
-	cargo test --test webauthn_inmemory_test
-
 .PHONY: test-e2e
 test-e2e:	## run E2E WebAuthn tests (requires UHID permissions)
 	cargo test --test e2e_webauthn_test -- --ignored
 
 .PHONY: test-all
-test-all:	## run all tests including integration and E2E
-test-all: test test-integration test-e2e
+test-all:	## run all tests including E2E
+test-all: test test-e2e
 
 .PHONY: update-version
 update-version: ## update version from VERSION file in all Cargo.toml manifests

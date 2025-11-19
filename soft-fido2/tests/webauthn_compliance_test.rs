@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use sha2::{Digest, Sha256};
 use soft_fido2::{
     Authenticator, AuthenticatorConfig, AuthenticatorOptions, CallbacksBuilder, Credential, Error,
@@ -111,9 +111,9 @@ fn test_authenticator_get_info_compliance() {
     if let Some(ciborium::Value::Array(vers)) = versions {
         assert!(!vers.is_empty(), "versions array is empty");
         // Should contain at least "FIDO_2_0" or "FIDO_2_1"
-        let has_fido2 = vers.iter().any(|v| {
-            matches!(v, ciborium::Value::Text(s) if s.starts_with("FIDO_2_"))
-        });
+        let has_fido2 = vers
+            .iter()
+            .any(|v| matches!(v, ciborium::Value::Text(s) if s.starts_with("FIDO_2_")));
         assert!(has_fido2, "versions must include FIDO2 version");
     }
 
@@ -196,7 +196,15 @@ fn test_make_credential_compliance() {
         });
     assert!(fmt.is_some(), "Missing required 'fmt' field");
     // Accept valid attestation formats: "none", "packed", "fido-u2f", etc.
-    let valid_formats = ["none", "packed", "fido-u2f", "android-key", "android-safetynet", "tpm", "apple"];
+    let valid_formats = [
+        "none",
+        "packed",
+        "fido-u2f",
+        "android-key",
+        "android-safetynet",
+        "tpm",
+        "apple",
+    ];
     assert!(
         valid_formats.contains(&fmt.unwrap()),
         "Invalid attestation format: {}",
@@ -215,10 +223,7 @@ fn test_make_credential_compliance() {
 
     // Validate authData structure
     let auth_data = auth_data.unwrap();
-    assert!(
-        auth_data.len() >= 37,
-        "authData too short (min 37 bytes)"
-    );
+    assert!(auth_data.len() >= 37, "authData too short (min 37 bytes)");
 
     // rpIdHash (32 bytes)
     let rp_id_hash = Sha256::digest(RP_ID.as_bytes());
@@ -231,15 +236,15 @@ fn test_make_credential_compliance() {
     // flags (1 byte) - should have UP and AT flags set
     let flags = auth_data[32];
     assert_ne!(flags & 0x01, 0, "UP flag not set");
-    assert_ne!(flags & 0x40, 0, "AT flag not set (attested credential data)");
+    assert_ne!(
+        flags & 0x40,
+        0,
+        "AT flag not set (attested credential data)"
+    );
 
     // signCount (4 bytes)
-    let sign_count = u32::from_be_bytes([
-        auth_data[33],
-        auth_data[34],
-        auth_data[35],
-        auth_data[36],
-    ]);
+    let sign_count =
+        u32::from_be_bytes([auth_data[33], auth_data[34], auth_data[35], auth_data[36]]);
     assert_eq!(sign_count, 0, "Initial sign count should be 0");
 
     // Verify credential was stored
@@ -338,10 +343,7 @@ fn test_get_assertion_compliance() {
 
     // Validate authData structure (minimum 37 bytes for getAssertion)
     let auth_data = auth_data.unwrap();
-    assert!(
-        auth_data.len() >= 37,
-        "authData too short"
-    );
+    assert!(auth_data.len() >= 37, "authData too short");
 
     // rpIdHash validation
     let rp_id_hash = Sha256::digest(RP_ID.as_bytes());

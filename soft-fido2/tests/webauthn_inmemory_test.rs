@@ -7,11 +7,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use base64::Engine;
+use sha2::{Digest, Sha256};
 use soft_fido2::{
     Authenticator, AuthenticatorConfig, AuthenticatorOptions, CallbacksBuilder, Credential, Error,
     UpResult, UvResult,
 };
-use sha2::{Digest, Sha256};
 
 const PIN: &str = "123456";
 const RP_ID: &str = "example.com";

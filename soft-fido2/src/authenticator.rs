@@ -289,7 +289,11 @@ impl UserInteractionCallbacks for CallbackAdapter {
         }
     }
 
-    fn select_credential(&self, rp_id: &str, _user_names: &[String]) -> soft_fido2_ctap::Result<usize> {
+    fn select_credential(
+        &self,
+        rp_id: &str,
+        _user_names: &[String],
+    ) -> soft_fido2_ctap::Result<usize> {
         if let Some(select_cb) = &self.callbacks.select {
             // Call zig-ffi compatible select callback which returns the list of users
             // For pure-rust, we ignore the returned user list and just return 0

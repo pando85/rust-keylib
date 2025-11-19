@@ -14,6 +14,7 @@
 //! ```
 
 use base64::Engine;
+use sha2::{Digest, Sha256};
 use soft_fido2::client::Client;
 use soft_fido2::transport::TransportList;
 use soft_fido2::{
@@ -21,7 +22,6 @@ use soft_fido2::{
     RelyingParty, Result, User,
 };
 use soft_fido2::{PinProtocol, PinUvAuthEncapsulation};
-use sha2::{Digest, Sha256};
 
 const PIN: &str = "123456";
 const RP_ID: &str = "example.com";
