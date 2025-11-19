@@ -17,6 +17,10 @@
 //! 3. Use the Client API to perform authentication (getAssertion)
 //! 4. Verify the complete flow succeeds
 
+#![allow(unexpected_cfgs)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+
 use keylib::{
     Authenticator, AuthenticatorConfig, CallbacksBuilder, Client, ClientDataHash, Credential,
     CredentialRef, Error, GetAssertionRequest, MakeCredentialRequest, PinProtocol, PinUvAuth,
@@ -571,8 +575,8 @@ fn create_client_data_hash(challenge: &[u8], origin: &str, ceremony_type: &str) 
     ClientDataHash::from_slice(&hash_bytes).expect("Valid 32-byte hash")
 }
 
+#[ignore] // Requires UHID permissions and hardware setup
 #[test]
-#[ignore] // Requires UHID permissions
 #[serial] // Run serially to avoid UHID/CID conflicts
 fn test_complete_webauthn_flow() -> Result<()> {
     println!("\n╔════════════════════════════════════════════════╗");
@@ -715,8 +719,8 @@ fn test_complete_webauthn_flow() -> Result<()> {
     Ok(())
 }
 
+#[ignore] // Requires UHID permissions and hardware setup
 #[test]
-#[ignore] // Requires UHID permissions
 #[serial] // Run serially to avoid UHID/CID conflicts
 fn test_registration_without_pin() -> Result<()> {
     println!("\n[Test] Testing registration without PIN (should work for some authenticators)");
@@ -774,8 +778,8 @@ fn test_registration_without_pin() -> Result<()> {
     Ok(())
 }
 
+#[ignore] // Requires UHID permissions and hardware setup
 #[test]
-#[ignore] // Requires UHID permissions
 #[serial] // Run serially to avoid UHID/CID conflicts
 #[cfg(feature = "zig-ffi")] // Dynamic PIN change only supported in zig-ffi
 fn test_pin_change_flow() -> Result<()> {
@@ -948,8 +952,8 @@ fn test_pin_change_flow() -> Result<()> {
     Ok(())
 }
 
+#[ignore] // Requires UHID permissions and hardware setup
 #[test]
-#[ignore] // Requires UHID permissions
 #[serial] // Run serially to avoid UHID/CID conflicts
 fn test_uv_only_authenticator() -> Result<()> {
     println!("\n╔════════════════════════════════════════════════╗");

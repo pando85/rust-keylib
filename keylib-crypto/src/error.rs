@@ -83,7 +83,11 @@ impl fmt::Display for CryptoError {
             Self::DecryptionFailed => write!(f, "Decryption failed"),
             Self::EncryptionFailed => write!(f, "Encryption failed"),
             Self::InvalidKeyLength { expected, actual } => {
-                write!(f, "Invalid key length: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Invalid key length: expected {}, got {}",
+                    expected, actual
+                )
             }
             Self::KeyAgreementFailed => write!(f, "ECDH key agreement failed"),
             Self::InvalidCoseKey => write!(f, "Invalid COSE key format"),

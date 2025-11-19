@@ -315,7 +315,12 @@ impl Transport {
     /// # Errors
     ///
     /// Returns `Error::Other` if the buffer is too small for the response
-    pub fn send_ctap_command_buf(&mut self, cmd: u8, data: &[u8], response: &mut [u8]) -> Result<usize> {
+    pub fn send_ctap_command_buf(
+        &mut self,
+        cmd: u8,
+        data: &[u8],
+        response: &mut [u8],
+    ) -> Result<usize> {
         use keylib_transport::Cmd;
 
         // CTAP authenticator commands are sent via CTAP HID Cbor (0x10) command

@@ -14,13 +14,13 @@
 //! ```
 
 use base64::Engine;
+use keylib::client::Client;
+use keylib::transport::TransportList;
 use keylib::{
     ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth, PinUvAuthProtocol,
     RelyingParty, Result, User,
 };
-use keylib::client::Client;
 use keylib::{PinProtocol, PinUvAuthEncapsulation};
-use keylib::transport::TransportList;
 use sha2::{Digest, Sha256};
 
 const PIN: &str = "123456";

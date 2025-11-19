@@ -47,10 +47,7 @@ fn test_webauthn_inmemory_flow() {
         }))
         .get_credential(Arc::new(move |cred_id| {
             let store = creds_get.lock().unwrap();
-            store
-                .get(cred_id)
-                .cloned()
-                .ok_or(Error::DoesNotExist)
+            store.get(cred_id).cloned().ok_or(Error::DoesNotExist)
         }))
         .delete(Arc::new(move |cred_id| {
             let mut store = creds_delete.lock().unwrap();

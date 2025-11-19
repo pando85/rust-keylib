@@ -19,8 +19,8 @@
 //! ```
 
 use keylib::Result;
-use keylib::{PinProtocol, PinUvAuthEncapsulation};
 use keylib::transport::TransportList;
+use keylib::{PinProtocol, PinUvAuthEncapsulation};
 
 const PIN: &str = "123456";
 

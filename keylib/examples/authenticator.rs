@@ -20,12 +20,12 @@
 //!
 //! The authenticator will run until you press Ctrl+C.
 
-use keylib::{Credential, CredentialRef, Result};
+use keylib::AuthenticatorOptions;
 use keylib::authenticator::{
     Authenticator, AuthenticatorConfig, CallbacksBuilder, UpResult, UvResult,
 };
-use keylib::AuthenticatorOptions;
 use keylib::uhid::Uhid;
+use keylib::{Credential, CredentialRef, Result};
 
 use keylib_transport::{Cmd, Message, Packet};
 
@@ -292,9 +292,7 @@ fn process_message(
 
 /// Send a CTAP HID message via UHID
 fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
-    let packets = message
-        .to_packets()
-        .map_err(|_e| keylib::Error::Other)?;
+    let packets = message.to_packets().map_err(|_e| keylib::Error::Other)?;
 
     for packet in packets.iter() {
         match uhid.write_packet(packet.as_bytes()) {

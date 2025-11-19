@@ -21,8 +21,8 @@
 
 use keylib::Result;
 use keylib::client::Client;
-use keylib::{PinProtocol, PinUvAuthEncapsulation};
 use keylib::transport::TransportList;
+use keylib::{PinProtocol, PinUvAuthEncapsulation};
 
 use ciborium::value::Value;
 

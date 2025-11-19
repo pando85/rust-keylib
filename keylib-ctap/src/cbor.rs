@@ -103,8 +103,7 @@ pub struct MapParser {
 impl MapParser {
     /// Parse from CBOR bytes
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
-        let value: Value =
-            ciborium::from_reader(data).map_err(|_| StatusCode::InvalidCbor)?;
+        let value: Value = ciborium::from_reader(data).map_err(|_| StatusCode::InvalidCbor)?;
 
         Self::from_value(value)
     }

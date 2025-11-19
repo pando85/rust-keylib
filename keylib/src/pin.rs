@@ -284,14 +284,16 @@ impl PinUvAuthEncapsulation {
         let pin_token: [u8; 32] = match self.protocol {
             PinProtocol::V1 => {
                 let (enc_key, _) = pin_protocol::v1::derive_keys(shared_secret);
-                let decrypted = pin_protocol::v1::decrypt(&enc_key, &pin_token_enc).map_err(|_| Error::Other)?;
+                let decrypted = pin_protocol::v1::decrypt(&enc_key, &pin_token_enc)
+                    .map_err(|_| Error::Other)?;
                 let mut token = [0u8; 32];
                 token.copy_from_slice(&decrypted[..32]);
                 token
             }
             PinProtocol::V2 => {
                 let enc_key = pin_protocol::v2::derive_encryption_key(shared_secret);
-                let decrypted = pin_protocol::v2::decrypt(&enc_key, &pin_token_enc).map_err(|_| Error::Other)?;
+                let decrypted = pin_protocol::v2::decrypt(&enc_key, &pin_token_enc)
+                    .map_err(|_| Error::Other)?;
                 let mut token = [0u8; 32];
                 token.copy_from_slice(&decrypted[..32]);
                 token
