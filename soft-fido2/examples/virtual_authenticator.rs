@@ -304,6 +304,7 @@ fn main() -> Result<()> {
                 .with_user_verification(Some(true)) // Support UV capability
                 .with_client_pin(Some(false)), // No PIN required (auto-approve UV)
         )
+        .force_resident_keys(true) // CRITICAL: Store ALL credentials (not just rk=true requests)
         .build();
 
     println!("╔═══════════════════════════════════════════════════════════╗");
@@ -312,6 +313,7 @@ fn main() -> Result<()> {
     println!("  AAGUID: soft-fido2-virtu");
     println!("  Algorithms: ES256 (-7)");
     println!("  Resident Keys (rk): ✓ Supported");
+    println!("  Force Resident Keys: ✓ ALL credentials stored (for testing)");
     println!("  User Presence (up): ✓ Supported (auto-approved)");
     println!("  User Verification (uv): ✓ Supported (auto-approved)");
     println!("  Client PIN: Not set (UV works without PIN)");
