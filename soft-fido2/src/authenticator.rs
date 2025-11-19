@@ -32,7 +32,7 @@ static PRESET_PIN_HASH: OnceLock<Mutex<Option<[u8; 32]>>> = OnceLock::new();
 #[cfg(not(feature = "std"))]
 static PRESET_PIN_HASH: Mutex<Option<[u8; 32]>> = Mutex::new(None);
 
-/// User presence result (matches zig-ffi)
+/// User presence result
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpResult {
     Denied,
@@ -60,7 +60,7 @@ impl From<CtapUpResult> for UpResult {
     }
 }
 
-/// User verification result (matches zig-ffi)
+/// User verification result
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UvResult {
     Denied,
@@ -99,33 +99,45 @@ pub type UpCallback =
 pub type UvCallback =
     Arc<dyn Fn(&str, Option<&str>, Option<&str>) -> Result<UvResult> + Send + Sync>;
 
-/// Select callback type for choosing which user to authenticate with (zig-ffi compatible)
+/// Select callback type for choosing which user to authenticate with
+///
+/// Parameters: (rp_id) -> user names
 pub type SelectCallback = Arc<dyn Fn(&str) -> Result<Vec<String>> + Send + Sync>;
 
-/// Read callback type for retrieving credential data (zig-ffi compatible)
+/// Read callback type for retrieving credential data
+///
+/// Parameters: (credential_id, rp_id) -> credential_data
 pub type ReadCallback = Arc<dyn Fn(&str, &str) -> Result<Vec<u8>> + Send + Sync>;
 
-/// Write callback type for storing credential data (zig-ffi compatible)
+/// Write callback type for storing credential data
+///
+/// Parameters: (credential_id, rp_id, credential_ref)
 pub type WriteCallback = Arc<dyn Fn(&str, &str, CredentialRef) -> Result<()> + Send + Sync>;
 
-/// Delete callback type for removing credential data (zig-ffi compatible)
+/// Delete callback type for removing credential data
+///
+/// Parameters: (credential_id)
 pub type DeleteCallback = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
 
-/// Read first callback type for starting credential iteration (zig-ffi compatible)
+/// Read first callback type for starting credential iteration
+///
+/// Parameters: (rp_id, user_id, pin_hash) -> first_credential
 pub type ReadFirstCallback =
     Arc<dyn Fn(Option<&str>, Option<&str>, Option<[u8; 32]>) -> Result<Credential> + Send + Sync>;
 
-/// Read next callback type for continuing credential iteration (zig-ffi compatible)
+/// Read next callback type for continuing credential iteration
+///
+/// Returns: next_credential
 pub type ReadNextCallback = Arc<dyn Fn() -> Result<Credential> + Send + Sync>;
 
 /// Read credentials callback type (pure-rust legacy, kept for backward compatibility)
 pub type ReadCredentialsCallback =
     Arc<dyn Fn(&str, Option<&[u8]>) -> Result<Vec<Credential>> + Send + Sync>;
 
-/// Get credential callback type (pure-rust legacy, kept for backward compatibility)
+/// Get credential callback type (legacy, kept for backward compatibility)
 pub type GetCredentialCallback = Arc<dyn Fn(&[u8]) -> Result<Credential> + Send + Sync>;
 
-/// Callback wrapper (matches zig-ffi Callbacks API)
+/// Callback wrapper for authenticator user interaction and storage
 #[derive(Clone, Default)]
 pub struct Callbacks {
     pub up: Option<UpCallback>,
@@ -228,7 +240,9 @@ impl CallbacksBuilder {
 }
 
 impl Callbacks {
-    /// Create a new Callbacks instance (zig-ffi compatible constructor)
+    /// Create a new Callbacks instance
+    ///
+    /// For a more ergonomic API, consider using `CallbacksBuilder` instead.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         up: Option<UpCallback>,
@@ -295,8 +309,8 @@ impl UserInteractionCallbacks for CallbackAdapter {
         _user_names: &[String],
     ) -> soft_fido2_ctap::Result<usize> {
         if let Some(select_cb) = &self.callbacks.select {
-            // Call zig-ffi compatible select callback which returns the list of users
-            // For pure-rust, we ignore the returned user list and just return 0
+            // Call select callback which returns the list of users
+            // We ignore the returned user list and just return 0
             select_cb(rp_id).map(|_| 0).map_err(|_| StatusCode::Other)
         } else {
             Ok(0) // Default to first credential
@@ -307,12 +321,13 @@ impl UserInteractionCallbacks for CallbackAdapter {
 impl CredentialStorageCallbacks for CallbackAdapter {
     fn write_credential(&self, credential: &CtapCredential) -> soft_fido2_ctap::Result<()> {
         if let Some(write_cb) = &self.callbacks.write {
-            // Convert credential id to string for zig-ffi compatible signature
+            // Convert credential id to string for callback signature
+            // TODO: Consider using &[u8] instead of &str for better type safety
             let id_str = std::str::from_utf8(&credential.id).unwrap_or_else(|_| {
                 std::str::from_utf8(&credential.id[..credential.id.len().min(16)]).unwrap_or("")
             });
 
-            // Convert keylib-ctap credential to CredentialRef
+            // Convert CTAP credential to CredentialRef
             let cred_ref = CredentialRef {
                 id: &credential.id,
                 rp_id: &credential.rp_id,
@@ -327,7 +342,7 @@ impl CredentialStorageCallbacks for CallbackAdapter {
                 discoverable: credential.discoverable,
                 cred_protect: Some(credential.cred_protect),
             };
-            // Call zig-ffi compatible write callback: (id, rp_id, credential_ref)
+            // Call write callback: (credential_id, rp_id, credential_ref)
             write_cb(id_str, &credential.rp_id, cred_ref).map_err(|_| StatusCode::Other)
         } else {
             Ok(()) // No-op if no callback
@@ -336,7 +351,8 @@ impl CredentialStorageCallbacks for CallbackAdapter {
 
     fn delete_credential(&self, credential_id: &[u8]) -> soft_fido2_ctap::Result<()> {
         if let Some(delete_cb) = &self.callbacks.delete {
-            // Convert credential id to string for zig-ffi compatible signature
+            // Convert credential id to string for callback signature
+            // TODO: Consider using &[u8] instead of &str for better type safety
             let id_str = std::str::from_utf8(credential_id).unwrap_or_else(|_| {
                 std::str::from_utf8(&credential_id[..credential_id.len().min(16)]).unwrap_or("")
             });
@@ -393,10 +409,10 @@ impl CredentialStorageCallbacks for CallbackAdapter {
 }
 
 // Note: CallbackAdapter automatically implements AuthenticatorCallbacks
-// because there's a blanket impl in keylib-ctap for any type that implements
+// because there's a blanket impl in soft-fido2-ctap for any type that implements
 // both UserInteractionCallbacks and CredentialStorageCallbacks
 
-/// Authenticator configuration (matches zig-ffi)
+/// Authenticator configuration
 #[derive(Debug, Clone)]
 pub struct AuthenticatorConfig {
     pub aaguid: [u8; 16],
@@ -514,7 +530,9 @@ impl AuthenticatorConfigBuilder {
     }
 }
 
-/// Authenticator wrapper (matches zig-ffi API)
+/// High-level FIDO2 authenticator
+///
+/// Provides a thread-safe authenticator that processes CTAP commands via callbacks.
 pub struct Authenticator {
     dispatcher: Arc<Mutex<CommandDispatcher<CallbackAdapter>>>,
 }
@@ -522,8 +540,8 @@ pub struct Authenticator {
 impl Authenticator {
     /// Set the PIN hash for the authenticator (must be called before creating instance)
     ///
-    /// This is a compatibility method. The PIN hash will be applied to the next
-    /// authenticator instance created.
+    /// The PIN hash will be applied to the next authenticator instance created.
+    /// This is useful for testing scenarios where you want to simulate a PIN being set.
     ///
     /// # Arguments
     ///
