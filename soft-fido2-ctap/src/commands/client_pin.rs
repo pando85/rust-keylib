@@ -671,9 +671,9 @@ mod tests {
             .unwrap()
             .insert(req_keys::KEY_AGREEMENT, platform_cose_key)
             .unwrap()
-            .insert(req_keys::NEW_PIN_ENC, new_pin_enc)
+            .insert_bytes(req_keys::NEW_PIN_ENC, &new_pin_enc)
             .unwrap()
-            .insert(req_keys::PIN_UV_AUTH_PARAM, pin_uv_auth_param.to_vec())
+            .insert_bytes(req_keys::PIN_UV_AUTH_PARAM, &pin_uv_auth_param)
             .unwrap()
             .build()
             .unwrap();

@@ -541,7 +541,8 @@ mod tests {
     #[test]
     fn test_v2_encrypt_decrypt() {
         let key = [0x42u8; 32];
-        let plaintext = b"Hello, FIDO2!";
+        // V2 uses AES-CBC which requires plaintext to be block-aligned (16 bytes)
+        let plaintext = b"Hello, FIDO2!123"; // 16 bytes
 
         let ciphertext = v2::encrypt(&key, plaintext).unwrap();
         let decrypted = v2::decrypt(&key, &ciphertext).unwrap();

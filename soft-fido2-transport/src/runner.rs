@@ -13,7 +13,16 @@
 //! ```no_run
 //! # #[cfg(feature = "usb")]
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! use soft_fido2_transport::{init_usb, enumerate_devices, AuthenticatorRunner};
+//! use soft_fido2_transport::{init_usb, enumerate_devices, AuthenticatorRunner, CommandHandler, Cmd};
+//!
+//! // Create a command handler (implement CommandHandler trait)
+//! struct MyHandler;
+//! impl CommandHandler for MyHandler {
+//!     fn handle_command(&mut self, cmd: Cmd, data: &[u8]) -> Result<Vec<u8>, soft_fido2_transport::Error> {
+//!         // Process CTAP command and return response
+//!         Ok(vec![0x00]) // Success status
+//!     }
+//! }
 //!
 //! // Initialize USB and find devices
 //! let api = init_usb()?;
@@ -21,7 +30,8 @@
 //!
 //! if let Some(device) = devices.first() {
 //!     // Create and run authenticator
-//!     let mut runner = AuthenticatorRunner::new(&api, &device.path)?;
+//!     let handler = MyHandler;
+//!     let mut runner = AuthenticatorRunner::new(&api, &device.path, handler)?;
 //!
 //!     // Process packets in a loop
 //!     loop {

@@ -267,7 +267,7 @@ mod tests {
         assert!(versions.contains(&"FIDO_2_0".to_string()));
         assert!(versions.contains(&"FIDO_2_1".to_string()));
 
-        let aaguid: Vec<u8> = parser.get(keys::AAGUID).unwrap();
+        let aaguid = parser.get_bytes(keys::AAGUID).unwrap();
         assert_eq!(aaguid.len(), 16);
 
         let protocols: Vec<u8> = parser.get(keys::PIN_UV_AUTH_PROTOCOLS).unwrap();
