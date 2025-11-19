@@ -88,7 +88,7 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
         rk: Some(config.options.rk),
         up: Some(config.options.up),
         uv: config.options.uv,
-        plat: Some(true), // Platform authenticator (matches Zig - prevents U2F probing!)
+        plat: Some(false), // Roaming authenticator (security key) - browsers properly request UV via CTAP
         client_pin: Some(auth.is_pin_set()),
         credential_mgmt_preview: Some(config.options.cred_mgmt),
         cred_mgmt: Some(config.options.cred_mgmt),
