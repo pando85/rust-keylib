@@ -246,8 +246,8 @@ pub fn handle<C: AuthenticatorCallbacks>(
     // 13. Build response
     let mut builder = MapBuilder::new()
         .insert(resp_keys::CREDENTIAL, credential_desc)?
-        .insert(resp_keys::AUTH_DATA, auth_data)?
-        .insert(resp_keys::SIGNATURE, signature)?;
+        .insert_bytes(resp_keys::AUTH_DATA, &auth_data)?  // Must be CBOR bytes, not array!
+        .insert_bytes(resp_keys::SIGNATURE, &signature)?;  // Must be CBOR bytes, not array!
 
     // Add user info if credential was discoverable
     if selected_cred.discoverable {

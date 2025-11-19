@@ -338,7 +338,7 @@ pub fn handle<C: AuthenticatorCallbacks>(
     // 14. Build response
     MapBuilder::new()
         .insert(resp_keys::FMT, "packed")?
-        .insert(resp_keys::AUTH_DATA, auth_data)?
+        .insert_bytes(resp_keys::AUTH_DATA, &auth_data)?  // Must be CBOR bytes, not array!
         .insert(resp_keys::ATT_STMT, att_stmt)?
         .build()
 }
