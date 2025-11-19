@@ -17,9 +17,9 @@ cargo clippy --all-targets --all-features -- -D warnings
 echo "✅ Clippy checks passed"
 echo ""
 
-echo "3️⃣  Running in-memory WebAuthn integration test..."
-cargo test --test webauthn_inmemory_test --no-default-features
-echo "✅ In-memory test passed"
+echo "3️⃣  Running integration tests..."
+cargo test --test webauthn_inmemory_test
+echo "✅ Integration tests passed"
 echo ""
 
 echo "✨ All pre-commit checks passed!"
