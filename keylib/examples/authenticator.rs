@@ -24,6 +24,7 @@ use keylib::common::{Credential, CredentialRef, Result};
 use keylib::rust_impl::authenticator::{
     Authenticator, AuthenticatorConfig, CallbacksBuilder, UpResult, UvResult,
 };
+use keylib::rust_impl::authenticator_options::AuthenticatorOptions;
 use keylib::rust_impl::uhid::Uhid;
 use keylib_transport::{Cmd, Message, Packet};
 
@@ -55,9 +56,10 @@ fn main() -> Result<()> {
     // Create credential storage
     let credentials = Arc::new(Mutex::new(HashMap::<Vec<u8>, Credential>::new()));
 
-    // Setup PIN
-    Authenticator::set_pin_hash(&get_pin_hash());
-    println!("[Setup] PIN configured: 123456");
+    // Setup PIN - DISABLED FOR TESTING
+    // Authenticator::set_pin_hash(&get_pin_hash());
+    // println!("[Setup] PIN configured: 123456");
+    println!("[Setup] PIN disabled for testing");
 
     // Setup callbacks
     let creds_write = credentials.clone();
@@ -137,6 +139,19 @@ fn main() -> Result<()> {
         .extensions(vec!["credProtect".to_string(), "federationId".to_string()])  // Match Zig exactly
         .firmware_version(0xcafe)  // Match Zig firmware version
         .force_resident_keys(true)  // For testing: always store credentials
+        .options(AuthenticatorOptions {
+            rk: true,
+            up: true,
+            uv: Some(true),
+            plat: true,
+            client_pin: Some(false),  // Disabled for testing
+            pin_uv_auth_token: Some(false),
+            cred_mgmt: Some(false),
+            bio_enroll: Some(false),
+            large_blobs: Some(false),
+            ep: None,
+            always_uv: Some(false),
+        })
         .build();
 
     println!("[Setup] Creating authenticator...");
