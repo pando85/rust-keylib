@@ -64,21 +64,23 @@ pub fn handle<C: AuthenticatorCallbacks>(
     eprintln!("[DEBUG][getAssertion] ✓ clientDataHash: {} bytes", client_data_hash.len());
 
     // 2. Parse optional parameters
+    eprintln!("[DEBUG][getAssertion] Parsing allowList (key 0x{:02x})...", req_keys::ALLOW_LIST);
     let allow_list: Option<Vec<PublicKeyCredentialDescriptor>> =
-        parser.get_opt(req_keys::ALLOW_LIST)?;
+        match parser.get_opt::<Vec<PublicKeyCredentialDescriptor>>(req_keys::ALLOW_LIST) {
+            Ok(list) => {
+                if let Some(ref l) = list {
+                    eprintln!("[DEBUG][getAssertion] ✓ allowList parsed successfully: {} credentials", l.len());
+                } else {
+                    eprintln!("[DEBUG][getAssertion] ✓ allowList not present (will search resident credentials)");
+                }
+                list
+            }
+            Err(e) => {
+                eprintln!("[DEBUG][getAssertion] ✗ allowList parse error: {:?}", e);
+                return Err(e);
+            }
+        };
 
-    eprintln!("[DEBUG][getAssertion] allowCredentials list:");
-    if let Some(ref list) = allow_list {
-        eprintln!("[DEBUG][getAssertion]   ✓ {} credential(s) in allow list", list.len());
-        for (i, desc) in list.iter().enumerate() {
-            eprintln!("[DEBUG][getAssertion]     [{}] ID: {} bytes, type: {}",
-                i, desc.id.len(), desc.cred_type);
-        }
-    } else {
-        eprintln!("[DEBUG][getAssertion]   ✗ No allow list provided");
-        eprintln!("[DEBUG][getAssertion]   Note: Non-resident credentials REQUIRE allow list!");
-        eprintln!("[DEBUG][getAssertion]   Searching stored (resident) credentials only...");
-    }
     let pin_uv_auth_param: Option<Vec<u8>> = if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {
         Some(parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?)
     } else {
