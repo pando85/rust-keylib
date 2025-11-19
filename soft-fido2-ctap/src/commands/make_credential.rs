@@ -151,6 +151,12 @@ pub fn handle<C: AuthenticatorCallbacks>(
             UvResult::Denied => return Err(StatusCode::OperationDenied),
             UvResult::Timeout => return Err(StatusCode::UserActionTimeout),
         }
+
+        // CRITICAL: When UV is required, it MUST be performed
+        // If we reach here and UV was not performed, fail the operation
+        if !uv_performed {
+            return Err(StatusCode::OperationDenied);
+        }
     }
 
     // Generate credential key pair
@@ -161,10 +167,21 @@ pub fn handle<C: AuthenticatorCallbacks>(
         // Resident key: generate random ID and store credential
         let id = generate_credential_id();
 
+        // Determine credProtect level:
+        // 1. Use explicitly requested credProtect from extensions
+        // 2. If UV was required during registration, enforce UV for future use (level 0x03)
+        // 3. Otherwise default to userVerificationOptional (level 0x01)
         let cred_protect_value = extensions
             .cred_protect
             .map(|p| p.to_u8())
-            .unwrap_or(CredProtect::UserVerificationOptional as u8);
+            .unwrap_or_else(|| {
+                if options.uv && uv_performed {
+                    // UV was required and performed - enforce UV for future authentications
+                    CredProtect::UserVerificationRequired as u8
+                } else {
+                    CredProtect::UserVerificationOptional as u8
+                }
+            });
 
         let credential = crate::types::Credential {
             id: id.clone(),
