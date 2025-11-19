@@ -116,9 +116,20 @@ impl PinUvAuthEncapsulation {
         // Send clientPin command (0x06)
         let response = transport.send_ctap_command(0x06, &request_bytes)?;
 
-        // Parse response to get authenticator's public key
+        // Check CTAP status code (first byte)
+        if response.is_empty() {
+            return Err(Error::Other);
+        }
+
+        let status = response[0];
+        if status != 0x00 {
+            // Non-zero status means error
+            return Err(Error::Other);
+        }
+
+        // Parse CBOR response (skip status byte)
         let response_value: Value =
-            ciborium::de::from_reader(&response[..]).map_err(|_| Error::Other)?;
+            ciborium::de::from_reader(&response[1..]).map_err(|_| Error::Other)?;
 
         // Extract keyAgreement from response (should be in response[0x01])
         let authenticator_cose_key = match response_value {
@@ -244,9 +255,20 @@ impl PinUvAuthEncapsulation {
         // Send clientPin command (0x06)
         let response = transport.send_ctap_command(0x06, &request_bytes)?;
 
-        // Parse response to get pinUvAuthToken
+        // Check CTAP status code (first byte)
+        if response.is_empty() {
+            return Err(Error::Other);
+        }
+
+        let status = response[0];
+        if status != 0x00 {
+            // Non-zero status means error
+            return Err(Error::Other);
+        }
+
+        // Parse CBOR response (skip status byte)
         let response_value: Value =
-            ciborium::de::from_reader(&response[..]).map_err(|_| Error::Other)?;
+            ciborium::de::from_reader(&response[1..]).map_err(|_| Error::Other)?;
 
         let pin_token_enc = match response_value {
             Value::Map(map) => map
