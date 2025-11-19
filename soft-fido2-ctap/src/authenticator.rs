@@ -77,6 +77,8 @@ pub struct AuthenticatorConfig {
     /// When true, all credentials are stored regardless of the rk option
     /// in makeCredential requests. This is useful for testing without a
     /// proper client that saves credential IDs.
+    ///
+    /// Default: true (optimized for testing/virtual authenticator use cases)
     pub force_resident_keys: bool,
 }
 
@@ -97,7 +99,7 @@ impl AuthenticatorConfig {
             max_cred_blob_length: Some(32),
             min_pin_length: Some(4),       // CTAP default minimum PIN length
             credential_wrapping_key: None, // Will be generated if needed
-            force_resident_keys: false,
+            force_resident_keys: true,     // Default to true for testing use cases
         }
     }
 

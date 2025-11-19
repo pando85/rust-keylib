@@ -416,7 +416,7 @@ impl Default for AuthenticatorConfig {
             options: None,
             max_credentials: 100,
             extensions: vec![],
-            force_resident_keys: false,
+            force_resident_keys: true, // Default to true for testing use cases
             firmware_version: None,
         }
     }
@@ -429,7 +429,6 @@ impl AuthenticatorConfig {
 }
 
 /// Builder for AuthenticatorConfig
-#[derive(Default)]
 pub struct AuthenticatorConfigBuilder {
     aaguid: [u8; 16],
     commands: Vec<crate::ctap::CtapCommand>,
@@ -438,6 +437,20 @@ pub struct AuthenticatorConfigBuilder {
     extensions: Vec<String>,
     force_resident_keys: bool,
     firmware_version: Option<u32>,
+}
+
+impl Default for AuthenticatorConfigBuilder {
+    fn default() -> Self {
+        Self {
+            aaguid: [0u8; 16],
+            commands: vec![],
+            options: None,
+            max_credentials: 0,
+            extensions: vec![],
+            force_resident_keys: true, // Default to true for testing use cases
+            firmware_version: None,
+        }
+    }
 }
 
 impl AuthenticatorConfigBuilder {
