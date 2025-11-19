@@ -93,9 +93,9 @@ impl AuthenticatorConfig {
             extensions: vec![],
             firmware_version: None,
             max_msg_size: Some(7609),       // CTAP max message size
-            pin_uv_auth_protocols: vec![2], // Match Zig: only V2 (V1 is associated with U2F!)
+            pin_uv_auth_protocols: vec![2], // Only V2 (V1 is associated with U2F)
             max_credential_id_length: Some(128),
-            transports: vec!["usb".to_string()], // Match Zig: only USB (NFC might trigger U2F probing!)
+            transports: vec!["usb".to_string()], // Only USB (NFC might trigger U2F probing)
             max_cred_blob_length: Some(32),
             min_pin_length: Some(4),       // CTAP default minimum PIN length
             credential_wrapping_key: None, // Will be generated if needed

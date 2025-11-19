@@ -108,8 +108,7 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
     };
     builder = builder.insert(keys::OPTIONS, options)?;
 
-    // Max message size (0x05) - SKIP to match Zig (Zig doesn't set this)
-    // Zig has maxMsgSize: ?u64 = null and doesn't set it in example
+    // Max message size (0x05) - Optional, not required by spec
     // if let Some(max_msg_size) = config.max_msg_size {
     //     builder = builder.insert(keys::MAX_MSG_SIZE, max_msg_size)?;
     // }
@@ -117,12 +116,10 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
     // PIN/UV auth protocols (0x06) - required if clientPin option is present
     builder = builder.insert(keys::PIN_UV_AUTH_PROTOCOLS, &config.pin_uv_auth_protocols)?;
 
-    // Max credential count in list (0x07) - SKIP to match Zig (Zig doesn't set this)
-    // Zig has maxCredentialCountInList: ?u64 = null and doesn't set it in example
+    // Max credential count in list (0x07) - Optional, not commonly used
     // builder = builder.insert(keys::MAX_CREDENTIAL_COUNT_IN_LIST, config.max_credentials)?;
 
-    // Max credential ID length (0x08) - SKIP to match Zig (Zig doesn't set this)
-    // Zig has maxCredentialIdLength: ?u64 = null and doesn't set it in example
+    // Max credential ID length (0x08) - Optional, not commonly used
     // if let Some(max_cred_id_len) = config.max_credential_id_length {
     //     builder = builder.insert(keys::MAX_CREDENTIAL_ID_LENGTH, max_cred_id_len)?;
     // }
@@ -158,14 +155,12 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
         builder = builder.insert(keys::FIRMWARE_VERSION, fw_version)?;
     }
 
-    // Max cred blob length (0x0F) - SKIP to match Zig (Zig doesn't set this)
-    // Zig has maxCredBlobLength: ?u64 = null and doesn't set it in example
+    // Max cred blob length (0x0F) - Optional, not commonly used
     // if let Some(max_cred_blob_len) = config.max_cred_blob_length {
     //     builder = builder.insert(keys::MAX_CRED_BLOB_LENGTH, max_cred_blob_len)?;
     // }
 
-    // Min PIN length (0x0D) - SKIP to match Zig (Zig doesn't set this even when PIN is set)
-    // Zig has minPINLength: ?u64 = null and doesn't set it in example even though PIN is configured
+    // Min PIN length (0x0D) - Optional, not commonly advertised
     // if auth.is_pin_set() {
     //     builder = builder.insert(keys::MIN_PIN_LENGTH, auth.min_pin_length())?;
     // }

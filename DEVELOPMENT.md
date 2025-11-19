@@ -2,77 +2,59 @@
 
 ## Building the Project
 
-### Using Prebuilt Libraries (Recommended for Users)
+### Standard Build (USB Support)
 
-The easiest way to use rust-keylib is with the `bundled` feature:
-
-```toml
-[dependencies]
-keylib = { version = "0.1", features = ["bundled"] }
-```
-
-This automatically downloads prebuilt native libraries for your platform during `cargo build`,
-eliminating the need to install:
-
-- Zig compiler
-- libudev-dev (on Linux)
-- Build tools
-
-### Building from Source (Recommended for Contributors)
-
-For development work, you'll want to build from source to make changes to the underlying keylib:
+For USB HID transport support, you'll need libudev:
 
 1. **Install dependencies:**
 
    ```bash
    # Ubuntu/Debian
    sudo apt-get install libudev-dev
-
-   # Install Zig from https://ziglang.org/download/
-   # Or use your package manager
    ```
 
-2. **Clone with submodules:**
-
-   ```bash
-   git clone --recurse-submodules https://github.com/pando85/rust-keylib
-   # Or if already cloned:
-   git submodule update --init
-   ```
-
-3. **Build:**
+2. **Build:**
 
    ```bash
    cargo build
    ```
 
-### Creating Prebuilt Artifacts
+### Build Without USB Support
 
-Maintainers can trigger prebuilt artifact creation:
+If you don't need USB HID transport (e.g., testing only):
 
-1. **Automated on Release:** When you create a GitHub release, the `prebuilt.yml` workflow
-   automatically builds and attaches artifacts for supported platforms.
+```bash
+cargo build --no-default-features
+```
 
-2. **Manual Trigger:**
+### Testing
 
-   Go to Actions → "Build Prebuilt Artifacts" → "Run workflow" and specify the version tag.
+```bash
+# Run basic tests
+make test
 
-3. **Local Build:**
+# Run integration tests (in-memory WebAuthn)
+make test-integration
 
-   ```bash
-   cd keylib-sys/keylib
-   zig build install
+# Run E2E tests (requires UHID permissions)
+make test-e2e
 
-   # Package artifacts
-   mkdir -p prebuilt/lib prebuilt/include
-   cp zig-out/lib/libkeylib.a prebuilt/lib/
-   cp zig-out/lib/libuhid.a prebuilt/lib/
-   cp bindings/c/include/keylib.h prebuilt/include/
-   cp bindings/linux/include/uhid.h prebuilt/include/
+# Run all tests
+make test-all
+```
 
-   tar czf keylib-prebuilt-$(rustc -vV | grep host | cut -d' ' -f2).tar.gz -C prebuilt .
-   sha256sum keylib-prebuilt-*.tar.gz > keylib-prebuilt-*.tar.gz.sha256
-   ```
+### Linting and Formatting
+
+```bash
+# Format code
+cargo fmt
+
+# Run clippy
+cargo clippy --all-targets --all-features -- -D warnings
+
+# Run both
+make lint
+```
 
 ## End-to-End WebAuthn Testing
 
