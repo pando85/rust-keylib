@@ -4,16 +4,16 @@
 
 use crate::common::{Error, Result};
 
-#[cfg(all(feature = "pure-rust", target_os = "linux"))]
+#[cfg(target_os = "linux")]
 use keylib_transport::UhidDevice;
 
 /// UHID virtual device wrapper (matches zig-ffi API)
-#[cfg(all(feature = "pure-rust", target_os = "linux"))]
+#[cfg(target_os = "linux")]
 pub struct Uhid {
     device: UhidDevice,
 }
 
-#[cfg(all(feature = "pure-rust", target_os = "linux"))]
+#[cfg(target_os = "linux")]
 impl Uhid {
     /// Open a UHID device
     ///

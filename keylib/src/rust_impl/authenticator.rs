@@ -4,7 +4,6 @@
 
 use crate::common::{Credential, CredentialRef, Error, Result};
 
-#[cfg(feature = "pure-rust")]
 use keylib_ctap::{
     CommandDispatcher, StatusCode,
     authenticator::{Authenticator as CtapAuthenticator, AuthenticatorConfig as CtapConfig},
@@ -15,15 +14,12 @@ use keylib_ctap::{
     types::Credential as CtapCredential,
 };
 
-#[cfg(feature = "pure-rust")]
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "pure-rust")]
 use std::sync::OnceLock;
 
 /// Global PIN hash storage for zig-ffi API compatibility
 /// This allows set_pin_hash to be called before creating an authenticator
-#[cfg(feature = "pure-rust")]
 static PRESET_PIN_HASH: OnceLock<Mutex<Option<[u8; 32]>>> = OnceLock::new();
 
 /// User presence result (matches zig-ffi)
@@ -34,7 +30,6 @@ pub enum UpResult {
     Timeout,
 }
 
-#[cfg(feature = "pure-rust")]
 impl From<UpResult> for CtapUpResult {
     fn from(result: UpResult) -> Self {
         match result {
@@ -45,7 +40,6 @@ impl From<UpResult> for CtapUpResult {
     }
 }
 
-#[cfg(feature = "pure-rust")]
 impl From<CtapUpResult> for UpResult {
     fn from(result: CtapUpResult) -> Self {
         match result {
@@ -65,7 +59,6 @@ pub enum UvResult {
     Timeout,
 }
 
-#[cfg(feature = "pure-rust")]
 impl From<UvResult> for CtapUvResult {
     fn from(result: UvResult) -> Self {
         match result {
@@ -77,7 +70,6 @@ impl From<UvResult> for CtapUvResult {
     }
 }
 
-#[cfg(feature = "pure-rust")]
 impl From<CtapUvResult> for UvResult {
     fn from(result: CtapUvResult) -> Self {
         match result {
@@ -254,12 +246,10 @@ impl Callbacks {
 }
 
 /// Callback adapter that implements keylib-ctap traits
-#[cfg(feature = "pure-rust")]
 struct CallbackAdapter {
     callbacks: Callbacks,
 }
 
-#[cfg(feature = "pure-rust")]
 impl UserInteractionCallbacks for CallbackAdapter {
     fn request_up(
         &self,
@@ -300,7 +290,6 @@ impl UserInteractionCallbacks for CallbackAdapter {
     }
 }
 
-#[cfg(feature = "pure-rust")]
 impl CredentialStorageCallbacks for CallbackAdapter {
     fn write_credential(&self, credential: &CtapCredential) -> keylib_ctap::Result<()> {
         if let Some(write_cb) = &self.callbacks.write {
@@ -499,12 +488,10 @@ impl AuthenticatorConfigBuilder {
 }
 
 /// Authenticator wrapper (matches zig-ffi API)
-#[cfg(feature = "pure-rust")]
 pub struct Authenticator {
     dispatcher: Arc<Mutex<CommandDispatcher<CallbackAdapter>>>,
 }
 
-#[cfg(feature = "pure-rust")]
 impl Authenticator {
     /// Set the PIN hash for the authenticator (must be called before creating instance)
     ///

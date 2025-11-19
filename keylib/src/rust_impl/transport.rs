@@ -4,10 +4,10 @@
 
 use crate::common::{Error, Result};
 
-#[cfg(all(feature = "pure-rust", feature = "usb"))]
+#[cfg(feature = "usb")]
 use keylib_transport::{UsbTransport as RawUsbTransport, enumerate_devices, init_usb};
 
-#[cfg(all(feature = "pure-rust", target_os = "linux"))]
+#[cfg(target_os = "linux")]
 use keylib_transport::UhidDevice;
 
 use keylib_transport::{ChannelManager, Message, Packet};
@@ -23,14 +23,14 @@ pub struct Transport {
 
 #[allow(dead_code)]
 enum TransportInner {
-    #[cfg(all(feature = "pure-rust", feature = "usb"))]
+    #[cfg(feature = "usb")]
     Usb {
         transport: RawUsbTransport,
         #[allow(dead_code)]
         channel_manager: ChannelManager,
         channel_id: Option<u32>,
     },
-    #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     Uhid {
         device: UhidDevice,
         #[allow(dead_code)]
@@ -42,7 +42,7 @@ enum TransportInner {
 }
 
 impl Transport {
-    #[cfg(all(feature = "pure-rust", feature = "usb"))]
+    #[cfg(feature = "usb")]
     fn from_usb(transport: RawUsbTransport) -> Self {
         Self {
             inner: Arc::new(Mutex::new(TransportInner::Usb {
@@ -53,7 +53,7 @@ impl Transport {
         }
     }
 
-    #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     #[allow(dead_code)]
     fn from_uhid(device: UhidDevice) -> Self {
         Self {
@@ -70,17 +70,19 @@ impl Transport {
     pub fn open(&mut self) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
         match &mut *inner {
-            #[cfg(all(feature = "pure-rust", feature = "usb"))]
+            #[cfg(feature = "usb")]
             TransportInner::Usb { .. } => {
                 // USB transports are opened on construction, nothing to do
                 Ok(())
             }
-            #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             TransportInner::Uhid { opened, .. } => {
                 // UHID devices are always "open" after creation
                 *opened = true;
                 Ok(())
             }
+            #[cfg(not(any(feature = "usb", target_os = "linux")))]
+            _ => Err(Error::Other),
         }
     }
 
@@ -88,14 +90,16 @@ impl Transport {
     pub fn close(&mut self) {
         let mut inner = self.inner.lock().unwrap();
         match &mut *inner {
-            #[cfg(all(feature = "pure-rust", feature = "usb"))]
+            #[cfg(feature = "usb")]
             TransportInner::Usb { .. } => {
                 // USB transports use Drop for cleanup, nothing to do
             }
-            #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             TransportInner::Uhid { opened, .. } => {
                 *opened = false;
             }
+            #[cfg(not(any(feature = "usb", target_os = "linux")))]
+            _ => {}
         }
     }
 
@@ -105,7 +109,7 @@ impl Transport {
     pub fn write(&mut self, data: &[u8]) -> Result<()> {
         let inner = self.inner.lock().unwrap();
         match &*inner {
-            #[cfg(all(feature = "pure-rust", feature = "usb"))]
+            #[cfg(feature = "usb")]
             TransportInner::Usb { transport, .. } => {
                 // USB transport expects Packet, convert from raw bytes
                 if data.len() != 64 {
@@ -119,7 +123,7 @@ impl Transport {
                     .map_err(|e| Error::IoError(e.to_string()))?;
                 Ok(())
             }
-            #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             TransportInner::Uhid { device, .. } => {
                 // UHID requires exactly 64 bytes
                 if data.len() != 64 {
@@ -132,6 +136,8 @@ impl Transport {
                     .map_err(|e| Error::IoError(e.to_string()))?;
                 Ok(())
             }
+            #[cfg(not(any(feature = "usb", target_os = "linux")))]
+            _ => Err(Error::Other),
         }
     }
 
@@ -139,7 +145,7 @@ impl Transport {
     pub fn read(&mut self, buffer: &mut [u8], timeout_ms: i32) -> Result<usize> {
         let inner = self.inner.lock().unwrap();
         match &*inner {
-            #[cfg(all(feature = "pure-rust", feature = "usb"))]
+            #[cfg(feature = "usb")]
             TransportInner::Usb { transport, .. } => {
                 // USB transport uses packet-based API with timeout
                 match transport
@@ -158,7 +164,7 @@ impl Transport {
                     }
                 }
             }
-            #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             TransportInner::Uhid { device, .. } => {
                 // UHID requires exactly 64 bytes buffer
                 if buffer.len() < 64 {
@@ -176,6 +182,8 @@ impl Transport {
                     Ok(0)
                 }
             }
+            #[cfg(not(any(feature = "usb", target_os = "linux")))]
+            _ => Err(Error::Other),
         }
     }
 
@@ -291,10 +299,12 @@ impl Transport {
 
         // Initialize channel if needed (except for INIT command itself)
         let needs_init = match &*inner {
-            #[cfg(all(feature = "pure-rust", feature = "usb"))]
+            #[cfg(feature = "usb")]
             TransportInner::Usb { channel_id, .. } => channel_id.is_none() && cmd != 0x06,
-            #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             TransportInner::Uhid { channel_id, .. } => channel_id.is_none() && cmd != 0x06,
+            #[cfg(not(any(feature = "usb", target_os = "linux")))]
+            _ => false,
         };
 
         if needs_init {
@@ -304,20 +314,22 @@ impl Transport {
 
             // Store the allocated channel
             match &mut *inner {
-                #[cfg(all(feature = "pure-rust", feature = "usb"))]
+                #[cfg(feature = "usb")]
                 TransportInner::Usb { channel_id, .. } => {
                     *channel_id = Some(allocated_channel);
                 }
-                #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+                #[cfg(target_os = "linux")]
                 TransportInner::Uhid { channel_id, .. } => {
                     *channel_id = Some(allocated_channel);
                 }
+                #[cfg(not(any(feature = "usb", target_os = "linux")))]
+                _ => {}
             }
         }
 
         // Get the channel ID to use
         let channel_id = match &*inner {
-            #[cfg(all(feature = "pure-rust", feature = "usb"))]
+            #[cfg(feature = "usb")]
             TransportInner::Usb { channel_id, .. } => {
                 if cmd == 0x06 {
                     // INIT command uses broadcast channel
@@ -327,7 +339,7 @@ impl Transport {
                     channel_id.ok_or(Error::Other)?
                 }
             }
-            #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             TransportInner::Uhid { channel_id, .. } => {
                 if cmd == 0x06 {
                     // INIT command uses broadcast channel
@@ -337,6 +349,8 @@ impl Transport {
                     channel_id.ok_or(Error::Other)?
                 }
             }
+            #[cfg(not(any(feature = "usb", target_os = "linux")))]
+            _ => return Err(Error::Other),
         };
 
         // Build CTAP HID message
@@ -410,10 +424,12 @@ impl Transport {
     pub fn get_description(&self) -> Result<String> {
         let inner = self.inner.lock().unwrap();
         match &*inner {
-            #[cfg(all(feature = "pure-rust", feature = "usb"))]
+            #[cfg(feature = "usb")]
             TransportInner::Usb { .. } => Ok("USB HID Transport".to_string()),
-            #[cfg(all(feature = "pure-rust", target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             TransportInner::Uhid { .. } => Ok("UHID Virtual Device".to_string()),
+            #[cfg(not(any(feature = "usb", target_os = "linux")))]
+            _ => Ok("Unknown Transport".to_string()),
         }
     }
 }
@@ -437,7 +453,7 @@ impl TransportList {
         #[allow(unused_mut)]
         let mut transports = Vec::new();
 
-        #[cfg(all(feature = "pure-rust", feature = "usb"))]
+        #[cfg(feature = "usb")]
         {
             // Initialize USB library
             if let Ok(api) = init_usb() {

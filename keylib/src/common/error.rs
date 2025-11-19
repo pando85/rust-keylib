@@ -75,8 +75,7 @@ impl From<i32> for Error {
     }
 }
 
-// Conversion from pure-rust StatusCode
-#[cfg(feature = "pure-rust")]
+// Conversion from keylib-ctap StatusCode (pure Rust implementation)
 impl From<keylib_ctap::StatusCode> for Error {
     fn from(status: keylib_ctap::StatusCode) -> Self {
         use keylib_ctap::StatusCode;
@@ -134,8 +133,7 @@ impl From<keylib_ctap::StatusCode> for Error {
     }
 }
 
-// Conversion to pure-rust StatusCode
-#[cfg(feature = "pure-rust")]
+// Conversion to keylib-ctap StatusCode (pure Rust implementation)
 impl From<Error> for keylib_ctap::StatusCode {
     fn from(error: Error) -> Self {
         use keylib_ctap::StatusCode;
@@ -176,52 +174,6 @@ impl From<Error> for keylib_ctap::StatusCode {
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
         Error::IoError(error.to_string())
-    }
-}
-
-// Conversion from zig-ffi KeylibError (when both features are enabled)
-#[cfg(feature = "zig-ffi")]
-impl From<crate::error::KeylibError> for Error {
-    fn from(error: crate::error::KeylibError) -> Self {
-        use crate::error::KeylibError;
-
-        match error {
-            KeylibError::Success => Error::Success,
-            KeylibError::DoesAlreadyExist => Error::DoesAlreadyExist,
-            KeylibError::DoesNotExist => Error::DoesNotExist,
-            KeylibError::KeyStoreFull => Error::KeyStoreFull,
-            KeylibError::OutOfMemory => Error::OutOfMemory,
-            KeylibError::Timeout => Error::Timeout,
-            KeylibError::Other => Error::Other,
-            KeylibError::InitializationFailed => Error::InitializationFailed,
-            KeylibError::InvalidCallbackResult => Error::InvalidCallbackResult,
-            KeylibError::CborCommandFailed(code) => Error::CborCommandFailed(code),
-            KeylibError::InvalidClientDataHash => Error::InvalidClientDataHash,
-        }
-    }
-}
-
-// Conversion to zig-ffi KeylibError (when both features are enabled)
-#[cfg(feature = "zig-ffi")]
-impl From<Error> for crate::error::KeylibError {
-    fn from(error: Error) -> Self {
-        use crate::error::KeylibError;
-
-        match error {
-            Error::Success => KeylibError::Success,
-            Error::DoesAlreadyExist => KeylibError::DoesAlreadyExist,
-            Error::DoesNotExist => KeylibError::DoesNotExist,
-            Error::KeyStoreFull => KeylibError::KeyStoreFull,
-            Error::OutOfMemory => KeylibError::OutOfMemory,
-            Error::Timeout => KeylibError::Timeout,
-            Error::Other => KeylibError::Other,
-            Error::InitializationFailed => KeylibError::InitializationFailed,
-            Error::InvalidCallbackResult => KeylibError::InvalidCallbackResult,
-            Error::CborCommandFailed(code) => KeylibError::CborCommandFailed(code),
-            Error::InvalidClientDataHash => KeylibError::InvalidClientDataHash,
-            Error::CtapError(_) => KeylibError::Other,
-            Error::IoError(_) => KeylibError::Other,
-        }
     }
 }
 

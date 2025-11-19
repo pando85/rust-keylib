@@ -1,5 +1,5 @@
 [workspace]
-members = ["keylib", "keylib-crypto", "keylib-ctap", "keylib-sys", "keylib-transport"]
+members = ["keylib", "keylib-crypto", "keylib-ctap", "keylib-transport"]
 resolver = "2"
 
 
@@ -13,8 +13,6 @@ repository = "https://github.com/pando85/rust-keylib"
 readme = "README.md"
 
 [workspace.dependencies]
-keylib-sys = { path = "keylib-sys", version = "0.2.3" }
-
 # Cryptography (well-audited crates)
 p256 = { version = "0.13", features = ["ecdsa", "ecdh"] }
 sha2 = "0.10"
