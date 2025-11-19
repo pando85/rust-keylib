@@ -305,6 +305,7 @@ fn main() -> Result<()> {
                 .with_always_uv(Some(true)) // Always perform UV (like built-in biometric)
                 .with_client_pin(Some(false)), // No PIN (using built-in UV instead)
         )
+        .force_resident_keys(true) // Store ALL credentials for WebAuthn test compatibility
         .build();
 
     println!("╔═══════════════════════════════════════════════════════════╗");
@@ -313,11 +314,16 @@ fn main() -> Result<()> {
     println!("  AAGUID: soft-fido2-virtu");
     println!("  Algorithms: ES256 (-7)");
     println!("  Resident Keys (rk): ✓ Supported");
+    println!("  Force Resident Keys: ✓ ALL credentials stored (test mode)");
     println!("  User Presence (up): ✓ Supported (auto-approved)");
     println!("  User Verification (uv): ✓ ALWAYS (like built-in biometric)");
     println!("  UV Method: Built-in (alwaysUV=true, no PIN required)");
     println!("  Extensions: credProtect, hmac-secret, largeBlobKey");
     println!("  Max Credentials: 100");
+    println!();
+    println!("  NOTE: force_resident_keys is enabled for WebAuthn test");
+    println!("        compatibility. Many test suites don't request rk=true");
+    println!("        but expect credentials to be stored anyway.");
     println!();
 
     // Create authenticator
