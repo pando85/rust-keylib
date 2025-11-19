@@ -15,7 +15,7 @@
 //!
 //! # Usage
 //! ```bash
-//! cargo run --example authenticator --features pure-rust
+//! cargo run --example authenticator
 //! ```
 //!
 //! The authenticator will run until you press Ctrl+C.
@@ -56,10 +56,9 @@ fn main() -> Result<()> {
     // Create credential storage
     let credentials = Arc::new(Mutex::new(HashMap::<Vec<u8>, Credential>::new()));
 
-    // Setup PIN - DISABLED FOR TESTING
-    // Authenticator::set_pin_hash(&get_pin_hash());
-    // println!("[Setup] PIN configured: 123456");
-    println!("[Setup] PIN disabled for testing");
+    // Setup PIN
+    Authenticator::set_pin_hash(&get_pin_hash());
+    println!("[Setup] PIN configured: 123456");
 
     // Setup callbacks
     let creds_write = credentials.clone();
@@ -68,26 +67,15 @@ fn main() -> Result<()> {
     let creds_delete = credentials.clone();
 
     let callbacks = CallbacksBuilder::new()
-        .up(Arc::new(|info, user, rp| {
-            println!(
-                "[Callback] User presence requested: {} (user: {:?}, rp: {:?})",
-                info, user, rp
-            );
+        .up(Arc::new(|_info, _user, _rp| {
             Ok(UpResult::Accepted)
         }))
-        .uv(Arc::new(|info, user, rp| {
-            println!(
-                "[Callback] User verification requested: {} (user: {:?}, rp: {:?})",
-                info, user, rp
-            );
+        .uv(Arc::new(|_info, _user, _rp| {
             Ok(UvResult::Accepted)
         }))
         .write(Arc::new(move |_id, _rp, cred: CredentialRef| {
             let mut store = creds_write.lock().unwrap();
             store.insert(cred.id.to_vec(), cred.to_owned());
-            println!("[Callback] Stored credential for RP: {}", cred.rp_id);
-            println!("           User: {:?}", cred.user_name);
-            println!("           Total credentials: {}", store.len());
             Ok(())
         }))
         .read_credentials(Arc::new(move |rp_id, user_id| {
@@ -99,11 +87,6 @@ fn main() -> Result<()> {
                 })
                 .cloned()
                 .collect();
-            println!(
-                "[Callback] Read {} credentials for RP: {}",
-                filtered.len(),
-                rp_id
-            );
             Ok(filtered)
         }))
         .get_credential(Arc::new(move |cred_id| {
@@ -112,19 +95,11 @@ fn main() -> Result<()> {
                 .get(cred_id)
                 .cloned()
                 .ok_or(keylib::common::Error::DoesNotExist);
-            if result.is_ok() {
-                println!(
-                    "[Callback] Retrieved credential: {}",
-                    hex::encode(&cred_id[..8.min(cred_id.len())])
-                );
-            }
             result
         }))
         .delete(Arc::new(move |cred_id| {
             let mut store = creds_delete.lock().unwrap();
             store.remove(cred_id.as_bytes());
-            println!("[Callback] Deleted credential: {}", cred_id);
-            println!("           Remaining credentials: {}", store.len());
             Ok(())
         }))
         .build();
@@ -136,22 +111,12 @@ fn main() -> Result<()> {
             0x7c, 0x88,
         ])
         .max_credentials(100)
-        .extensions(vec!["credProtect".to_string(), "federationId".to_string()])  // Match Zig exactly
-        .firmware_version(0xcafe)  // Match Zig firmware version
-        .force_resident_keys(true)  // For testing: always store credentials
-        .options(AuthenticatorOptions {
-            rk: true,
-            up: true,
-            uv: Some(true),
-            plat: true,
-            client_pin: Some(false),  // Disabled for testing
-            pin_uv_auth_token: Some(false),
-            cred_mgmt: Some(false),
-            bio_enroll: Some(false),
-            large_blobs: Some(false),
-            ep: None,
-            always_uv: Some(false),
-        })
+        .extensions(vec!["credProtect".to_string(), "federationId".to_string()])
+        .options(
+            AuthenticatorOptions::new()
+                .with_user_verification(Some(true))
+                .with_credential_management(Some(true))
+        )
         .build();
 
     println!("[Setup] Creating authenticator...");
@@ -192,22 +157,7 @@ fn main() -> Result<()> {
     loop {
         match uhid.read_packet(&mut buffer) {
             Ok(len) if len > 0 => {
-                println!("[UHID] Received {} bytes", len);
                 let packet = Packet::from_bytes(buffer);
-                println!(
-                    "[UHID] Packet: CID=0x{:08x}, Type={}, Payload={} bytes",
-                    packet.cid(),
-                    if packet.is_init() { "INIT" } else { "CONT" },
-                    packet.payload().len()
-                );
-
-                // Debug: Show raw packet bytes
-                if packet.is_init() && packet.payload().len() > 0 {
-                    let cmd_byte = buffer[4]; // Command byte is at offset 4
-                    println!("[UHID] Raw command byte in packet: 0x{:02x}", cmd_byte);
-                    println!("[UHID]   INIT flag (0x80): {}", if cmd_byte & 0x80 != 0 { "set" } else { "clear" });
-                    println!("[UHID]   Command (lower 7 bits): 0x{:02x}", cmd_byte & 0x7F);
-                }
 
                 // Handle initialization packets
                 if packet.is_init() {
@@ -215,15 +165,9 @@ fn main() -> Result<()> {
                     pending_packets.clear();
                     pending_packets.push(packet);
 
-                    println!("[CTAP] New message on channel 0x{:08x}", current_channel);
-
                     // Check if this is a complete message
                     if let Some(payload_len) = pending_packets[0].payload_len() {
                         let init_data_len = pending_packets[0].payload().len();
-                        println!(
-                            "[CTAP] Single-packet message: {} bytes (expected {})",
-                            init_data_len, payload_len
-                        );
                         if init_data_len >= payload_len as usize {
                             let _ = process_message(
                                 &mut auth,
@@ -239,10 +183,6 @@ fn main() -> Result<()> {
                     // Continuation packet
                     if packet.cid() == current_channel {
                         pending_packets.push(packet);
-                        println!(
-                            "[CTAP] Continuation packet {} received",
-                            pending_packets.len() - 1
-                        );
 
                         // Check if we have the complete message
                         if let Some(first) = pending_packets.first() {
@@ -251,11 +191,6 @@ fn main() -> Result<()> {
                                 for pkt in &pending_packets[1..] {
                                     received_len += pkt.payload().len();
                                 }
-
-                                println!(
-                                    "[CTAP] Multi-packet message: {}/{} bytes received",
-                                    received_len, total_len
-                                );
 
                                 if received_len >= total_len as usize {
                                     let _ = process_message(
@@ -269,12 +204,6 @@ fn main() -> Result<()> {
                                 }
                             }
                         }
-                    } else {
-                        println!(
-                            "[CTAP] ⚠ Ignored packet for wrong channel: 0x{:08x} (expected 0x{:08x})",
-                            packet.cid(),
-                            current_channel
-                        );
                     }
                 }
             }
@@ -283,7 +212,7 @@ fn main() -> Result<()> {
                 std::thread::sleep(Duration::from_millis(10));
             }
             Err(e) => {
-                println!("[UHID] ⚠ Read error: {:?}", e);
+                eprintln!("UHID read error: {:?}", e);
                 std::thread::sleep(Duration::from_millis(10));
             }
         }
@@ -298,139 +227,24 @@ fn process_message(
     response_buffer: &mut Vec<u8>,
     next_channel_id: &mut u32,
 ) -> Result<()> {
-    println!("[CTAP] Processing message from {} packet(s)", packets.len());
-
-    let message = Message::from_packets(packets).map_err(|e| {
-        println!("[CTAP] ✗ Failed to parse message from packets: {:?}", e);
+    let message = Message::from_packets(packets).map_err(|_e| {
         keylib::common::Error::Other
     })?;
 
     let cid = message.cid;
     let cmd = message.cmd;
 
-    println!(
-        "[CTAP] Command: {:?}, CID: 0x{:08x}, Payload: {} bytes",
-        cmd,
-        cid,
-        message.data.len()
-    );
-
-    // Debug: show raw command byte
-    if !packets.is_empty() {
-        let first_packet = &packets[0];
-        let payload = first_packet.payload();
-        if !payload.is_empty() {
-            let cmd_byte = payload[0];
-            println!("[CTAP] Raw command byte from packet: 0x{:02x}", cmd_byte);
-        }
-    }
-
     match cmd {
         Cmd::Cbor => {
             // CTAP CBOR command
-            println!(
-                "[CTAP] CBOR request: {}",
-                hex::encode(&message.data[..message.data.len().min(32)])
-            );
-
-            // Decode CTAP command type
-            if !message.data.is_empty() {
-                let cmd_byte = message.data[0];
-                let cmd_name = match cmd_byte {
-                    0x01 => "authenticatorMakeCredential",
-                    0x02 => "authenticatorGetAssertion",
-                    0x04 => "authenticatorGetInfo",
-                    0x06 => "authenticatorClientPIN",
-                    0x07 => "authenticatorReset",
-                    0x08 => "authenticatorGetNextAssertion",
-                    0x0a => "authenticatorCredentialManagement",
-                    0x0b => "authenticatorSelection",
-                    _ => "unknown",
-                };
-                println!("[CTAP] Command type: 0x{:02x} ({})", cmd_byte, cmd_name);
-
-                // For ClientPIN commands, decode the subcommand
-                if cmd_byte == 0x06 && message.data.len() > 1 {
-                    if let Ok(value) = ciborium::de::from_reader::<ciborium::value::Value, _>(&message.data[1..]) {
-                        if let ciborium::value::Value::Map(map) = value {
-                            for (k, v) in &map {
-                                if let ciborium::value::Value::Integer(key_int) = k {
-                                    let key_num: i128 = (*key_int).into();
-                                    if key_num == 2 {
-                                        if let ciborium::value::Value::Integer(subcmd) = v {
-                                            let subcmd_num: i128 = (*subcmd).into();
-                                            let subcmd_name = match subcmd_num {
-                                                0x01 => "getPinRetries",
-                                                0x02 => "getKeyAgreement",
-                                                0x03 => "setPIN",
-                                                0x04 => "changePIN",
-                                                0x05 => "getPinToken (deprecated)",
-                                                0x06 => "getPinUvAuthTokenUsingPin",
-                                                0x07 => "getUVRetries",
-                                                0x08 => "getPinUvAuthTokenUsingUv",
-                                                0x09 => "getPinUvAuthTokenUsingPinWithPermissions",
-                                                _ => "unknown",
-                                            };
-                                            println!("[CTAP] ClientPIN SubCommand: 0x{:02x} ({})", subcmd_num, subcmd_name);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             response_buffer.clear();
             match auth.handle(&message.data, response_buffer) {
                 Ok(_) => {
-                    println!(
-                        "[CTAP] ✓ Command processed ({} bytes response)",
-                        response_buffer.len()
-                    );
-                    println!(
-                        "[CTAP] CBOR response: {}",
-                        hex::encode(&response_buffer[..response_buffer.len().min(32)])
-                    );
-
-                    // Decode response status
-                    if !response_buffer.is_empty() {
-                        let status = response_buffer[0];
-                        if status == 0x00 {
-                            println!("[CTAP] Response status: CTAP2_OK");
-                        } else {
-                            let error_name = match status {
-                                0x01 => "CTAP1_ERR_INVALID_COMMAND",
-                                0x02 => "CTAP1_ERR_INVALID_PARAMETER",
-                                0x03 => "CTAP1_ERR_INVALID_LENGTH",
-                                0x11 => "CTAP2_ERR_CBOR_UNEXPECTED_TYPE",
-                                0x12 => "CTAP2_ERR_MISSING_PARAMETER",
-                                0x14 => "CTAP2_ERR_LIMIT_EXCEEDED",
-                                0x15 => "CTAP2_ERR_UNSUPPORTED_EXTENSION",
-                                0x16 => "CTAP2_ERR_CREDENTIAL_EXCLUDED",
-                                0x21 => "CTAP2_ERR_OPERATION_DENIED",
-                                0x22 => "CTAP2_ERR_KEY_STORE_FULL",
-                                0x2D => "CTAP2_ERR_REQUEST_TOO_LARGE",
-                                0x2E => "CTAP2_ERR_NO_CREDENTIALS",
-                                0x31 => "CTAP2_ERR_PIN_INVALID",
-                                0x32 => "CTAP2_ERR_PIN_BLOCKED",
-                                0x33 => "CTAP2_ERR_PIN_AUTH_INVALID",
-                                0x34 => "CTAP2_ERR_PIN_AUTH_BLOCKED",
-                                0x35 => "CTAP2_ERR_PIN_NOT_SET",
-                                0x36 => "CTAP2_ERR_PIN_REQUIRED",
-                                0x37 => "CTAP2_ERR_PIN_POLICY_VIOLATION",
-                                0x38 => "CTAP2_ERR_PIN_TOKEN_EXPIRED",
-                                _ => "UNKNOWN_ERROR",
-                            };
-                            println!("[CTAP] Response status: {} (0x{:02x})", error_name, status);
-                        }
-                    }
-
                     let response_msg = Message::new(cid, Cmd::Cbor, response_buffer.clone());
                     send_message(uhid, &response_msg)?;
                 }
                 Err(e) => {
-                    println!("[CTAP] ✗ Command failed: {:?}", e);
+                    eprintln!("CTAP command failed: {:?}", e);
                     let response_msg = Message::new(cid, Cmd::Cbor, vec![0x01]);
                     send_message(uhid, &response_msg)?;
                 }
@@ -450,86 +264,28 @@ fn process_message(
                 response_data.push(0); // Minor device version
                 response_data.push(0); // Build device version
 
-                // Advertise CBOR support WITHOUT NMSG flag
-                // CRITICAL: Setting NMSG=false (NOT setting the bit) matches Zig implementation.
-                // Paradoxically, when we claim to support U2F (NMSG=0), clients skip U2F probing
-                // and go straight to CTAP2. When we claim NOT to support U2F (NMSG=1), buggy
-                // clients probe anyway. This is the opposite of what the spec says but matches
-                // real-world WebAuthn client behavior.
-                let capabilities = 0x04; // CBOR only (0x04), NMSG=0 (claim to support U2F)
+                // Advertise CBOR support without NMSG flag
+                let capabilities = 0x04; // CBOR only
                 response_data.push(capabilities);
 
-                println!(
-                    "[CTAP] INIT command processed (allocated NEW CID: 0x{:08x})",
-                    allocated_cid
-                );
-                println!("[CTAP] INIT response details:");
-                println!("[CTAP]   Nonce: {}", hex::encode(&response_data[0..8]));
-                println!("[CTAP]   New CID: 0x{:08x}", allocated_cid);
-                println!("[CTAP]   Protocol version: {}", response_data[12]);
-                println!("[CTAP]   Device version: {}.{}.{}", response_data[13], response_data[14], response_data[15]);
-                println!("[CTAP]   Capabilities: 0x{:02x}", capabilities);
-                println!("[CTAP]     - WINK: {}", if capabilities & 0x01 != 0 { "yes" } else { "no" });
-                println!("[CTAP]     - CBOR: {}", if capabilities & 0x04 != 0 { "yes" } else { "no" });
-                println!("[CTAP]     - NMSG: {}", if capabilities & 0x08 != 0 { "yes" } else { "no" });
-                println!("[CTAP]   Total response: {} bytes: {}", response_data.len(), hex::encode(&response_data));
                 // Respond on broadcast channel with new CID in payload
                 let response_msg = Message::new(0xffffffff, Cmd::Init, response_data);
                 send_message(uhid, &response_msg)?;
-            } else {
-                println!(
-                    "[CTAP] ⚠ INIT command with invalid data length: {}",
-                    message.data.len()
-                );
             }
         }
         Cmd::Ping => {
             // Echo ping data
-            println!(
-                "[CTAP] PING command processed ({} bytes)",
-                message.data.len()
-            );
             let response_msg = Message::new(cid, Cmd::Ping, message.data);
             send_message(uhid, &response_msg)?;
         }
         Cmd::Msg => {
-            // U2F/CTAP1 message - echo back unchanged (matches Zig implementation)
-            //
-            // IMPORTANT: Even though we advertise CBOR support (without NMSG flag),
-            // we don't actually implement U2F. If we receive MSG commands, we just
-            // echo them back. The Zig implementation does exactly this.
-            //
-            // This works because: with NMSG=0 (claiming U2F support), most clients
-            // skip U2F probing entirely and use CTAP2. If a client does send MSG,
-            // echoing it confuses them and they fall back to CTAP2.
-            println!("[CTAP] ⚠ Received CTAP1/U2F Msg command (should not happen with NMSG=0)");
-            println!("[CTAP]   Payload: {} bytes: {}",
-                message.data.len(),
-                hex::encode(&message.data[..message.data.len().min(32)]));
-
-            // Decode U2F command type if present (for debugging)
-            if !message.data.is_empty() {
-                let u2f_cmd = message.data[0];
-                let u2f_cmd_name = match u2f_cmd {
-                    0x00 => "U2F_REGISTER (not supported)",
-                    0x01 => "U2F_AUTHENTICATE (not supported)",
-                    0x02 => "U2F_VERSION",
-                    _ => "Unknown U2F command",
-                };
-                println!("[CTAP]   U2F command: 0x{:02x} ({})", u2f_cmd, u2f_cmd_name);
-            }
-
-            println!("[CTAP]   Sending CTAPHID_ERR_INVALID_CMD error (U2F not supported)");
-            // Send CTAPHID error: ERR_INVALID_CMD (0x01) - U2F not supported
+            // U2F/CTAP1 not supported - return error
             let error_data = vec![0x01]; // ERR_INVALID_CMD
             let response_msg = Message::new(cid, Cmd::Error, error_data);
             send_message(uhid, &response_msg)?;
         }
         _ => {
-            println!("[CTAP] ⚠ Unknown command: {:?}", cmd);
-            println!("[CTAP]   Sending CTAPHID_ERR_INVALID_CMD error");
-
-            // Send CTAPHID error: ERR_INVALID_CMD (0x01)
+            // Unknown command - return error
             let error_data = vec![0x01]; // ERR_INVALID_CMD
             let response_msg = Message::new(cid, Cmd::Error, error_data);
             send_message(uhid, &response_msg)?;
@@ -541,29 +297,17 @@ fn process_message(
 
 /// Send a CTAP HID message via UHID
 fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
-    let packets = message.to_packets().map_err(|e| {
-        println!("[CTAP] ✗ Failed to create packets from message: {:?}", e);
+    let packets = message.to_packets().map_err(|_e| {
         keylib::common::Error::Other
     })?;
 
-    println!(
-        "[CTAP] Sending response: {} packet(s), {} bytes total",
-        packets.len(),
-        message.data.len()
-    );
-
-    for (i, packet) in packets.iter().enumerate() {
+    for packet in packets.iter() {
         match uhid.write_packet(packet.as_bytes()) {
             Ok(_) => {
-                println!("[UHID] ✓ Sent packet {}/{}", i + 1, packets.len());
+                // Packet sent successfully
             }
             Err(e) => {
-                println!(
-                    "[UHID] ✗ Failed to send packet {}/{}: {:?}",
-                    i + 1,
-                    packets.len(),
-                    e
-                );
+                eprintln!("Failed to send packet: {:?}", e);
                 return Err(e);
             }
         }

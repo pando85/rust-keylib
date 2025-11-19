@@ -164,19 +164,6 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
     }
 
     let response = builder.build()?;
-
-    // DEBUG: Show what we're sending (matching Zig debug format)
-    eprintln!("DEBUG Rust getInfo: {} bytes, {} fields (first byte: 0x{:02x})",
-        response.len(),
-        if response.len() > 0 && response[0] >= 0xa0 { response[0] - 0xa0 } else { 0 },
-        if response.len() > 0 { response[0] } else { 0 });
-    eprintln!("DEBUG Rust getInfo: extensions={:?}", config.extensions);
-    eprintln!("DEBUG Rust getInfo: clientPin={} plat={}", auth.is_pin_set(), config.options.plat);
-    eprintln!("DEBUG Rust getInfo CBOR (full hex):");
-    for chunk in response.chunks(32) {
-        eprintln!("  {}", chunk.iter().map(|b| format!("{:02x}", b)).collect::<String>());
-    }
-
     Ok(response)
 }
 

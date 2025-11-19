@@ -49,37 +49,23 @@ pub fn handle<C: AuthenticatorCallbacks>(
     auth: &mut Authenticator<C>,
     data: &[u8],
 ) -> Result<Vec<u8>> {
-    eprintln!("[DEBUG][getAssertion] Processing getAssertion request ({} bytes)", data.len());
-
     let parser = MapParser::from_bytes(data)?;
 
-    // 1. Parse required parameters
+    // Parse required parameters
     let rp_id: String = parser.get(req_keys::RP_ID)?;
-    eprintln!("[DEBUG][getAssertion] RP ID: {}", rp_id);
-
     let client_data_hash: Vec<u8> = parser.get_bytes(req_keys::CLIENT_DATA_HASH)?;
     if client_data_hash.len() != 32 {
         return Err(StatusCode::InvalidParameter);
     }
-    eprintln!("[DEBUG][getAssertion] ✓ clientDataHash: {} bytes", client_data_hash.len());
 
-    // 2. Parse optional parameters - allowList
-    eprintln!("[DEBUG][getAssertion] Parsing allowList (key 0x{:02x})...", req_keys::ALLOW_LIST);
-
-    // Manually parse allowList to handle CBOR byte strings correctly
+    // Parse allowList - manual parsing required to handle CBOR byte strings correctly
+    // (automatic serde deserialization fails on CBOR Bytes type for credential IDs)
     let allow_list: Option<Vec<PublicKeyCredentialDescriptor>> =
         if let Some(raw_allow_list) = parser.get_raw(req_keys::ALLOW_LIST) {
-            eprintln!("[DEBUG][getAssertion] Raw allowList CBOR value: {:?}", raw_allow_list);
-
             match raw_allow_list {
                 ciborium::Value::Array(arr) => {
-                    eprintln!("[DEBUG][getAssertion] allowList is CBOR Array with {} elements", arr.len());
-
                     let mut descriptors = Vec::new();
-                    for (idx, elem) in arr.iter().enumerate() {
-                        eprintln!("[DEBUG][getAssertion]   Element {}: {:?}", idx, elem);
-
-                        // Each element should be a map with "type", "id", and optionally "transports"
+                    for elem in arr.iter() {
                         if let ciborium::Value::Map(map) = elem {
                             let mut cred_type = None;
                             let mut id = None;
@@ -94,14 +80,12 @@ pub fn handle<C: AuthenticatorCallbacks>(
                                             }
                                         }
                                         "id" => {
-                                            // CRITICAL: Handle CBOR byte string for credential ID
+                                            // Handle CBOR byte string (correct) or array (legacy fallback)
                                             match value {
                                                 ciborium::Value::Bytes(bytes) => {
                                                     id = Some(bytes.clone());
-                                                    eprintln!("[DEBUG][getAssertion]     ✓ id is CBOR Bytes ({} bytes)", bytes.len());
                                                 }
                                                 ciborium::Value::Array(arr) => {
-                                                    // Handle legacy array encoding (shouldn't happen but handle it)
                                                     let bytes: Vec<u8> = arr.iter()
                                                         .filter_map(|v| {
                                                             if let ciborium::Value::Integer(i) = v {
@@ -117,12 +101,8 @@ pub fn handle<C: AuthenticatorCallbacks>(
                                                         })
                                                         .collect();
                                                     id = Some(bytes);
-                                                    eprintln!("[DEBUG][getAssertion]     ⚠ id is CBOR Array (legacy), converted to {} bytes", arr.len());
                                                 }
-                                                _ => {
-                                                    eprintln!("[DEBUG][getAssertion]     ✗ id has unexpected type: {:?}", value);
-                                                    return Err(StatusCode::InvalidCbor);
-                                                }
+                                                _ => return Err(StatusCode::InvalidCbor),
                                             }
                                         }
                                         "transports" => {
@@ -139,43 +119,29 @@ pub fn handle<C: AuthenticatorCallbacks>(
                                                 transports = Some(trans);
                                             }
                                         }
-                                        _ => {
-                                            eprintln!("[DEBUG][getAssertion]     Unknown key: {}", key_str);
-                                        }
+                                        _ => {} // Ignore unknown keys
                                     }
                                 }
                             }
 
-                            // Construct the descriptor
                             if let (Some(cred_type), Some(id)) = (cred_type, id) {
-                                let descriptor = PublicKeyCredentialDescriptor {
+                                descriptors.push(PublicKeyCredentialDescriptor {
                                     cred_type,
                                     id,
                                     transports,
-                                };
-                                eprintln!("[DEBUG][getAssertion]   ✓ Parsed descriptor {}: type={}, id_len={}",
-                                    idx, descriptor.cred_type, descriptor.id.len());
-                                descriptors.push(descriptor);
+                                });
                             } else {
-                                eprintln!("[DEBUG][getAssertion]   ✗ Missing required fields in descriptor {}", idx);
                                 return Err(StatusCode::InvalidCbor);
                             }
                         } else {
-                            eprintln!("[DEBUG][getAssertion]   ✗ Element {} is not a Map: {:?}", idx, elem);
                             return Err(StatusCode::InvalidCbor);
                         }
                     }
-
-                    eprintln!("[DEBUG][getAssertion] ✓ allowList parsed successfully: {} credentials", descriptors.len());
                     Some(descriptors)
                 }
-                _ => {
-                    eprintln!("[DEBUG][getAssertion] ✗ allowList is not an array");
-                    return Err(StatusCode::InvalidCbor);
-                }
+                _ => return Err(StatusCode::InvalidCbor),
             }
         } else {
-            eprintln!("[DEBUG][getAssertion] ✓ allowList not present (will search resident credentials)");
             None
         };
 

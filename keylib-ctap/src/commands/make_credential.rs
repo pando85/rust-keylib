@@ -54,143 +54,35 @@ pub fn handle<C: AuthenticatorCallbacks>(
     auth: &mut Authenticator<C>,
     data: &[u8],
 ) -> Result<Vec<u8>> {
-    eprintln!("[DEBUG][makeCredential] Processing makeCredential request ({} bytes)", data.len());
+    let parser = MapParser::from_bytes(data)?;
 
-    // Debug: show CBOR structure
-    if let Ok(value) = ciborium::de::from_reader::<ciborium::Value, _>(&data[..]) {
-        if let ciborium::Value::Map(map) = &value {
-            eprintln!("[DEBUG][makeCredential] CBOR map keys present:");
-            for (k, _) in map {
-                if let ciborium::Value::Integer(i) = k {
-                    let key_num: i128 = (*i).into();
-                    let key_name = match key_num {
-                        0x01 => "clientDataHash",
-                        0x02 => "rp",
-                        0x03 => "user",
-                        0x04 => "pubKeyCredParams",
-                        0x05 => "excludeList",
-                        0x06 => "extensions",
-                        0x07 => "options",
-                        0x08 => "pinUvAuthParam",
-                        0x09 => "pinUvAuthProtocol",
-                        _ => "unknown",
-                    };
-                    eprintln!("[DEBUG][makeCredential]   0x{:02x}: {}", key_num, key_name);
-                }
-            }
-        }
-    }
-
-    eprintln!("[DEBUG][makeCredential] Creating MapParser from {} bytes...", data.len());
-    let parser = MapParser::from_bytes(data).map_err(|e| {
-        eprintln!("[DEBUG][makeCredential] ✗ Failed to create MapParser: {:?}", e);
-        e
-    })?;
-    eprintln!("[DEBUG][makeCredential] ✓ MapParser created successfully");
-
-    // 1. Parse required parameters
-    eprintln!("[DEBUG][makeCredential] Parsing clientDataHash (key 0x01)...");
-
-    // Debug: show what type clientDataHash actually is
-    if let Some(raw_value) = parser.get_raw(req_keys::CLIENT_DATA_HASH) {
-        let value_type = match raw_value {
-            ciborium::Value::Integer(_) => "Integer",
-            ciborium::Value::Bytes(_) => "Bytes",
-            ciborium::Value::Text(_) => "Text",
-            ciborium::Value::Array(_) => "Array",
-            ciborium::Value::Map(_) => "Map",
-            ciborium::Value::Bool(_) => "Bool",
-            ciborium::Value::Null => "Null",
-            _ => "Other",
-        };
-        eprintln!("[DEBUG][makeCredential]   CBOR type of clientDataHash: {}", value_type);
-
-        if let ciborium::Value::Bytes(bytes) = raw_value {
-            eprintln!("[DEBUG][makeCredential]   clientDataHash is Bytes, length: {}", bytes.len());
-        } else if let ciborium::Value::Array(arr) = raw_value {
-            eprintln!("[DEBUG][makeCredential]   clientDataHash is Array, length: {}", arr.len());
-            if !arr.is_empty() {
-                eprintln!("[DEBUG][makeCredential]   First element type: {:?}",
-                    match &arr[0] {
-                        ciborium::Value::Integer(i) => format!("Integer({:?})", i),
-                        _ => format!("{:?}", arr[0]),
-                    }
-                );
-            }
-        }
-    }
-
-    let client_data_hash: Vec<u8> = parser.get_bytes(req_keys::CLIENT_DATA_HASH).map_err(|e| {
-        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse clientDataHash: {:?}", e);
-        eprintln!("[DEBUG][makeCredential]   This usually means the key is missing or wrong type");
-        eprintln!("[DEBUG][makeCredential]   Expected: CBOR Bytes type (major type 2)");
-        e
-    })?;
+    // Parse required parameters
+    let client_data_hash: Vec<u8> = parser.get_bytes(req_keys::CLIENT_DATA_HASH)?;
     if client_data_hash.len() != 32 {
         return Err(StatusCode::InvalidParameter);
     }
-    eprintln!("[DEBUG][makeCredential] ✓ client_data_hash: {} bytes", client_data_hash.len());
 
-    eprintln!("[DEBUG][makeCredential] Parsing rp (key 0x02)...");
-    let rp: RelyingParty = parser.get(req_keys::RP).map_err(|e| {
-        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse rp: {:?}", e);
-        e
-    })?;
-    eprintln!("[DEBUG][makeCredential] ✓ rp.id: {:?}", rp.id);
+    let rp: RelyingParty = parser.get(req_keys::RP)?;
 
-    eprintln!("[DEBUG][makeCredential] Parsing user (key 0x03)...");
-    let user = parse_user(&parser, req_keys::USER).map_err(|e| {
-        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse user: {:?}", e);
-        e
-    })?;
-    eprintln!("[DEBUG][makeCredential] ✓ user.id: {} bytes", user.id.len());
+    let user = parse_user(&parser, req_keys::USER)?;
 
-    eprintln!("[DEBUG][makeCredential] Parsing pubKeyCredParams (key 0x04)...");
     // Parse pub_key_cred_params as generic CBOR and convert
-    let params_value: ciborium::Value = parser.get(req_keys::PUB_KEY_CRED_PARAMS).map_err(|e| {
-        eprintln!("[DEBUG][makeCredential] ✗ Failed to get pubKeyCredParams value: {:?}", e);
-        e
-    })?;
+    let params_value: ciborium::Value = parser.get(req_keys::PUB_KEY_CRED_PARAMS)?;
     let pub_key_cred_params: Vec<PublicKeyCredentialParameters> =
-        crate::cbor::from_value(params_value).map_err(|e| {
-            eprintln!("[DEBUG][makeCredential] ✗ Failed to convert pubKeyCredParams: {:?}", e);
-            e
-        })?;
-    eprintln!("[DEBUG][makeCredential] ✓ pub_key_cred_params: {} algorithms", pub_key_cred_params.len());
+        crate::cbor::from_value(params_value)?;
 
-    // 2. Parse optional parameters
-    eprintln!("[DEBUG][makeCredential] Parsing optional parameters...");
+    // Parse optional parameters
     let exclude_list: Option<Vec<PublicKeyCredentialDescriptor>> =
-        parser.get_opt(req_keys::EXCLUDE_LIST).map_err(|e| {
-            eprintln!("[DEBUG][makeCredential] ✗ Failed to parse excludeList: {:?}", e);
-            e
-        })?;
+        parser.get_opt(req_keys::EXCLUDE_LIST)?;
     // Parse pinUvAuthParam as bytes (use get_bytes for CBOR Bytes type)
     let pin_uv_auth_param: Option<Vec<u8>> = if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {
-        Some(parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM).map_err(|e| {
-            eprintln!("[DEBUG][makeCredential] ✗ Failed to parse pinUvAuthParam: {:?}", e);
-            e
-        })?)
+        Some(parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?)
     } else {
         None
     };
-    let pin_uv_auth_protocol: Option<u8> = parser.get_opt(req_keys::PIN_UV_AUTH_PROTOCOL).map_err(|e| {
-        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse pinUvAuthProtocol: {:?}", e);
-        e
-    })?;
+    let pin_uv_auth_protocol: Option<u8> = parser.get_opt(req_keys::PIN_UV_AUTH_PROTOCOL)?;
 
-    eprintln!("[DEBUG][makeCredential] Optional parameters:");
-    eprintln!("[DEBUG][makeCredential]   exclude_list: {}", if exclude_list.is_some() { "present" } else { "none" });
-    eprintln!("[DEBUG][makeCredential]   pin_uv_auth_param: {}", if let Some(ref p) = pin_uv_auth_param { format!("{} bytes", p.len()) } else { "none".to_string() });
-    eprintln!("[DEBUG][makeCredential]   pin_uv_auth_protocol: {:?}", pin_uv_auth_protocol);
-
-    // Parse options
-    eprintln!("[DEBUG][makeCredential] Parsing options (key 0x07)...");
-    let options = parse_options(&parser).map_err(|e| {
-        eprintln!("[DEBUG][makeCredential] ✗ Failed to parse options: {:?}", e);
-        e
-    })?;
-    eprintln!("[DEBUG][makeCredential] ✓ Options parsed: rk={}, up={}, uv={}", options.rk, options.up, options.uv);
+    let options = parse_options(&parser)?;
 
     // Parse extensions
     let extensions =
@@ -206,22 +98,15 @@ pub fn handle<C: AuthenticatorCallbacks>(
         .find(|p| auth.config().algorithms.contains(&p.alg))
         .ok_or(StatusCode::UnsupportedAlgorithm)?;
 
-    // 4. Verify PIN/UV auth if present
+    // Verify PIN/UV auth if present
     if let Some(_pin_auth) = &pin_uv_auth_param {
-        eprintln!("[DEBUG][makeCredential] PIN/UV auth present, verifying protocol...");
-        let _protocol = pin_uv_auth_protocol.ok_or_else(|| {
-            eprintln!("[DEBUG][makeCredential] ✗ pinUvAuthProtocol missing! (CTAP2_ERR_MISSING_PARAMETER)");
-            StatusCode::MissingParameter
-        })?;
-        eprintln!("[DEBUG][makeCredential] ✓ pinUvAuthProtocol: {}", _protocol);
+        let _protocol = pin_uv_auth_protocol.ok_or(StatusCode::MissingParameter)?;
 
         // TODO: Implement PIN token verification
         // For now, just check if PIN is set when pin_auth is provided
         if !auth.is_pin_set() {
-            eprintln!("[DEBUG][makeCredential] ✗ PIN not set");
             return Err(StatusCode::PinNotSet);
         }
-        eprintln!("[DEBUG][makeCredential] ✓ PIN is set");
     }
 
     // 5. Check excluded credentials
@@ -265,19 +150,12 @@ pub fn handle<C: AuthenticatorCallbacks>(
         }
     }
 
-    // 8. Generate credential key pair
+    // Generate credential key pair
     let (private_key, public_key_bytes) = ecdsa::generate_keypair();
 
-    // 9. Generate credential ID
-    eprintln!("[DEBUG][makeCredential] Credential storage:");
-    eprintln!("[DEBUG][makeCredential]   options.rk (resident key): {}", options.rk);
-
+    // Generate credential ID
     let credential_id = if options.rk || auth.config().force_resident_keys {
         // Resident key: generate random ID and store credential
-        if auth.config().force_resident_keys && !options.rk {
-            eprintln!("[DEBUG][makeCredential]   ⚙ Force resident keys enabled: converting to resident key");
-        }
-        eprintln!("[DEBUG][makeCredential]   ✓ Resident key: storing credential in persistent storage");
         let id = generate_credential_id();
 
         let cred_protect_value = extensions
@@ -301,18 +179,12 @@ pub fn handle<C: AuthenticatorCallbacks>(
         };
 
         auth.callbacks().write_credential(&credential)?;
-        eprintln!("[DEBUG][makeCredential]   ✓ Credential stored successfully");
 
         id
     } else {
         // Non-resident key: wrap private key into credential ID
-        eprintln!("[DEBUG][makeCredential]   ✓ Non-resident key: wrapping private key into credential ID");
-        let wrapped_id = auth.wrap_credential(&private_key, &rp.id, alg.alg)?;
-        eprintln!("[DEBUG][makeCredential]   ✓ Wrapped credential ID: {} bytes", wrapped_id.len());
-        wrapped_id
+        auth.wrap_credential(&private_key, &rp.id, alg.alg)?
     };
-
-    eprintln!("[DEBUG][makeCredential]   Final credential ID: {} bytes", credential_id.len());
 
     // 11. Build extension outputs
     let extension_outputs = extensions.build_outputs(auth.config().min_pin_length);
