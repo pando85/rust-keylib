@@ -1,8 +1,8 @@
-//! Pure Rust UHID Support
+//! Linux UHID Virtual Device Support
 //!
-//! Provides UHID (Userspace HID) device support matching the zig-ffi API.
+//! Provides UHID (Userspace HID) virtual device support for testing and development.
 
-use crate::common::{Error, Result};
+use crate::error::{Error, Result};
 
 #[cfg(target_os = "linux")]
 use keylib_transport::UhidDevice;

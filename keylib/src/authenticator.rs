@@ -1,8 +1,9 @@
-//! Pure Rust Authenticator Implementation
+//! FIDO2 Authenticator Implementation
 //!
-//! Provides a high-level interface matching the zig-ffi Authenticator API.
+//! Provides a high-level FIDO2 authenticator with callback-based user interaction.
 
-use crate::common::{Credential, CredentialRef, Error, Result};
+use crate::error::{Error, Result};
+use crate::types::{Credential, CredentialRef};
 
 use keylib_ctap::{
     CommandDispatcher, StatusCode,
@@ -384,8 +385,8 @@ impl CredentialStorageCallbacks for CallbackAdapter {
 #[derive(Debug, Clone)]
 pub struct AuthenticatorConfig {
     pub aaguid: [u8; 16],
-    pub commands: Vec<super::ctap_command::CtapCommand>,
-    pub options: Option<super::authenticator_options::AuthenticatorOptions>,
+    pub commands: Vec<crate::ctap::CtapCommand>,
+    pub options: Option<crate::options::AuthenticatorOptions>,
     pub max_credentials: usize,
     pub extensions: Vec<String>,
     pub force_resident_keys: bool,
@@ -396,7 +397,7 @@ impl Default for AuthenticatorConfig {
     fn default() -> Self {
         Self {
             aaguid: [0u8; 16],
-            commands: super::ctap_command::CtapCommand::default_commands(),
+            commands: crate::ctap::CtapCommand::default_commands(),
             options: None,
             max_credentials: 100,
             extensions: vec![],
@@ -416,8 +417,8 @@ impl AuthenticatorConfig {
 #[derive(Default)]
 pub struct AuthenticatorConfigBuilder {
     aaguid: [u8; 16],
-    commands: Vec<super::ctap_command::CtapCommand>,
-    options: Option<super::authenticator_options::AuthenticatorOptions>,
+    commands: Vec<crate::ctap::CtapCommand>,
+    options: Option<crate::options::AuthenticatorOptions>,
     max_credentials: usize,
     extensions: Vec<String>,
     force_resident_keys: bool,
@@ -434,12 +435,12 @@ impl AuthenticatorConfigBuilder {
         self
     }
 
-    pub fn commands(mut self, commands: Vec<super::ctap_command::CtapCommand>) -> Self {
+    pub fn commands(mut self, commands: Vec<crate::ctap::CtapCommand>) -> Self {
         self.commands = commands;
         self
     }
 
-    pub fn options(mut self, options: super::authenticator_options::AuthenticatorOptions) -> Self {
+    pub fn options(mut self, options: crate::options::AuthenticatorOptions) -> Self {
         self.options = Some(options);
         self
     }
@@ -468,7 +469,7 @@ impl AuthenticatorConfigBuilder {
         AuthenticatorConfig {
             aaguid: self.aaguid,
             commands: if self.commands.is_empty() {
-                super::ctap_command::CtapCommand::default_commands()
+                crate::ctap::CtapCommand::default_commands()
             } else {
                 self.commands
             },

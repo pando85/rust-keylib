@@ -14,13 +14,13 @@
 //! ```
 
 use base64::Engine;
-use keylib::common::{
+use keylib::{
     ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth, PinUvAuthProtocol,
     RelyingParty, Result, User,
 };
-use keylib::rust_impl::client::Client;
-use keylib::rust_impl::client_pin::{PinProtocol, PinUvAuthEncapsulation};
-use keylib::rust_impl::transport::TransportList;
+use keylib::client::Client;
+use keylib::{PinProtocol, PinUvAuthEncapsulation};
+use keylib::transport::TransportList;
 use sha2::{Digest, Sha256};
 
 const PIN: &str = "123456";
@@ -51,7 +51,7 @@ fn main() -> Result<()> {
 
     println!("      ✓ Found {} authenticator(s)", list.len());
 
-    let mut transport = list.get(0).ok_or(keylib::common::Error::Other)?;
+    let mut transport = list.get(0).ok_or(keylib::Error::Other)?;
     transport.open()?;
     println!("      ✓ Connected to authenticator\n");
 

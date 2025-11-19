@@ -1,6 +1,6 @@
-//! Unified credential types for both zig-ffi and pure-rust implementations
+//! Common types for FIDO2/WebAuthn operations
 
-use super::error::{Error, Result};
+use crate::error::{Error, Result};
 
 use serde::{Deserialize, Serialize};
 

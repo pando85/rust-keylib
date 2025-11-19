@@ -19,10 +19,10 @@
 //! cargo run --example credential_management --features pure-rust
 //! ```
 
-use keylib::common::Result;
-use keylib::rust_impl::client::Client;
-use keylib::rust_impl::client_pin::{PinProtocol, PinUvAuthEncapsulation};
-use keylib::rust_impl::transport::TransportList;
+use keylib::Result;
+use keylib::client::Client;
+use keylib::{PinProtocol, PinUvAuthEncapsulation};
+use keylib::transport::TransportList;
 
 use ciborium::value::Value;
 
@@ -47,7 +47,7 @@ fn main() -> Result<()> {
 
     println!("    ✓ Found {} authenticator(s)\n", list.len());
 
-    let mut transport = list.get(0).ok_or(keylib::common::Error::Other)?;
+    let mut transport = list.get(0).ok_or(keylib::Error::Other)?;
     transport.open()?;
     println!("[2] Connected to authenticator\n");
 

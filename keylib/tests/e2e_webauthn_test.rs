@@ -8,8 +8,7 @@
 //! These tests require:
 //! - Linux with UHID kernel module loaded
 //! - Proper permissions to access /dev/uhid
-//! - Run with: cargo test --test e2e_webauthn_test --features zig-ffi
-//!   or: cargo test --test e2e_webauthn_test --features pure-rust
+//! - Run with: cargo test --test e2e_webauthn_test
 //!
 //! # Test Flow
 //!
@@ -18,53 +17,12 @@
 //! 3. Use the Client API to perform authentication (getAssertion)
 //! 4. Verify the complete flow succeeds
 
-// Compile with either feature
-#![allow(unexpected_cfgs)]
-#![cfg(any(feature = "zig-ffi", feature = "pure-rust"))]
-
-// Feature-specific imports for zig-ffi
-#[cfg(feature = "zig-ffi")]
-use keylib::client::{
-    Client, ClientDataHash, GetAssertionRequest, MakeCredentialRequest, PinUvAuth,
-    PinUvAuthProtocol, TransportList, User,
-};
-#[cfg(feature = "zig-ffi")]
-use keylib::client_pin::{PinProtocol, PinUvAuthEncapsulation};
-#[cfg(feature = "zig-ffi")]
-use keylib::credential::RelyingParty;
-#[cfg(feature = "zig-ffi")]
-use keylib::ctaphid::Ctaphid;
-#[cfg(feature = "zig-ffi")]
-use keylib::error::Result;
-#[cfg(feature = "zig-ffi")]
-use keylib::uhid::Uhid;
-#[cfg(feature = "zig-ffi")]
 use keylib::{
-    Authenticator, AuthenticatorConfig, AuthenticatorOptions, Callbacks, CtapCommand, UpResult,
-    UvResult,
+    Authenticator, AuthenticatorConfig, CallbacksBuilder, Client, ClientDataHash, Credential,
+    CredentialRef, Error, GetAssertionRequest, MakeCredentialRequest, PinProtocol, PinUvAuth,
+    PinUvAuthEncapsulation, PinUvAuthProtocol, RelyingParty, Result, TransportList, Uhid,
+    UpResult, User, UvResult,
 };
-
-// Feature-specific imports for pure-rust
-#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-use keylib::common::{
-    ClientDataHash, Credential, CredentialRef, GetAssertionRequest, MakeCredentialRequest,
-    PinUvAuth, PinUvAuthProtocol, RelyingParty, Result, User,
-};
-#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-use keylib::rust_impl::authenticator::{
-    Authenticator, AuthenticatorConfig, CallbacksBuilder, UpResult, UvResult,
-};
-#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-use keylib::rust_impl::client::Client;
-#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-use keylib::rust_impl::client_pin::{PinProtocol, PinUvAuthEncapsulation};
-#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-use keylib::rust_impl::transport::TransportList;
-#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-use keylib::rust_impl::uhid::Uhid;
-
-// CTAP transport types for pure-rust
-#[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
 use keylib_transport::{Cmd, Message, Packet};
 
 use base64::prelude::*;
@@ -302,7 +260,7 @@ fn run_test_authenticator(stop_flag: Arc<Mutex<bool>>, use_pin: bool) -> Result<
                 store
                     .get(cred_id)
                     .cloned()
-                    .ok_or(keylib::common::Error::DoesNotExist)
+                    .ok_or(Error::DoesNotExist)
             }))
             .delete(Arc::new(move |cred_id: &str| {
                 let mut store = creds_delete.lock().unwrap();
@@ -371,7 +329,7 @@ fn run_test_authenticator(stop_flag: Arc<Mutex<bool>>, use_pin: bool) -> Result<
     let uhid = Uhid::open().map_err(|_| {
         eprintln!("Failed to open UHID device.");
         eprintln!("Make sure you have the uhid kernel module loaded and proper permissions.");
-        keylib::common::Error::Other
+        Error::Other
     })?;
 
     println!("[Authenticator] Started and ready");
@@ -535,7 +493,7 @@ fn process_message_pure_rust(
     response_buffer: &mut Vec<u8>,
 ) -> Result<()> {
     // Reassemble message
-    let message = Message::from_packets(packets).map_err(|_e| keylib::common::Error::Other)?;
+    let message = Message::from_packets(packets).map_err(|_e| Error::Other)?;
 
     let cid = message.cid;
     let cmd = message.cmd;
@@ -589,7 +547,7 @@ fn process_message_pure_rust(
 fn send_message_pure_rust(uhid: &Uhid, message: &Message) -> Result<()> {
     let packets = message
         .to_packets()
-        .map_err(|_e| keylib::common::Error::Other)?;
+        .map_err(|_e| Error::Other)?;
 
     for packet in packets.iter() {
         uhid.write_packet(packet.as_bytes())?;
@@ -639,7 +597,7 @@ fn test_complete_webauthn_flow() -> Result<()> {
     let mut transport = list.get(0).ok_or(keylib::Error::Other)?;
 
     #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-    let mut transport = list.get(0).ok_or(keylib::common::Error::Other)?;
+    let mut transport = list.get(0).ok_or(Error::Other)?;
 
     transport.open()?;
     println!("[Test] ✓ Connected to authenticator\n");
@@ -776,7 +734,7 @@ fn test_registration_without_pin() -> Result<()> {
     let mut transport = list.get(0).ok_or(keylib::Error::Other)?;
 
     #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-    let mut transport = list.get(0).ok_or(keylib::common::Error::Other)?;
+    let mut transport = list.get(0).ok_or(Error::Other)?;
 
     transport.open()?;
 
@@ -840,7 +798,7 @@ fn test_pin_change_flow() -> Result<()> {
     let mut transport = list.get(0).ok_or(keylib::Error::Other)?;
 
     #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-    let mut transport = list.get(0).ok_or(keylib::common::Error::Other)?;
+    let mut transport = list.get(0).ok_or(Error::Other)?;
 
     transport.open()?;
     println!("[Test] ✓ Connected to authenticator\n");
@@ -1013,7 +971,7 @@ fn test_uv_only_authenticator() -> Result<()> {
     let mut transport = list.get(0).ok_or(keylib::Error::Other)?;
 
     #[cfg(all(feature = "pure-rust", not(feature = "zig-ffi")))]
-    let mut transport = list.get(0).ok_or(keylib::common::Error::Other)?;
+    let mut transport = list.get(0).ok_or(Error::Other)?;
 
     transport.open()?;
     println!("[Test] ✓ Connected to UV-only authenticator\n");

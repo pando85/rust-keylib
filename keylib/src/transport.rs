@@ -1,8 +1,8 @@
-//! Pure Rust Transport Layer
+//! CTAP Transport Layer
 //!
-//! Provides USB HID and UHID transports with an API matching the zig-ffi implementation.
+//! Provides USB HID and Linux UHID transport implementations for CTAP communication.
 
-use crate::common::{Error, Result};
+use crate::error::{Error, Result};
 
 #[cfg(target_os = "linux")]
 use keylib_transport::UhidDevice;

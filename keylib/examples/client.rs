@@ -7,8 +7,8 @@
 //! cargo run --example client --features pure-rust
 //! ```
 
-use keylib::rust_impl::client::Client;
-use keylib::rust_impl::transport::TransportList;
+use keylib::client::Client;
+use keylib::transport::TransportList;
 
 fn main() {
     println!("Keylib Rust Client Example");

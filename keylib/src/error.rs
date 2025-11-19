@@ -1,8 +1,8 @@
-//! Unified error types for both zig-ffi and pure-rust implementations
+//! Error types for CTAP operations
 
 use std::fmt;
 
-/// Unified error type that works with both implementations
+/// Error type for CTAP operations
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     /// The given operation was successful

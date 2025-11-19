@@ -7,11 +7,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use base64::Engine;
-use keylib::common::Credential;
-use keylib::rust_impl::authenticator::{
-    Authenticator, AuthenticatorConfig, CallbacksBuilder, UpResult, UvResult,
+use keylib::{
+    Authenticator, AuthenticatorConfig, AuthenticatorOptions, CallbacksBuilder, Credential, Error,
+    UpResult, UvResult,
 };
-use keylib::rust_impl::authenticator_options::AuthenticatorOptions;
 use sha2::{Digest, Sha256};
 
 const PIN: &str = "123456";
@@ -51,7 +50,7 @@ fn test_webauthn_inmemory_flow() {
             store
                 .get(cred_id)
                 .cloned()
-                .ok_or(keylib::common::Error::DoesNotExist)
+                .ok_or(Error::DoesNotExist)
         }))
         .delete(Arc::new(move |cred_id| {
             let mut store = creds_delete.lock().unwrap();

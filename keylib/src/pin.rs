@@ -1,9 +1,10 @@
-//! Pure Rust PIN Protocol Support
+//! CTAP2 PIN Protocol Support
 //!
-//! Provides PIN/UV authentication protocol implementation matching zig-ffi.
+//! Provides PIN/UV authentication protocol implementation for CTAP2.
 
-use crate::common::{Error, PinUvAuthProtocol, Result};
-use crate::rust_impl::transport::Transport;
+use crate::error::{Error, Result};
+use crate::request::PinUvAuthProtocol;
+use crate::transport::Transport;
 
 use keylib_crypto::pin_protocol;
 

@@ -1,7 +1,7 @@
-//! Unified client types for both zig-ffi and pure-rust implementations
+//! Request and response types for CTAP client operations
 
-use super::credential::{RelyingParty, User};
-use super::error::{Error, Result};
+use crate::error::{Error, Result};
+use crate::types::{RelyingParty, User};
 
 /// A validated client data hash (must be exactly 32 bytes)
 ///

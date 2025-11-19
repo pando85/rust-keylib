@@ -20,12 +20,12 @@
 //!
 //! The authenticator will run until you press Ctrl+C.
 
-use keylib::common::{Credential, CredentialRef, Result};
-use keylib::rust_impl::authenticator::{
+use keylib::{Credential, CredentialRef, Result};
+use keylib::authenticator::{
     Authenticator, AuthenticatorConfig, CallbacksBuilder, UpResult, UvResult,
 };
-use keylib::rust_impl::authenticator_options::AuthenticatorOptions;
-use keylib::rust_impl::uhid::Uhid;
+use keylib::AuthenticatorOptions;
+use keylib::uhid::Uhid;
 
 use keylib_transport::{Cmd, Message, Packet};
 
@@ -92,7 +92,7 @@ fn main() -> Result<()> {
             store
                 .get(cred_id)
                 .cloned()
-                .ok_or(keylib::common::Error::DoesNotExist)
+                .ok_or(keylib::Error::DoesNotExist)
         }))
         .delete(Arc::new(move |cred_id| {
             let mut store = creds_delete.lock().unwrap();
@@ -224,7 +224,7 @@ fn process_message(
     response_buffer: &mut Vec<u8>,
     next_channel_id: &mut u32,
 ) -> Result<()> {
-    let message = Message::from_packets(packets).map_err(|_e| keylib::common::Error::Other)?;
+    let message = Message::from_packets(packets).map_err(|_e| keylib::Error::Other)?;
 
     let cid = message.cid;
     let cmd = message.cmd;
@@ -294,7 +294,7 @@ fn process_message(
 fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
     let packets = message
         .to_packets()
-        .map_err(|_e| keylib::common::Error::Other)?;
+        .map_err(|_e| keylib::Error::Other)?;
 
     for packet in packets.iter() {
         match uhid.write_packet(packet.as_bytes()) {

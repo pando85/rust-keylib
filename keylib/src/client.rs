@@ -1,9 +1,10 @@
-//! Pure Rust Client API
+//! FIDO2 Client API
 //!
-//! Provides high-level client interface matching the zig-ffi implementation.
+//! High-level client interface for communicating with FIDO2 authenticators.
 
-use crate::common::{Error, GetAssertionRequest, MakeCredentialRequest, Result};
-use crate::rust_impl::transport::Transport;
+use crate::error::{Error, Result};
+use crate::request::{GetAssertionRequest, MakeCredentialRequest};
+use crate::transport::Transport;
 
 use ciborium::value::Value;
 
@@ -463,7 +464,8 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::{ClientDataHash, RelyingParty, User};
+    use crate::request::ClientDataHash;
+    use crate::types::{RelyingParty, User};
 
     #[test]
     fn test_make_credential_request_encoding() {

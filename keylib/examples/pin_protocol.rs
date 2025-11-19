@@ -18,9 +18,9 @@
 //! cargo run --example pin_protocol --features pure-rust
 //! ```
 
-use keylib::common::Result;
-use keylib::rust_impl::client_pin::{PinProtocol, PinUvAuthEncapsulation};
-use keylib::rust_impl::transport::TransportList;
+use keylib::Result;
+use keylib::{PinProtocol, PinUvAuthEncapsulation};
+use keylib::transport::TransportList;
 
 const PIN: &str = "123456";
 
@@ -42,7 +42,7 @@ fn main() -> Result<()> {
     println!("    ✓ Found {} authenticator(s)\n", list.len());
 
     // Open transport
-    let mut transport = list.get(0).ok_or(keylib::common::Error::Other)?;
+    let mut transport = list.get(0).ok_or(keylib::Error::Other)?;
     transport.open()?;
     println!("[2] Connected to authenticator\n");
 
