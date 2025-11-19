@@ -356,6 +356,10 @@ fn process_message<C: AuthenticatorCallbacks>(
                     eprintln!("[DEBUG] CTAP command succeeded, response: {} bytes", len);
                     if !response_buffer.is_empty() {
                         eprintln!("[DEBUG] Response status: 0x{:02x}", response_buffer[0]);
+                        // Show full response for makeCredential to debug issues
+                        if !message.data.is_empty() && message.data[0] == 0x01 {
+                            eprintln!("[DEBUG] makeCredential response (full): {:02x?}", &response_buffer[..response_buffer.len().min(128)]);
+                        }
                     }
                     let response_msg = Message::new(cid, Cmd::Cbor, response_buffer.clone());
                     send_message(uhid, &response_msg)?;
