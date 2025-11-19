@@ -321,14 +321,9 @@ fn main() -> Result<()> {
     println!("  Max Credentials: 100");
     println!();
 
-    // Set a virtual PIN hash before creating authenticator
-    // This makes getInfo report clientPin=true so browsers request UV
-    // We still auto-approve UV in callbacks, no actual PIN verification
-    use sha2::{Digest, Sha256};
-    let pin_hash: [u8; 32] = Sha256::digest(b"virtual-pin-1234").into();
-    Authenticator::set_pin_hash(&pin_hash);
-
-    // Create authenticator (will pick up the preset PIN hash)
+    // Create authenticator
+    // Note: clientPin=true is set via options config, which tells browsers we support UV
+    // We auto-approve all UV requests in callbacks (no actual PIN verification)
     let auth = Authenticator::with_config(callbacks, config)?;
 
     // Create UHID virtual device

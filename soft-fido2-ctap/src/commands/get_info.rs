@@ -84,15 +84,29 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
         cred_mgmt: Option<bool>,
     }
 
+    // Determine clientPin value: use configured option if set, otherwise check actual PIN state
+    let client_pin_value = config
+        .options
+        .client_pin
+        .unwrap_or_else(|| auth.is_pin_set());
+
     let options = Options {
         rk: Some(config.options.rk),
         up: Some(config.options.up),
         uv: config.options.uv,
-        plat: Some(false), // Roaming authenticator (security key) - browsers properly request UV via CTAP
-        client_pin: Some(auth.is_pin_set()),
+        plat: Some(config.options.plat),
+        client_pin: Some(client_pin_value),
         credential_mgmt_preview: Some(config.options.cred_mgmt),
         cred_mgmt: Some(config.options.cred_mgmt),
     };
+
+    // DEBUG: Log what we're reporting in getInfo
+    #[cfg(debug_assertions)]
+    eprintln!(
+        "[DEBUG getInfo] Reporting: rk={:?}, up={:?}, uv={:?}, plat={:?}, clientPin={:?}",
+        options.rk, options.up, options.uv, options.plat, options.client_pin
+    );
+
     builder = builder.insert(keys::OPTIONS, options)?;
 
     // Max message size (0x05) - SKIP to match Zig (Zig doesn't set this)

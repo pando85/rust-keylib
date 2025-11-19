@@ -558,6 +558,27 @@ impl Authenticator {
             ctap_config = ctap_config.with_firmware_version(fw_version);
         }
 
+        // Convert and apply high-level options to CTAP options
+        if let Some(ref hl_options) = config.options {
+            let ctap_options = soft_fido2_ctap::authenticator::AuthenticatorOptions {
+                plat: hl_options.plat,
+                rk: hl_options.rk,
+                client_pin: hl_options.client_pin,
+                up: hl_options.up,
+                uv: hl_options.uv,
+                always_uv: hl_options.always_uv.unwrap_or(false),
+                cred_mgmt: hl_options.cred_mgmt.unwrap_or(true),
+                authnr_cfg: false,
+                bio_enroll: hl_options.bio_enroll,
+                ep: hl_options.ep,
+                large_blobs: hl_options.large_blobs,
+                pin_uv_auth_token: hl_options.pin_uv_auth_token.unwrap_or(true),
+                set_min_pin_length: false,
+                make_cred_uv_not_required: false,
+            };
+            ctap_config = ctap_config.with_options(ctap_options);
+        }
+
         let mut authenticator = CtapAuthenticator::new(ctap_config, adapter);
 
         // Apply preset PIN hash if available (std version)

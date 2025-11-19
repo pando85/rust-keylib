@@ -89,10 +89,17 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // DEBUG: Log the options being received to diagnose UV Required test
     #[cfg(debug_assertions)]
-    eprintln!(
-        "[DEBUG makeCredential] Options received: rk={}, up={}, uv={}",
-        options.rk, options.up, options.uv
-    );
+    {
+        eprintln!(
+            "[DEBUG makeCredential] Options received: rk={}, up={}, uv={}",
+            options.rk, options.up, options.uv
+        );
+        eprintln!(
+            "[DEBUG makeCredential] PIN/UV auth: pinUvAuthParam={}, pinUvAuthProtocol={:?}",
+            pin_uv_auth_param.as_ref().map(|p| p.len()).unwrap_or(0),
+            pin_uv_auth_protocol
+        );
+    }
 
     // Parse extensions
     let extensions =
