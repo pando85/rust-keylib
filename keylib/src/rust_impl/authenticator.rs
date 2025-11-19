@@ -536,14 +536,13 @@ impl Authenticator {
         let mut authenticator = CtapAuthenticator::new(ctap_config, adapter);
 
         // Apply preset PIN hash if available (for zig-ffi API compatibility)
-        if let Some(lock) = PRESET_PIN_HASH.get() {
-            if let Ok(mut guard) = lock.lock() {
-                if let Some(pin_hash) = guard.take() {
-                    // Set the PIN hash directly on the authenticator
-                    // We use the internal method that sets the hash without validation
-                    authenticator.set_pin_hash_for_testing(pin_hash);
-                }
-            }
+        if let Some(lock) = PRESET_PIN_HASH.get()
+            && let Ok(mut guard) = lock.lock()
+            && let Some(pin_hash) = guard.take()
+        {
+            // Set the PIN hash directly on the authenticator
+            // We use the internal method that sets the hash without validation
+            authenticator.set_pin_hash_for_testing(pin_hash);
         }
 
         let dispatcher = CommandDispatcher::new(authenticator);

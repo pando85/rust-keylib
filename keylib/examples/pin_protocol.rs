@@ -52,17 +52,8 @@ fn main() -> Result<()> {
     let mut encapsulation = PinUvAuthEncapsulation::new(&mut transport, protocol)?;
     println!("    ✓ Using PIN protocol V2\n");
 
-    // Get PIN retries
-    println!("[4] Getting PIN retry counter...");
-    match encapsulation.get_pin_retries(&mut transport) {
-        Ok(retries) => {
-            println!("    ✓ PIN retries remaining: {}", retries);
-        }
-        Err(e) => {
-            println!("    ⚠ Failed to get PIN retries: {:?}", e);
-        }
-    }
-    println!();
+    // Note: PIN retries API is not yet implemented
+    println!("[4] PIN retry counter feature coming soon...\n");
 
     // Get PIN token with makeCredential permission
     println!("[5] Getting PIN token (PIN: {})...", PIN);

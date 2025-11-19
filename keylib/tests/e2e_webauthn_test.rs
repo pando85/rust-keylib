@@ -19,6 +19,7 @@
 //! 4. Verify the complete flow succeeds
 
 // Compile with either feature
+#![allow(unexpected_cfgs)]
 #![cfg(any(feature = "zig-ffi", feature = "pure-rust"))]
 
 // Feature-specific imports for zig-ffi

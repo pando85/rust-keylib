@@ -297,9 +297,7 @@ mod tests {
         wrong_data[0..4].copy_from_slice(&0x33333333u32.to_be_bytes());
         wrong_data[4] = 5; // Wrong sequence (should be 0)
         // Fill with some dummy data
-        for i in 5..64 {
-            wrong_data[i] = 0xFF;
-        }
+        wrong_data[5..64].fill(0xFF);
         let wrong_packet = Packet::from_bytes(wrong_data);
 
         let result = manager.process_packet(wrong_packet);

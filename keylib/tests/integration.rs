@@ -3,6 +3,7 @@
 //! TODO: Adapt these tests to work with both zig-ffi and pure-rust implementations
 
 // Only compile with zig-ffi for now
+#![allow(unexpected_cfgs)]
 #![cfg(feature = "zig-ffi")]
 
 use keylib::{client, client_pin};

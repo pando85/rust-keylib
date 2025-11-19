@@ -60,96 +60,100 @@ pub fn handle<C: AuthenticatorCallbacks>(
 
     // Parse allowList - manual parsing required to handle CBOR byte strings correctly
     // (automatic serde deserialization fails on CBOR Bytes type for credential IDs)
-    let allow_list: Option<Vec<PublicKeyCredentialDescriptor>> =
-        if let Some(raw_allow_list) = parser.get_raw(req_keys::ALLOW_LIST) {
-            match raw_allow_list {
-                ciborium::Value::Array(arr) => {
-                    let mut descriptors = Vec::new();
-                    for elem in arr.iter() {
-                        if let ciborium::Value::Map(map) = elem {
-                            let mut cred_type = None;
-                            let mut id = None;
-                            let mut transports = None;
+    let allow_list: Option<Vec<PublicKeyCredentialDescriptor>> = if let Some(raw_allow_list) =
+        parser.get_raw(req_keys::ALLOW_LIST)
+    {
+        match raw_allow_list {
+            ciborium::Value::Array(arr) => {
+                let mut descriptors = Vec::new();
+                for elem in arr.iter() {
+                    if let ciborium::Value::Map(map) = elem {
+                        let mut cred_type = None;
+                        let mut id = None;
+                        let mut transports = None;
 
-                            for (key, value) in map {
-                                if let ciborium::Value::Text(key_str) = key {
-                                    match key_str.as_str() {
-                                        "type" => {
-                                            if let ciborium::Value::Text(t) = value {
-                                                cred_type = Some(t.clone());
-                                            }
+                        for (key, value) in map {
+                            if let ciborium::Value::Text(key_str) = key {
+                                match key_str.as_str() {
+                                    "type" => {
+                                        if let ciborium::Value::Text(t) = value {
+                                            cred_type = Some(t.clone());
                                         }
-                                        "id" => {
-                                            // Handle CBOR byte string (correct) or array (legacy fallback)
-                                            match value {
-                                                ciborium::Value::Bytes(bytes) => {
-                                                    id = Some(bytes.clone());
-                                                }
-                                                ciborium::Value::Array(arr) => {
-                                                    let bytes: Vec<u8> = arr.iter()
-                                                        .filter_map(|v| {
-                                                            if let ciborium::Value::Integer(i) = v {
-                                                                let i128_val: i128 = (*i).into();
-                                                                if i128_val >= 0 && i128_val <= 255 {
-                                                                    Some(i128_val as u8)
-                                                                } else {
-                                                                    None
-                                                                }
+                                    }
+                                    "id" => {
+                                        // Handle CBOR byte string (correct) or array (legacy fallback)
+                                        match value {
+                                            ciborium::Value::Bytes(bytes) => {
+                                                id = Some(bytes.clone());
+                                            }
+                                            ciborium::Value::Array(arr) => {
+                                                let bytes: Vec<u8> = arr
+                                                    .iter()
+                                                    .filter_map(|v| {
+                                                        if let ciborium::Value::Integer(i) = v {
+                                                            let i128_val: i128 = (*i).into();
+                                                            if (0..=255).contains(&i128_val) {
+                                                                Some(i128_val as u8)
                                                             } else {
                                                                 None
                                                             }
-                                                        })
-                                                        .collect();
-                                                    id = Some(bytes);
-                                                }
-                                                _ => return Err(StatusCode::InvalidCbor),
-                                            }
-                                        }
-                                        "transports" => {
-                                            if let ciborium::Value::Array(trans_arr) = value {
-                                                let trans: Vec<String> = trans_arr.iter()
-                                                    .filter_map(|v| {
-                                                        if let ciborium::Value::Text(s) = v {
-                                                            Some(s.clone())
                                                         } else {
                                                             None
                                                         }
                                                     })
                                                     .collect();
-                                                transports = Some(trans);
+                                                id = Some(bytes);
                                             }
+                                            _ => return Err(StatusCode::InvalidCbor),
                                         }
-                                        _ => {} // Ignore unknown keys
                                     }
+                                    "transports" => {
+                                        if let ciborium::Value::Array(trans_arr) = value {
+                                            let trans: Vec<String> = trans_arr
+                                                .iter()
+                                                .filter_map(|v| {
+                                                    if let ciborium::Value::Text(s) = v {
+                                                        Some(s.clone())
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                                .collect();
+                                            transports = Some(trans);
+                                        }
+                                    }
+                                    _ => {} // Ignore unknown keys
                                 }
                             }
+                        }
 
-                            if let (Some(cred_type), Some(id)) = (cred_type, id) {
-                                descriptors.push(PublicKeyCredentialDescriptor {
-                                    cred_type,
-                                    id,
-                                    transports,
-                                });
-                            } else {
-                                return Err(StatusCode::InvalidCbor);
-                            }
+                        if let (Some(cred_type), Some(id)) = (cred_type, id) {
+                            descriptors.push(PublicKeyCredentialDescriptor {
+                                cred_type,
+                                id,
+                                transports,
+                            });
                         } else {
                             return Err(StatusCode::InvalidCbor);
                         }
+                    } else {
+                        return Err(StatusCode::InvalidCbor);
                     }
-                    Some(descriptors)
                 }
-                _ => return Err(StatusCode::InvalidCbor),
+                Some(descriptors)
             }
-        } else {
-            None
-        };
-
-    let pin_uv_auth_param: Option<Vec<u8>> = if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {
-        Some(parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?)
+            _ => return Err(StatusCode::InvalidCbor),
+        }
     } else {
         None
     };
+
+    let pin_uv_auth_param: Option<Vec<u8>> =
+        if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {
+            Some(parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?)
+        } else {
+            None
+        };
     let pin_uv_auth_protocol: Option<u8> = parser.get_opt(req_keys::PIN_UV_AUTH_PROTOCOL)?;
 
     // Parse options
@@ -178,33 +182,33 @@ pub fn handle<C: AuthenticatorCallbacks>(
         let mut creds = Vec::new();
         for desc in allow_list {
             // First try to find in storage
-            if let Ok(cred) = auth.callbacks().get_credential(&desc.id) {
-                if cred.rp_id == rp_id {
-                    creds.push(cred);
-                    continue;
-                }
+            if let Ok(cred) = auth.callbacks().get_credential(&desc.id)
+                && cred.rp_id == rp_id
+            {
+                creds.push(cred);
+                continue;
             }
 
             // If not found, try unwrapping (for non-resident credentials)
-            if let Ok((private_key, cred_rp_id, algorithm)) = auth.unwrap_credential(&desc.id) {
-                if cred_rp_id == rp_id {
-                    // Create a temporary credential from unwrapped data
-                    let cred = crate::types::Credential {
-                        id: desc.id.clone(),
-                        rp_id: cred_rp_id,
-                        rp_name: None,
-                        user_id: Vec::new(),      // Not stored in wrapped cred
-                        user_name: None,           // Not stored in wrapped cred
-                        user_display_name: None,   // Not stored in wrapped cred
-                        private_key,
-                        algorithm,
-                        sign_count: 0,             // Wrapped creds don't track sign count
-                        created: 0,                // Not tracked
-                        discoverable: false,       // Non-resident
-                        cred_protect: 0,           // Not tracked
-                    };
-                    creds.push(cred);
-                }
+            if let Ok((private_key, cred_rp_id, algorithm)) = auth.unwrap_credential(&desc.id)
+                && cred_rp_id == rp_id
+            {
+                // Create a temporary credential from unwrapped data
+                let cred = crate::types::Credential {
+                    id: desc.id.clone(),
+                    rp_id: cred_rp_id,
+                    rp_name: None,
+                    user_id: Vec::new(),     // Not stored in wrapped cred
+                    user_name: None,         // Not stored in wrapped cred
+                    user_display_name: None, // Not stored in wrapped cred
+                    private_key,
+                    algorithm,
+                    sign_count: 0,       // Wrapped creds don't track sign count
+                    created: 0,          // Not tracked
+                    discoverable: false, // Non-resident
+                    cred_protect: 0,     // Not tracked
+                };
+                creds.push(cred);
             }
         }
         creds
@@ -312,8 +316,8 @@ pub fn handle<C: AuthenticatorCallbacks>(
     // 13. Build response
     let mut builder = MapBuilder::new()
         .insert(resp_keys::CREDENTIAL, credential_desc)?
-        .insert_bytes(resp_keys::AUTH_DATA, &auth_data)?  // Must be CBOR bytes, not array!
-        .insert_bytes(resp_keys::SIGNATURE, &signature)?;  // Must be CBOR bytes, not array!
+        .insert_bytes(resp_keys::AUTH_DATA, &auth_data)? // Must be CBOR bytes, not array!
+        .insert_bytes(resp_keys::SIGNATURE, &signature)?; // Must be CBOR bytes, not array!
 
     // Add user info if credential was discoverable
     if selected_cred.discoverable {

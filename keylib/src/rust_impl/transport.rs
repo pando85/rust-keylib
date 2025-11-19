@@ -142,7 +142,7 @@ impl Transport {
     }
 
     /// Read data from the transport with timeout
-    pub fn read(&mut self, buffer: &mut [u8], timeout_ms: i32) -> Result<usize> {
+    pub fn read(&mut self, buffer: &mut [u8], _timeout_ms: i32) -> Result<usize> {
         let inner = self.inner.lock().unwrap();
         match &*inner {
             #[cfg(feature = "usb")]
@@ -231,15 +231,15 @@ impl Transport {
             response_packets.push(packet);
 
             // Check if we have complete response
-            if let Some(first) = response_packets.first() {
-                if let Some(total_len) = first.payload_len() {
-                    let mut received_len = first.payload().len();
-                    for pkt in &response_packets[1..] {
-                        received_len += pkt.payload().len();
-                    }
-                    if received_len >= total_len as usize {
-                        break;
-                    }
+            if let Some(first) = response_packets.first()
+                && let Some(total_len) = first.payload_len()
+            {
+                let mut received_len = first.payload().len();
+                for pkt in &response_packets[1..] {
+                    received_len += pkt.payload().len();
+                }
+                if received_len >= total_len as usize {
+                    break;
                 }
             }
         }
@@ -262,7 +262,7 @@ impl Transport {
         }
 
         // Verify nonce matches
-        if &response_message.data[0..8] != &nonce {
+        if response_message.data[0..8] != nonce {
             return Err(Error::Other);
         }
 
@@ -389,26 +389,26 @@ impl Transport {
             }
 
             // Check for errors
-            if let Some(cmd) = packet.cmd() {
-                if matches!(cmd, Cmd::Error) {
-                    return Err(Error::Other);
-                }
+            if let Some(cmd) = packet.cmd()
+                && matches!(cmd, Cmd::Error)
+            {
+                return Err(Error::Other);
             }
 
             response_packets.push(packet);
 
             // Check if we have all packets
-            if let Some(first) = response_packets.first() {
-                if let Some(total_len) = first.payload_len() {
-                    let mut received_len = first.payload().len();
+            if let Some(first) = response_packets.first()
+                && let Some(total_len) = first.payload_len()
+            {
+                let mut received_len = first.payload().len();
 
-                    for pkt in &response_packets[1..] {
-                        received_len += pkt.payload().len();
-                    }
+                for pkt in &response_packets[1..] {
+                    received_len += pkt.payload().len();
+                }
 
-                    if received_len >= total_len as usize {
-                        break;
-                    }
+                if received_len >= total_len as usize {
+                    break;
                 }
             }
         }

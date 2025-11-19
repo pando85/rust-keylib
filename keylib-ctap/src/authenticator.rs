@@ -15,6 +15,9 @@ use subtle::ConstantTimeEq;
 /// Maximum PIN retries before blocking
 const MAX_PIN_RETRIES: u8 = 8;
 
+/// Type alias for custom command handlers
+type CustomCommandHandler = Box<dyn Fn(&[u8]) -> Result<Vec<u8>, StatusCode> + Send + Sync>;
+
 /// Authenticator configuration
 ///
 /// Defines the capabilities and settings of a FIDO2 authenticator.
@@ -82,13 +85,13 @@ impl AuthenticatorConfig {
             max_credentials: 100,
             extensions: vec![],
             firmware_version: None,
-            max_msg_size: Some(7609),          // CTAP max message size
+            max_msg_size: Some(7609),       // CTAP max message size
             pin_uv_auth_protocols: vec![2], // Match Zig: only V2 (V1 is associated with U2F!)
             max_credential_id_length: Some(128),
             transports: vec!["usb".to_string()], // Match Zig: only USB (NFC might trigger U2F probing!)
             max_cred_blob_length: Some(32),
-            min_pin_length: Some(4), // CTAP default minimum PIN length
-            credential_wrapping_key: None,     // Will be generated if needed
+            min_pin_length: Some(4),       // CTAP default minimum PIN length
+            credential_wrapping_key: None, // Will be generated if needed
             force_resident_keys: false,
         }
     }
@@ -245,7 +248,7 @@ pub struct Authenticator<C: AuthenticatorCallbacks> {
     min_pin_length: usize,
 
     /// Custom command handlers (command code -> handler)
-    custom_commands: HashMap<u8, Box<dyn Fn(&[u8]) -> Result<Vec<u8>, StatusCode> + Send + Sync>>,
+    custom_commands: HashMap<u8, CustomCommandHandler>,
 
     /// Ephemeral ECDH keypair for PIN protocol (protocol version -> keypair)
     /// This is used for key agreement in PIN operations

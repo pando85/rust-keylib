@@ -97,21 +97,22 @@ impl PinUvAuthEncapsulation {
         self.platform_public = Some(platform_public_point.as_bytes().to_vec());
 
         // Build getKeyAgreement request
-        let mut request_map = Vec::new();
-        request_map.push((
-            Value::Integer(1.into()), // pinUvAuthProtocol
-            Value::Integer(
-                match self.protocol {
-                    PinProtocol::V1 => 1,
-                    PinProtocol::V2 => 2,
-                }
-                .into(),
+        let request_map = vec![
+            (
+                Value::Integer(1.into()), // pinUvAuthProtocol
+                Value::Integer(
+                    match self.protocol {
+                        PinProtocol::V1 => 1,
+                        PinProtocol::V2 => 2,
+                    }
+                    .into(),
+                ),
             ),
-        ));
-        request_map.push((
-            Value::Integer(2.into()), // subCommand (getKeyAgreement = 0x02)
-            Value::Integer(0x02.into()),
-        ));
+            (
+                Value::Integer(2.into()), // subCommand (getKeyAgreement = 0x02)
+                Value::Integer(0x02.into()),
+            ),
+        ];
 
         let mut request_bytes = Vec::new();
         ciborium::ser::into_writer(&Value::Map(request_map), &mut request_bytes)
@@ -122,7 +123,10 @@ impl PinUvAuthEncapsulation {
         // Send clientPin command (0x06)
         let response = match transport.send_ctap_command(0x06, &request_bytes) {
             Ok(resp) => {
-                eprintln!("[DEBUG][client_pin] Received response ({} bytes)", resp.len());
+                eprintln!(
+                    "[DEBUG][client_pin] Received response ({} bytes)",
+                    resp.len()
+                );
                 resp
             }
             Err(e) => {
@@ -140,7 +144,7 @@ impl PinUvAuthEncapsulation {
             Value::Map(map) => map
                 .iter()
                 .find(|(k, _)| matches!(k, Value::Integer(i) if *i == 1.into()))
-                .and_then(|(_, v)| Some(v.clone()))
+                .map(|(_, v)| v.clone())
                 .ok_or(Error::Other)?,
             _ => return Err(Error::Other),
         };
@@ -157,7 +161,10 @@ impl PinUvAuthEncapsulation {
         );
         let shared_secret_bytes = shared_secret.raw_secret_bytes().to_vec();
 
-        eprintln!("[DEBUG][client_pin] Derived shared secret ({} bytes)", shared_secret_bytes.len());
+        eprintln!(
+            "[DEBUG][client_pin] Derived shared secret ({} bytes)",
+            shared_secret_bytes.len()
+        );
 
         // Store authenticator key and shared secret
         self.authenticator_key = Some(authenticator_public_key);
@@ -192,7 +199,10 @@ impl PinUvAuthEncapsulation {
         eprintln!("[DEBUG][client_pin]   Protocol: {:?}", self.protocol);
 
         let shared_secret = self.shared_secret.as_ref().ok_or(Error::Other)?;
-        eprintln!("[DEBUG][client_pin] Using shared secret ({} bytes)", shared_secret.len());
+        eprintln!(
+            "[DEBUG][client_pin] Using shared secret ({} bytes)",
+            shared_secret.len()
+        );
 
         // Encrypt PIN with shared secret
         let pin_hash = {
@@ -202,8 +212,14 @@ impl PinUvAuthEncapsulation {
             hasher.finalize().to_vec()
         };
 
-        eprintln!("[DEBUG][client_pin] Computed PIN hash ({} bytes)", pin_hash.len());
-        eprintln!("[DEBUG][client_pin] PIN hash (first 16 bytes): {:02x?}", &pin_hash[..16]);
+        eprintln!(
+            "[DEBUG][client_pin] Computed PIN hash ({} bytes)",
+            pin_hash.len()
+        );
+        eprintln!(
+            "[DEBUG][client_pin] PIN hash (first 16 bytes): {:02x?}",
+            &pin_hash[..16]
+        );
 
         let pin_hash_enc = match self.protocol {
             PinProtocol::V1 => {
@@ -228,39 +244,43 @@ impl PinUvAuthEncapsulation {
             }
         };
 
-        eprintln!("[DEBUG][client_pin] Encrypted PIN hash ({} bytes)", pin_hash_enc.len());
+        eprintln!(
+            "[DEBUG][client_pin] Encrypted PIN hash ({} bytes)",
+            pin_hash_enc.len()
+        );
 
         // Get platform key agreement parameter
         let platform_key_agreement = self.get_key_agreement_cose()?;
 
         // Build getPinUvAuthTokenUsingPinWithPermissions request
-        let mut request_map = Vec::new();
-        request_map.push((
-            Value::Integer(1.into()), // pinUvAuthProtocol
-            Value::Integer(
-                match self.protocol {
-                    PinProtocol::V1 => 1,
-                    PinProtocol::V2 => 2,
-                }
-                .into(),
+        let mut request_map = vec![
+            (
+                Value::Integer(1.into()), // pinUvAuthProtocol
+                Value::Integer(
+                    match self.protocol {
+                        PinProtocol::V1 => 1,
+                        PinProtocol::V2 => 2,
+                    }
+                    .into(),
+                ),
             ),
-        ));
-        request_map.push((
-            Value::Integer(2.into()), // subCommand (getPinUvAuthTokenUsingPinWithPermissions = 0x09)
-            Value::Integer(0x09.into()),
-        ));
-        request_map.push((
-            Value::Integer(3.into()), // keyAgreement
-            platform_key_agreement,
-        ));
-        request_map.push((
-            Value::Integer(6.into()), // pinHashEnc (0x06)
-            Value::Bytes(pin_hash_enc),
-        ));
-        request_map.push((
-            Value::Integer(9.into()), // permissions (0x09)
-            Value::Integer(permissions.into()),
-        ));
+            (
+                Value::Integer(2.into()), // subCommand (getPinUvAuthTokenUsingPinWithPermissions = 0x09)
+                Value::Integer(0x09.into()),
+            ),
+            (
+                Value::Integer(3.into()), // keyAgreement
+                platform_key_agreement,
+            ),
+            (
+                Value::Integer(6.into()), // pinHashEnc (0x06)
+                Value::Bytes(pin_hash_enc),
+            ),
+            (
+                Value::Integer(9.into()), // permissions (0x09)
+                Value::Integer(permissions.into()),
+            ),
+        ];
         if let Some(rp_id_str) = rp_id {
             request_map.push((
                 Value::Integer(10.into()), // rpId (0x0A)
@@ -272,12 +292,17 @@ impl PinUvAuthEncapsulation {
         ciborium::ser::into_writer(&Value::Map(request_map), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
-        eprintln!("[DEBUG][client_pin] Sending getPinUvAuthTokenUsingPinWithPermissions (subcommand 0x09)");
+        eprintln!(
+            "[DEBUG][client_pin] Sending getPinUvAuthTokenUsingPinWithPermissions (subcommand 0x09)"
+        );
 
         // Send clientPin command (0x06)
         let response = match transport.send_ctap_command(0x06, &request_bytes) {
             Ok(resp) => {
-                eprintln!("[DEBUG][client_pin] Received response ({} bytes)", resp.len());
+                eprintln!(
+                    "[DEBUG][client_pin] Received response ({} bytes)",
+                    resp.len()
+                );
                 resp
             }
             Err(e) => {
@@ -306,7 +331,10 @@ impl PinUvAuthEncapsulation {
             _ => return Err(Error::Other),
         };
 
-        eprintln!("[DEBUG][client_pin] Received encrypted PIN token ({} bytes)", pin_token_enc.len());
+        eprintln!(
+            "[DEBUG][client_pin] Received encrypted PIN token ({} bytes)",
+            pin_token_enc.len()
+        );
 
         // Decrypt PIN token
         let pin_token = match self.protocol {
@@ -330,7 +358,10 @@ impl PinUvAuthEncapsulation {
             }
         };
 
-        eprintln!("[DEBUG][client_pin] Decrypted PIN token ({} bytes)", pin_token.len());
+        eprintln!(
+            "[DEBUG][client_pin] Decrypted PIN token ({} bytes)",
+            pin_token.len()
+        );
         eprintln!("[DEBUG][client_pin] ✓ PIN token obtained successfully");
 
         // Store PIN token
@@ -363,18 +394,19 @@ impl PinUvAuthEncapsulation {
         let public_key = secret_key.public_key();
         let point = public_key.to_encoded_point(false);
 
-        let mut key_map = Vec::new();
-        key_map.push((Value::Integer(1.into()), Value::Integer(2.into()))); // kty: EC2
-        key_map.push((Value::Integer(3.into()), Value::Integer((-25).into()))); // alg: ECDH-ES+HKDF-256
-        key_map.push((Value::Integer((-1).into()), Value::Integer(1.into()))); // crv: P-256
-        key_map.push((
-            Value::Integer((-2).into()),
-            Value::Bytes(point.x().ok_or(Error::Other)?.to_vec()),
-        )); // x
-        key_map.push((
-            Value::Integer((-3).into()),
-            Value::Bytes(point.y().ok_or(Error::Other)?.to_vec()),
-        )); // y
+        let key_map = vec![
+            (Value::Integer(1.into()), Value::Integer(2.into())), // kty: EC2
+            (Value::Integer(3.into()), Value::Integer((-25).into())), // alg: ECDH-ES+HKDF-256
+            (Value::Integer((-1).into()), Value::Integer(1.into())), // crv: P-256
+            (
+                Value::Integer((-2).into()),
+                Value::Bytes(point.x().ok_or(Error::Other)?.to_vec()),
+            ), // x
+            (
+                Value::Integer((-3).into()),
+                Value::Bytes(point.y().ok_or(Error::Other)?.to_vec()),
+            ), // y
+        ];
 
         Ok(Value::Map(key_map))
     }

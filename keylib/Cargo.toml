@@ -49,6 +49,9 @@ name = "client"
 name = "webauthn_flow"
 
 [[example]]
+name = "webauthn_inmemory"
+
+[[example]]
 name = "authenticator"
 
 [[example]]

@@ -88,7 +88,10 @@ fn main() -> Result<()> {
     ) {
         Ok(token) => {
             println!("      ✓ PIN token obtained ({} bytes)", token.len());
-            println!("      [DEBUG] PIN token (first 8 bytes): {:02x?}", &token[..8.min(token.len())]);
+            println!(
+                "      [DEBUG] PIN token (first 8 bytes): {:02x?}",
+                &token[..8.min(token.len())]
+            );
             token
         }
         Err(e) => {

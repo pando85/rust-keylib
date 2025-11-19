@@ -39,8 +39,6 @@ fn main() {
         }
     };
 
-    println!("Transport type: {:?}", transport.get_type());
-
     println!(
         "Description: {}",
         transport.get_description().unwrap_or("n.a.".to_string())
@@ -91,7 +89,7 @@ fn main() {
                                 }
                             }
                             6 => println!("  PIN/UV protocols: {:?}", v),
-                            _ => println!("  {}: {:?}", k, v),
+                            _ => println!("  {:?}: {:?}", k, v),
                         }
                     }
                 }

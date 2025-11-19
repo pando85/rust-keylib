@@ -83,7 +83,10 @@ impl Client {
         // 0x06: extensions (optional)
 
         // 0x07: options (optional)
-        eprintln!("[DEBUG][client] MakeCredential options: rk={:?}, uv={:?}", request.resident_key, request.user_verification);
+        eprintln!(
+            "[DEBUG][client] MakeCredential options: rk={:?}, uv={:?}",
+            request.resident_key, request.user_verification
+        );
         if request.resident_key.is_some() || request.user_verification.is_some() {
             let mut options_map = Vec::new();
             if let Some(rk) = request.resident_key {
@@ -94,7 +97,10 @@ impl Client {
                 eprintln!("[DEBUG][client] Adding uv={} to options", uv);
                 options_map.push((Value::Text("uv".to_string()), Value::Bool(uv)));
             }
-            eprintln!("[DEBUG][client] Adding options map with {} entries to request", options_map.len());
+            eprintln!(
+                "[DEBUG][client] Adding options map with {} entries to request",
+                options_map.len()
+            );
             cbor_request.push((Value::Integer(7.into()), Value::Map(options_map)));
         } else {
             eprintln!("[DEBUG][client] No options being added (both rk and uv are None)");
@@ -102,14 +108,20 @@ impl Client {
 
         // 0x08: pinUvAuthParam (optional)
         if let Some(pin_auth) = request.pin_uv_auth() {
-            eprintln!("[DEBUG][client] Adding pinUvAuthParam ({} bytes)", pin_auth.param().len());
+            eprintln!(
+                "[DEBUG][client] Adding pinUvAuthParam ({} bytes)",
+                pin_auth.param().len()
+            );
             cbor_request.push((
                 Value::Integer(8.into()),
                 Value::Bytes(pin_auth.param().to_vec()),
             ));
 
             // 0x09: pinUvAuthProtocol (required if pinUvAuthParam is present)
-            eprintln!("[DEBUG][client] Adding pinUvAuthProtocol: {}", pin_auth.protocol_u8());
+            eprintln!(
+                "[DEBUG][client] Adding pinUvAuthProtocol: {}",
+                pin_auth.protocol_u8()
+            );
             cbor_request.push((
                 Value::Integer(9.into()),
                 Value::Integer(pin_auth.protocol_u8().into()),
@@ -131,7 +143,10 @@ impl Client {
         ciborium::ser::into_writer(&Value::Map(cbor_request), &mut request_bytes)
             .map_err(|_| Error::Other)?;
 
-        eprintln!("[DEBUG][client] Encoded CBOR request: {} bytes", request_bytes.len());
+        eprintln!(
+            "[DEBUG][client] Encoded CBOR request: {} bytes",
+            request_bytes.len()
+        );
 
         // Send CTAP command 0x01 (authenticatorMakeCredential)
         let response = transport.send_ctap_command(0x01, &request_bytes)?;

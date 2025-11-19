@@ -58,23 +58,23 @@ fn main() -> Result<()> {
     match ciborium::from_reader::<Value, _>(info_data.as_slice()) {
         Ok(Value::Map(map)) => {
             for (key, value) in &map {
-                if let (Value::Integer(k), Value::Map(opts)) = (key, value) {
-                    if k == &4.into() {
-                        // Options
-                        let has_cred_mgmt = opts.iter().any(|(opt_key, opt_val)| {
-                            matches!(opt_key, Value::Text(k) if k == "credMgmt")
-                                && matches!(opt_val, Value::Bool(true))
-                        });
+                if let (Value::Integer(k), Value::Map(opts)) = (key, value)
+                    && k == &4.into()
+                {
+                    // Options
+                    let has_cred_mgmt = opts.iter().any(|(opt_key, opt_val)| {
+                        matches!(opt_key, Value::Text(k) if k == "credMgmt")
+                            && matches!(opt_val, Value::Bool(true))
+                    });
 
-                        if has_cred_mgmt {
-                            println!("    ✓ Credential management supported");
-                        } else {
-                            println!("    ⚠ Credential management NOT supported");
-                            println!();
-                            println!("This authenticator does not support credential management.");
-                            println!("You need a CTAP 2.1 compliant authenticator.");
-                            return Ok(());
-                        }
+                    if has_cred_mgmt {
+                        println!("    ✓ Credential management supported");
+                    } else {
+                        println!("    ⚠ Credential management NOT supported");
+                        println!();
+                        println!("This authenticator does not support credential management.");
+                        println!("You need a CTAP 2.1 compliant authenticator.");
+                        return Ok(());
                     }
                 }
             }
@@ -94,7 +94,7 @@ fn main() -> Result<()> {
     // Get PIN token with credential management permission
     println!("[5] Getting PIN token (PIN: {})...", PIN);
     let permissions = 0x04; // credentialManagement
-    let pin_token = encapsulation.get_pin_uv_auth_token_using_pin_with_permissions(
+    let _pin_token = encapsulation.get_pin_uv_auth_token_using_pin_with_permissions(
         &mut transport,
         PIN,
         permissions,

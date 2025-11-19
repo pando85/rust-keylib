@@ -377,10 +377,10 @@ mod tests {
 
         if let Some(ciborium::Value::Map(m)) = outputs {
             let key = m.iter().find_map(|(k, v)| {
-                if let (ciborium::Value::Text(name), ciborium::Value::Bytes(bytes)) = (k, v) {
-                    if name == "largeBlobKey" {
-                        return Some(bytes);
-                    }
+                if let (ciborium::Value::Text(name), ciborium::Value::Bytes(bytes)) = (k, v)
+                    && name == "largeBlobKey"
+                {
+                    return Some(bytes);
                 }
                 None
             });

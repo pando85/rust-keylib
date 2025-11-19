@@ -1,4 +1,5 @@
 // Compile with either feature
+#![allow(unexpected_cfgs)]
 #![cfg(any(feature = "zig-ffi", feature = "pure-rust"))]
 
 //! Test for credential storage and retrieval

@@ -67,12 +67,8 @@ fn main() -> Result<()> {
     let creds_delete = credentials.clone();
 
     let callbacks = CallbacksBuilder::new()
-        .up(Arc::new(|_info, _user, _rp| {
-            Ok(UpResult::Accepted)
-        }))
-        .uv(Arc::new(|_info, _user, _rp| {
-            Ok(UvResult::Accepted)
-        }))
+        .up(Arc::new(|_info, _user, _rp| Ok(UpResult::Accepted)))
+        .uv(Arc::new(|_info, _user, _rp| Ok(UvResult::Accepted)))
         .write(Arc::new(move |_id, _rp, cred: CredentialRef| {
             let mut store = creds_write.lock().unwrap();
             store.insert(cred.id.to_vec(), cred.to_owned());
@@ -91,11 +87,10 @@ fn main() -> Result<()> {
         }))
         .get_credential(Arc::new(move |cred_id| {
             let store = creds_get.lock().unwrap();
-            let result = store
+            store
                 .get(cred_id)
                 .cloned()
-                .ok_or(keylib::common::Error::DoesNotExist);
-            result
+                .ok_or(keylib::common::Error::DoesNotExist)
         }))
         .delete(Arc::new(move |cred_id| {
             let mut store = creds_delete.lock().unwrap();
@@ -115,7 +110,7 @@ fn main() -> Result<()> {
         .options(
             AuthenticatorOptions::new()
                 .with_user_verification(Some(true))
-                .with_credential_management(Some(true))
+                .with_credential_management(Some(true)),
         )
         .build();
 
@@ -185,23 +180,23 @@ fn main() -> Result<()> {
                         pending_packets.push(packet);
 
                         // Check if we have the complete message
-                        if let Some(first) = pending_packets.first() {
-                            if let Some(total_len) = first.payload_len() {
-                                let mut received_len = first.payload().len();
-                                for pkt in &pending_packets[1..] {
-                                    received_len += pkt.payload().len();
-                                }
+                        if let Some(first) = pending_packets.first()
+                            && let Some(total_len) = first.payload_len()
+                        {
+                            let mut received_len = first.payload().len();
+                            for pkt in &pending_packets[1..] {
+                                received_len += pkt.payload().len();
+                            }
 
-                                if received_len >= total_len as usize {
-                                    let _ = process_message(
-                                        &mut auth,
-                                        &uhid,
-                                        &pending_packets,
-                                        &mut response_buffer,
-                                        &mut next_channel_id,
-                                    );
-                                    pending_packets.clear();
-                                }
+                            if received_len >= total_len as usize {
+                                let _ = process_message(
+                                    &mut auth,
+                                    &uhid,
+                                    &pending_packets,
+                                    &mut response_buffer,
+                                    &mut next_channel_id,
+                                );
+                                pending_packets.clear();
                             }
                         }
                     }
@@ -227,9 +222,7 @@ fn process_message(
     response_buffer: &mut Vec<u8>,
     next_channel_id: &mut u32,
 ) -> Result<()> {
-    let message = Message::from_packets(packets).map_err(|_e| {
-        keylib::common::Error::Other
-    })?;
+    let message = Message::from_packets(packets).map_err(|_e| keylib::common::Error::Other)?;
 
     let cid = message.cid;
     let cmd = message.cmd;
@@ -297,9 +290,9 @@ fn process_message(
 
 /// Send a CTAP HID message via UHID
 fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
-    let packets = message.to_packets().map_err(|_e| {
-        keylib::common::Error::Other
-    })?;
+    let packets = message
+        .to_packets()
+        .map_err(|_e| keylib::common::Error::Other)?;
 
     for packet in packets.iter() {
         match uhid.write_packet(packet.as_bytes()) {

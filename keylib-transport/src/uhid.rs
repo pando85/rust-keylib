@@ -252,6 +252,7 @@ impl UhidDevice {
     /// Different kernel versions send different events:
     /// - UHID_OPEN (2): Device opened by kernel (common on newer kernels)
     /// - UHID_START (4): Device started (common on older kernels)
+    ///
     /// Both indicate the device is ready to use.
     fn wait_for_start(&mut self) -> Result<()> {
         println!("[UHID-Transport] Waiting for UHID_OPEN or UHID_START event...");

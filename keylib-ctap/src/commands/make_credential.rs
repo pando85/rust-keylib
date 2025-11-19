@@ -75,11 +75,12 @@ pub fn handle<C: AuthenticatorCallbacks>(
     let exclude_list: Option<Vec<PublicKeyCredentialDescriptor>> =
         parser.get_opt(req_keys::EXCLUDE_LIST)?;
     // Parse pinUvAuthParam as bytes (use get_bytes for CBOR Bytes type)
-    let pin_uv_auth_param: Option<Vec<u8>> = if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {
-        Some(parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?)
-    } else {
-        None
-    };
+    let pin_uv_auth_param: Option<Vec<u8>> =
+        if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {
+            Some(parser.get_bytes(req_keys::PIN_UV_AUTH_PARAM)?)
+        } else {
+            None
+        };
     let pin_uv_auth_protocol: Option<u8> = parser.get_opt(req_keys::PIN_UV_AUTH_PROTOCOL)?;
 
     let options = parse_options(&parser)?;
@@ -190,14 +191,17 @@ pub fn handle<C: AuthenticatorCallbacks>(
     let extension_outputs = extensions.build_outputs(auth.config().min_pin_length);
 
     // 12. Build authenticator data
+    let cred_data = AttestationCredential {
+        id: credential_id,
+        public_key: public_key_bytes,
+        algorithm: alg.alg,
+    };
     let auth_data = build_authenticator_data(
         &rp.id,
         up_performed,
         uv_performed,
         auth.config().aaguid,
-        &credential_id,
-        &public_key_bytes,
-        alg.alg,
+        &cred_data,
         extension_outputs.as_ref(),
     )?;
 
@@ -210,7 +214,7 @@ pub fn handle<C: AuthenticatorCallbacks>(
     // 14. Build response
     MapBuilder::new()
         .insert(resp_keys::FMT, "packed")?
-        .insert_bytes(resp_keys::AUTH_DATA, &auth_data)?  // Must be CBOR bytes, not array!
+        .insert_bytes(resp_keys::AUTH_DATA, &auth_data)? // Must be CBOR bytes, not array!
         .insert(resp_keys::ATT_STMT, att_stmt)?
         .build()
 }
@@ -291,6 +295,13 @@ fn parse_options(parser: &MapParser) -> Result<MakeCredentialOptions> {
     Ok(options)
 }
 
+/// Attestation credential data
+struct AttestationCredential {
+    id: Vec<u8>,
+    public_key: Vec<u8>,
+    algorithm: i32,
+}
+
 /// Generate a random credential ID
 fn generate_credential_id() -> Vec<u8> {
     use rand::RngCore;
@@ -316,9 +327,7 @@ fn build_authenticator_data(
     up: bool,
     uv: bool,
     aaguid: [u8; 16],
-    credential_id: &[u8],
-    public_key: &[u8],
-    algorithm: i32,
+    cred: &AttestationCredential,
     extensions: Option<&ciborium::Value>,
 ) -> Result<Vec<u8>> {
     let mut auth_data = Vec::new();
@@ -350,13 +359,13 @@ fn build_authenticator_data(
     auth_data.extend_from_slice(&aaguid);
 
     // Credential ID length (2 bytes)
-    auth_data.extend_from_slice(&(credential_id.len() as u16).to_be_bytes());
+    auth_data.extend_from_slice(&(cred.id.len() as u16).to_be_bytes());
 
     // Credential ID
-    auth_data.extend_from_slice(credential_id);
+    auth_data.extend_from_slice(&cred.id);
 
     // Credential public key (COSE format)
-    let cose_key = build_cose_public_key(public_key, algorithm)?;
+    let cose_key = build_cose_public_key(&cred.public_key, cred.algorithm)?;
     auth_data.extend_from_slice(&cose_key);
 
     // Extensions (CBOR-encoded)
@@ -393,15 +402,16 @@ fn build_cose_public_key(public_key: &[u8], algorithm: i32) -> Result<Vec<u8>> {
 
 /// Build attestation statement
 fn build_attestation_statement(signature: &[u8], alg: i32) -> Result<ciborium::Value> {
-    let mut map = Vec::new();
-    map.push((
-        ciborium::Value::Text("alg".to_string()),
-        ciborium::Value::Integer(alg.into()),
-    ));
-    map.push((
-        ciborium::Value::Text("sig".to_string()),
-        ciborium::Value::Bytes(signature.to_vec()),
-    ));
+    let map = vec![
+        (
+            ciborium::Value::Text("alg".to_string()),
+            ciborium::Value::Integer(alg.into()),
+        ),
+        (
+            ciborium::Value::Text("sig".to_string()),
+            ciborium::Value::Bytes(signature.to_vec()),
+        ),
+    ];
 
     Ok(ciborium::Value::Map(map))
 }

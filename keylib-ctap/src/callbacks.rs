@@ -236,12 +236,6 @@ mod tests {
     // Mock implementation for testing
     pub struct MockCallbacks;
 
-    impl MockCallbacks {
-        pub fn new() -> Self {
-            Self
-        }
-    }
-
     impl UserInteractionCallbacks for MockCallbacks {
         fn request_up(
             &self,
@@ -320,7 +314,7 @@ mod tests {
         assert_eq!(uv, UvResult::Accepted);
 
         // Test storage callbacks
-        assert!(callbacks.credential_exists(&[1, 2, 3]).unwrap() == false);
+        assert!(!callbacks.credential_exists(&[1, 2, 3]).unwrap());
         assert_eq!(callbacks.credential_count().unwrap(), 0);
     }
 
