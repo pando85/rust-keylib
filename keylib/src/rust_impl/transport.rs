@@ -299,12 +299,12 @@ impl Transport {
         // Get or allocate channel
         let mut inner = self.inner.lock().unwrap();
 
-        // Initialize channel if needed (except for INIT command itself)
+        // Initialize channel if needed
         let needs_init = match &*inner {
             #[cfg(feature = "usb")]
-            TransportInner::Usb { channel_id, .. } => channel_id.is_none() && cmd != 0x06,
+            TransportInner::Usb { channel_id, .. } => channel_id.is_none(),
             #[cfg(target_os = "linux")]
-            TransportInner::Uhid { channel_id, .. } => channel_id.is_none() && cmd != 0x06,
+            TransportInner::Uhid { channel_id, .. } => channel_id.is_none(),
             #[cfg(not(any(feature = "usb", target_os = "linux")))]
             _ => false,
         };
@@ -329,28 +329,12 @@ impl Transport {
             }
         }
 
-        // Get the channel ID to use
+        // Get the channel ID to use (all CTAP2 commands use allocated channel)
         let channel_id = match &*inner {
             #[cfg(feature = "usb")]
-            TransportInner::Usb { channel_id, .. } => {
-                if cmd == 0x06 {
-                    // INIT command uses broadcast channel
-                    0xffffffff
-                } else {
-                    // Use allocated channel
-                    channel_id.ok_or(Error::Other)?
-                }
-            }
+            TransportInner::Usb { channel_id, .. } => channel_id.ok_or(Error::Other)?,
             #[cfg(target_os = "linux")]
-            TransportInner::Uhid { channel_id, .. } => {
-                if cmd == 0x06 {
-                    // INIT command uses broadcast channel
-                    0xffffffff
-                } else {
-                    // Use allocated channel
-                    channel_id.ok_or(Error::Other)?
-                }
-            }
+            TransportInner::Uhid { channel_id, .. } => channel_id.ok_or(Error::Other)?,
             #[cfg(not(any(feature = "usb", target_os = "linux")))]
             _ => return Err(Error::Other),
         };
