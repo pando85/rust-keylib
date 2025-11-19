@@ -25,7 +25,8 @@ soft-fido2-ctap = { path = "../soft-fido2-ctap", default-features = false }
 soft-fido2-transport = { path = "../soft-fido2-transport", optional = true }
 
 # CBOR and cryptography
-ciborium.workspace = true
+cbor4ii.workspace = true
+serde_bytes.workspace = true
 p256.workspace = true
 rand.workspace = true
 serde.workspace = true
