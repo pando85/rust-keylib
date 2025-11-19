@@ -1,8 +1,8 @@
-# GitHub Copilot Instructions for rust-keylib
+# GitHub Copilot Instructions for soft-fido2
 
 ## Project Overview
 
-`rust-keylib` (also known as `soft-fido2`) is a pure Rust FIDO2/WebAuthn CTAP2 implementation providing virtual authenticator capabilities for testing and development.
+`soft-fido2` is a pure Rust FIDO2/WebAuthn CTAP2 implementation providing virtual authenticator capabilities for testing and development.
 
 ### Architecture
 

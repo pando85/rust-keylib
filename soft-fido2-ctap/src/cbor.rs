@@ -241,7 +241,8 @@ impl Serialize for RawCborValue {
         S: serde::Serializer,
     {
         // Deserialize the raw CBOR and re-serialize it
-        let value: Value = cbor4ii::serde::from_slice(&self.0[..]).map_err(serde::ser::Error::custom)?;
+        let value: Value =
+            cbor4ii::serde::from_slice(&self.0[..]).map_err(serde::ser::Error::custom)?;
         value.serialize(serializer)
     }
 }
@@ -259,8 +260,7 @@ impl MapParser {
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         // Decode as a map of integer keys to raw CBOR values
         // We'll store the raw bytes and decode them on-demand
-        let raw_map: BTreeMap<i32, Value> =
-            decode(data).map_err(|_| StatusCode::InvalidCbor)?;
+        let raw_map: BTreeMap<i32, Value> = decode(data).map_err(|_| StatusCode::InvalidCbor)?;
 
         let mut map = BTreeMap::new();
         for (k, v) in raw_map {
@@ -300,9 +300,9 @@ impl MapParser {
 
     /// Get raw value for debugging (compatibility with ciborium)
     pub fn get_raw(&self, key: i32) -> Option<Value> {
-        self.map.get(&key).and_then(|bytes| {
-            cbor4ii::serde::from_slice(bytes).ok()
-        })
+        self.map
+            .get(&key)
+            .and_then(|bytes| cbor4ii::serde::from_slice(bytes).ok())
     }
 
     /// Get bytes directly (for CBOR Bytes type)

@@ -82,7 +82,12 @@ impl AuthenticatorCallbacks for TestCallbacks {
         Ok(UvResult::Accepted)
     }
 
-    fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> SoftFido2Result<()> {
+    fn write_credential(
+        &self,
+        cred_id: &[u8],
+        _rp_id: &str,
+        cred: &CredentialRef,
+    ) -> SoftFido2Result<()> {
         let mut store = self.credentials.lock().unwrap();
         store.insert(cred_id.to_vec(), cred.to_owned());
         Ok(())
@@ -99,7 +104,11 @@ impl AuthenticatorCallbacks for TestCallbacks {
         Ok(())
     }
 
-    fn list_credentials(&self, rp_id: &str, _user_id: Option<&[u8]>) -> SoftFido2Result<Vec<Credential>> {
+    fn list_credentials(
+        &self,
+        rp_id: &str,
+        _user_id: Option<&[u8]>,
+    ) -> SoftFido2Result<Vec<Credential>> {
         let store = self.credentials.lock().unwrap();
         let filtered: Vec<Credential> = store
             .values()
@@ -114,9 +123,7 @@ impl AuthenticatorCallbacks for TestCallbacks {
 fn create_authenticator(
     credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
 ) -> SoftFido2Result<Authenticator<TestCallbacks>> {
-    let callbacks = TestCallbacks {
-        credentials,
-    };
+    let callbacks = TestCallbacks { credentials };
 
     let config = AuthenticatorConfig::builder()
         .aaguid([
@@ -206,7 +213,8 @@ fn build_make_credential_request(
     ];
 
     let mut buffer = Vec::new();
-    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer)
+        .expect("CBOR encoding");
     buffer
 }
 
@@ -232,13 +240,15 @@ fn build_get_assertion_request(client_data_hash: &[u8]) -> Vec<u8> {
     ];
 
     let mut buffer = Vec::new();
-    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer)
+        .expect("CBOR encoding");
     buffer
 }
 
 /// Parse public key from COSE format to p256 VerifyingKey
 fn parse_cose_public_key(cose_key_cbor: &[u8]) -> Option<VerifyingKey> {
-    let cose_key: soft_fido2_ctap::cbor::Value = soft_fido2_ctap::cbor::decode(cose_key_cbor).ok()?;
+    let cose_key: soft_fido2_ctap::cbor::Value =
+        soft_fido2_ctap::cbor::decode(cose_key_cbor).ok()?;
 
     let map = match cose_key {
         soft_fido2_ctap::cbor::Value::Map(m) => m,

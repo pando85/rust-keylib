@@ -8,10 +8,10 @@ use crate::transport::Transport;
 
 use soft_fido2_crypto::pin_protocol;
 
-use soft_fido2_ctap::cbor::Value;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::{PublicKey as P256PublicKey, SecretKey as P256SecretKey};
 use rand::rngs::OsRng;
+use soft_fido2_ctap::cbor::Value;
 
 /// PIN protocol version
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

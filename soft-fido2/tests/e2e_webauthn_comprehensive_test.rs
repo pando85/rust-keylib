@@ -88,19 +88,24 @@ impl AuthenticatorCallbacks for UvTestCallbacks {
         Ok(UvResult::Accepted)
     }
 
-    fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> SoftFido2Result<()> {
+    fn write_credential(
+        &self,
+        cred_id: &[u8],
+        _rp_id: &str,
+        cred: &CredentialRef,
+    ) -> SoftFido2Result<()> {
         let mut store = self.credentials.lock().unwrap();
         store.insert(cred_id.to_vec(), cred.to_owned());
 
         // Track user -> credential mapping
-        if let Some(user_name) = cred.user_name {
-            if !user_name.is_empty() {
-                let mut mappings = self.user_mappings.lock().unwrap();
-                mappings
-                    .entry(user_name.to_string())
-                    .or_default()
-                    .push(cred_id.to_vec());
-            }
+        if let Some(user_name) = cred.user_name
+            && !user_name.is_empty()
+        {
+            let mut mappings = self.user_mappings.lock().unwrap();
+            mappings
+                .entry(user_name.to_string())
+                .or_default()
+                .push(cred_id.to_vec());
         }
 
         eprintln!("    [Auth] Stored credential (total: {})", store.len());
@@ -118,7 +123,11 @@ impl AuthenticatorCallbacks for UvTestCallbacks {
         Ok(())
     }
 
-    fn list_credentials(&self, rp_id: &str, _user_id: Option<&[u8]>) -> SoftFido2Result<Vec<Credential>> {
+    fn list_credentials(
+        &self,
+        rp_id: &str,
+        _user_id: Option<&[u8]>,
+    ) -> SoftFido2Result<Vec<Credential>> {
         let store = self.credentials.lock().unwrap();
         let filtered: Vec<Credential> = store
             .values()
@@ -135,7 +144,9 @@ impl AuthenticatorCallbacks for UvTestCallbacks {
 }
 
 /// Helper to create test authenticator with user verification
-fn create_uv_authenticator(callbacks: UvTestCallbacks) -> SoftFido2Result<Authenticator<UvTestCallbacks>> {
+fn create_uv_authenticator(
+    callbacks: UvTestCallbacks,
+) -> SoftFido2Result<Authenticator<UvTestCallbacks>> {
     let config = AuthenticatorConfig::builder()
         .aaguid([
             0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d, 0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29,
@@ -178,7 +189,12 @@ impl AuthenticatorCallbacks for UpOnlyTestCallbacks {
         Ok(UvResult::Denied)
     }
 
-    fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> SoftFido2Result<()> {
+    fn write_credential(
+        &self,
+        cred_id: &[u8],
+        _rp_id: &str,
+        cred: &CredentialRef,
+    ) -> SoftFido2Result<()> {
         let mut store = self.credentials.lock().unwrap();
         store.insert(cred_id.to_vec(), cred.to_owned());
         Ok(())
@@ -195,7 +211,11 @@ impl AuthenticatorCallbacks for UpOnlyTestCallbacks {
         Ok(())
     }
 
-    fn list_credentials(&self, rp_id: &str, _user_id: Option<&[u8]>) -> SoftFido2Result<Vec<Credential>> {
+    fn list_credentials(
+        &self,
+        rp_id: &str,
+        _user_id: Option<&[u8]>,
+    ) -> SoftFido2Result<Vec<Credential>> {
         let store = self.credentials.lock().unwrap();
         let filtered: Vec<Credential> = store
             .values()
@@ -299,7 +319,8 @@ fn build_make_credential_request(
     ];
 
     let mut buffer = Vec::new();
-    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer)
+        .expect("CBOR encoding");
     buffer
 }
 
@@ -340,13 +361,15 @@ fn build_get_assertion_request(client_data_hash: &[u8], credential_id: Option<&[
     }
 
     let mut buffer = Vec::new();
-    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer)
+        .expect("CBOR encoding");
     buffer
 }
 
 /// Parse COSE public key to p256 VerifyingKey
 fn parse_cose_public_key(cose_key_cbor: &[u8]) -> Option<VerifyingKey> {
-    let cose_key: soft_fido2_ctap::cbor::Value = soft_fido2_ctap::cbor::decode(cose_key_cbor).ok()?;
+    let cose_key: soft_fido2_ctap::cbor::Value =
+        soft_fido2_ctap::cbor::decode(cose_key_cbor).ok()?;
 
     let map = match cose_key {
         soft_fido2_ctap::cbor::Value::Map(m) => m,

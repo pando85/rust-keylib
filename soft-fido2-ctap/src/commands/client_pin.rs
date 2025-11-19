@@ -464,7 +464,7 @@ fn parse_cose_key(cose_key: &crate::cbor::Value) -> Result<Vec<u8>> {
         let key_int = match key {
             crate::cbor::Value::Integer(i) => {
                 // Convert ciborium::value::Integer to i128
-                let val: i128 = (*i).into();
+                let val: i128 = *i;
                 val
             }
             _ => continue,
@@ -724,7 +724,11 @@ mod tests {
         assert!(parse_cose_key(&invalid).is_err());
 
         // Invalid - missing coordinates
-        let invalid_map = MapBuilder::new().insert(1, 2).unwrap().build_value().unwrap();
+        let invalid_map = MapBuilder::new()
+            .insert(1, 2)
+            .unwrap()
+            .build_value()
+            .unwrap();
         assert!(parse_cose_key(&invalid_map).is_err());
     }
 }

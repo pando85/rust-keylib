@@ -75,9 +75,7 @@ impl AuthenticatorCallbacks for TestCallbacks {
 fn create_test_authenticator(
     credentials: Arc<Mutex<HashMap<Vec<u8>, Credential>>>,
 ) -> Authenticator<TestCallbacks> {
-    let callbacks = TestCallbacks {
-        credentials,
-    };
+    let callbacks = TestCallbacks { credentials };
 
     let config = AuthenticatorConfig::builder()
         .aaguid([
@@ -133,9 +131,9 @@ fn test_authenticator_get_info_compliance() {
     if let Some(soft_fido2_ctap::cbor::Value::Array(vers)) = versions {
         assert!(!vers.is_empty(), "versions array is empty");
         // Should contain at least "FIDO_2_0" or "FIDO_2_1"
-        let has_fido2 = vers
-            .iter()
-            .any(|v| matches!(v, soft_fido2_ctap::cbor::Value::Text(s) if s.starts_with("FIDO_2_")));
+        let has_fido2 = vers.iter().any(
+            |v| matches!(v, soft_fido2_ctap::cbor::Value::Text(s) if s.starts_with("FIDO_2_")),
+        );
         assert!(has_fido2, "versions must include FIDO2 version");
     }
 
@@ -199,8 +197,8 @@ fn test_make_credential_compliance() {
     );
 
     // Parse CBOR response
-    let resp: soft_fido2_ctap::cbor::Value =
-        soft_fido2_ctap::cbor::decode(&response[1..]).expect("Failed to parse makeCredential response");
+    let resp: soft_fido2_ctap::cbor::Value = soft_fido2_ctap::cbor::decode(&response[1..])
+        .expect("Failed to parse makeCredential response");
 
     let map = match resp {
         soft_fido2_ctap::cbor::Value::Map(m) => m,
@@ -337,8 +335,8 @@ fn test_get_assertion_compliance() {
     );
 
     // Parse CBOR response
-    let resp: soft_fido2_ctap::cbor::Value =
-        soft_fido2_ctap::cbor::decode(&response[1..]).expect("Failed to parse getAssertion response");
+    let resp: soft_fido2_ctap::cbor::Value = soft_fido2_ctap::cbor::decode(&response[1..])
+        .expect("Failed to parse getAssertion response");
 
     let map = match resp {
         soft_fido2_ctap::cbor::Value::Map(m) => m,
@@ -520,7 +518,8 @@ fn build_make_credential_cbor(
     ];
 
     let mut buffer = Vec::new();
-    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer)
+        .expect("CBOR encoding");
     buffer
 }
 
@@ -542,6 +541,7 @@ fn build_get_assertion_cbor(client_data_hash: &[u8], rp_id: &str) -> Vec<u8> {
     ];
 
     let mut buffer = Vec::new();
-    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer)
+        .expect("CBOR encoding");
     buffer
 }

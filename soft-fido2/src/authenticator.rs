@@ -161,8 +161,12 @@ pub trait AuthenticatorCallbacks: Send + Sync {
     /// * `cred_id` - Credential ID (binary data)
     /// * `rp_id` - Relying party identifier
     /// * `credential` - Credential data to store
-    fn write_credential(&self, cred_id: &[u8], rp_id: &str, credential: &CredentialRef)
-        -> Result<()>;
+    fn write_credential(
+        &self,
+        cred_id: &[u8],
+        rp_id: &str,
+        credential: &CredentialRef,
+    ) -> Result<()>;
 
     /// Read a specific credential
     ///

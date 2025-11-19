@@ -134,8 +134,8 @@ fn main() -> Result<()> {
 
     // Configure authenticator
     let aaguid = [
-        0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d, 0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29,
-        0x7c, 0x88,
+        0x6f, 0x15, 0x82, 0x74, 0xaa, 0xb6, 0x44, 0x3d, 0x9b, 0xcf, 0x8a, 0x3f, 0x69, 0x29, 0x7c,
+        0x88,
     ];
     let options = AuthenticatorOptions::new()
         .with_user_verification(Some(true))
@@ -201,20 +201,30 @@ fn main() -> Result<()> {
         match uhid.read_packet(&mut buffer) {
             Ok(len) if len > 0 => {
                 let packet = Packet::from_bytes(buffer);
-                eprintln!("[DEBUG] Received packet: CID=0x{:08x}, len={}", packet.cid(), len);
+                eprintln!(
+                    "[DEBUG] Received packet: CID=0x{:08x}, len={}",
+                    packet.cid(),
+                    len
+                );
                 eprintln!("[DEBUG] Raw packet data: {:02x?}", &buffer[..len.min(64)]);
 
                 // Handle initialization packets
                 if packet.is_init() {
                     current_channel = packet.cid();
-                    eprintln!("[DEBUG] Init packet on channel 0x{:08x}, cmd={:02x}", current_channel, buffer[4]);
+                    eprintln!(
+                        "[DEBUG] Init packet on channel 0x{:08x}, cmd={:02x}",
+                        current_channel, buffer[4]
+                    );
                     pending_packets.clear();
                     pending_packets.push(packet);
 
                     // Check if this is a complete message
                     if let Some(payload_len) = pending_packets[0].payload_len() {
                         let init_data_len = pending_packets[0].payload().len();
-                        eprintln!("[DEBUG] Init packet payload: {} bytes (expected: {})", init_data_len, payload_len);
+                        eprintln!(
+                            "[DEBUG] Init packet payload: {} bytes (expected: {})",
+                            init_data_len, payload_len
+                        );
                         if init_data_len >= payload_len as usize {
                             eprintln!("[DEBUG] Complete message in single packet, processing...");
                             let _ = process_message(
@@ -226,7 +236,10 @@ fn main() -> Result<()> {
                             );
                             pending_packets.clear();
                         } else {
-                            eprintln!("[DEBUG] Waiting for {} more bytes in continuation packets", payload_len as usize - init_data_len);
+                            eprintln!(
+                                "[DEBUG] Waiting for {} more bytes in continuation packets",
+                                payload_len as usize - init_data_len
+                            );
                         }
                     }
                 } else {
@@ -244,7 +257,12 @@ fn main() -> Result<()> {
                                 received_len += pkt.payload().len();
                             }
 
-                            eprintln!("[DEBUG] Assembled {} bytes (need {}), packets: {}", received_len, total_len, pending_packets.len());
+                            eprintln!(
+                                "[DEBUG] Assembled {} bytes (need {}), packets: {}",
+                                received_len,
+                                total_len,
+                                pending_packets.len()
+                            );
 
                             if received_len >= total_len as usize {
                                 eprintln!("[DEBUG] Complete message assembled, processing...");
@@ -259,7 +277,11 @@ fn main() -> Result<()> {
                             }
                         }
                     } else {
-                        eprintln!("[DEBUG] Continuation packet CID mismatch: got 0x{:08x}, expected 0x{:08x}", packet.cid(), current_channel);
+                        eprintln!(
+                            "[DEBUG] Continuation packet CID mismatch: got 0x{:08x}, expected 0x{:08x}",
+                            packet.cid(),
+                            current_channel
+                        );
                     }
                 }
             }
@@ -291,17 +313,32 @@ fn process_message<C: AuthenticatorCallbacks>(
     let cid = message.cid;
     let cmd = message.cmd;
 
-    eprintln!("[DEBUG] Processing message: CID=0x{:08x}, cmd={:?}, data_len={}", cid, cmd, message.data.len());
+    eprintln!(
+        "[DEBUG] Processing message: CID=0x{:08x}, cmd={:?}, data_len={}",
+        cid,
+        cmd,
+        message.data.len()
+    );
 
     match cmd {
         Cmd::Cbor => {
             // CTAP CBOR command
-            eprintln!("[DEBUG] CTAP CBOR command received, data: {} bytes", message.data.len());
+            eprintln!(
+                "[DEBUG] CTAP CBOR command received, data: {} bytes",
+                message.data.len()
+            );
             if !message.data.is_empty() {
                 let cmd_code = message.data[0];
-                eprintln!("[DEBUG] CTAP command: 0x{:02x} ({})", cmd_code, ctap_cmd_name(cmd_code));
+                eprintln!(
+                    "[DEBUG] CTAP command: 0x{:02x} ({})",
+                    cmd_code,
+                    ctap_cmd_name(cmd_code)
+                );
                 if message.data.len() > 1 {
-                    eprintln!("[DEBUG] CTAP request payload: {:02x?}", &message.data[1..message.data.len().min(33)]);
+                    eprintln!(
+                        "[DEBUG] CTAP request payload: {:02x?}",
+                        &message.data[1..message.data.len().min(33)]
+                    );
                 }
             }
 
@@ -342,16 +379,25 @@ fn process_message<C: AuthenticatorCallbacks>(
                 let capabilities = 0x04; // CBOR only
                 response_data.push(capabilities);
 
-                eprintln!("[DEBUG] Sending INIT response with CID=0x{:08x}, capabilities=0x{:02x}", allocated_cid, capabilities);
+                eprintln!(
+                    "[DEBUG] Sending INIT response with CID=0x{:08x}, capabilities=0x{:02x}",
+                    allocated_cid, capabilities
+                );
                 // Respond on broadcast channel with new CID in payload
                 let response_msg = Message::new(0xffffffff, Cmd::Init, response_data);
                 send_message(uhid, &response_msg)?;
             } else {
-                eprintln!("[ERROR] INIT command too short: {} bytes (need 8)", message.data.len());
+                eprintln!(
+                    "[ERROR] INIT command too short: {} bytes (need 8)",
+                    message.data.len()
+                );
             }
         }
         Cmd::Ping => {
-            eprintln!("[DEBUG] PING command received, echoing {} bytes", message.data.len());
+            eprintln!(
+                "[DEBUG] PING command received, echoing {} bytes",
+                message.data.len()
+            );
             // Echo ping data
             let response_msg = Message::new(cid, Cmd::Ping, message.data);
             send_message(uhid, &response_msg)?;
@@ -377,14 +423,16 @@ fn process_message<C: AuthenticatorCallbacks>(
 
 /// Send a CTAP HID message via UHID
 fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
-    let packets = message
-        .to_packets()
-        .map_err(|_e| {
-            eprintln!("[ERROR] Failed to convert message to packets");
-            soft_fido2::Error::Other
-        })?;
+    let packets = message.to_packets().map_err(|_e| {
+        eprintln!("[ERROR] Failed to convert message to packets");
+        soft_fido2::Error::Other
+    })?;
 
-    eprintln!("[DEBUG] Sending response: {} packets, total {} bytes", packets.len(), message.data.len());
+    eprintln!(
+        "[DEBUG] Sending response: {} packets, total {} bytes",
+        packets.len(),
+        message.data.len()
+    );
 
     for (i, packet) in packets.iter().enumerate() {
         match uhid.write_packet(packet.as_bytes()) {
@@ -392,7 +440,12 @@ fn send_message(uhid: &Uhid, message: &Message) -> Result<()> {
                 eprintln!("[DEBUG] Sent packet {}/{}", i + 1, packets.len());
             }
             Err(e) => {
-                eprintln!("[ERROR] Failed to send packet {}/{}: {:?}", i + 1, packets.len(), e);
+                eprintln!(
+                    "[ERROR] Failed to send packet {}/{}: {:?}",
+                    i + 1,
+                    packets.len(),
+                    e
+                );
                 return Err(e);
             }
         }

@@ -102,7 +102,7 @@ impl MakeCredentialExtensions {
                 match ext_name.as_str() {
                     ext_ids::CRED_PROTECT => {
                         if let crate::cbor::Value::Integer(i) = val {
-                            let policy_val: i128 = (*i).into();
+                            let policy_val: i128 = *i;
                             if let Ok(policy_u8) = u8::try_from(policy_val) {
                                 exts.cred_protect = CredProtectPolicy::from_u8(policy_u8);
                             }
@@ -140,7 +140,10 @@ impl MakeCredentialExtensions {
     }
 
     /// Build extension outputs for makeCredential response
-    pub fn build_outputs(&self, actual_min_pin_length: Option<usize>) -> Option<crate::cbor::Value> {
+    pub fn build_outputs(
+        &self,
+        actual_min_pin_length: Option<usize>,
+    ) -> Option<crate::cbor::Value> {
         let mut outputs = Vec::new();
 
         // credProtect - return the policy that was set
@@ -329,7 +332,7 @@ mod tests {
             let has_cred_protect = m.iter().any(|(k, v)| {
                 if let (crate::cbor::Value::Text(name), crate::cbor::Value::Integer(val)) = (k, v) {
                     name == "credProtect" && {
-                        let i: i128 = (*val).into();
+                        let i: i128 = *val;
                         i == 0x03
                     }
                 } else {

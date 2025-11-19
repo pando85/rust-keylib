@@ -251,7 +251,8 @@ fn build_make_credential_cbor(
     ];
 
     let mut buffer = Vec::new();
-    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer)
+        .expect("CBOR encoding");
     buffer
 }
 
@@ -276,6 +277,7 @@ fn build_get_assertion_cbor(client_data_hash: &[u8], rp_id: &str) -> Vec<u8> {
     ];
 
     let mut buffer = Vec::new();
-    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer).expect("CBOR encoding");
+    soft_fido2_ctap::cbor::into_writer(&Value::Map(request_map), &mut buffer)
+        .expect("CBOR encoding");
     buffer
 }

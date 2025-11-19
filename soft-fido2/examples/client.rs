@@ -73,7 +73,7 @@ fn main() {
             if let soft_fido2_ctap::cbor::Value::Map(map) = info {
                 for (key, value) in map {
                     if let (soft_fido2_ctap::cbor::Value::Integer(k), v) = (key, value) {
-                        match k.into() {
+                        match k {
                             1 => println!("  Versions: {:?}", v),
                             2 => println!("  Extensions: {:?}", v),
                             3 => println!("  AAGUID: {:?}", v),
