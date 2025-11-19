@@ -190,24 +190,28 @@ fn main() -> Result<()> {
 
     // Setup callbacks with user-friendly logging
     let callbacks = CallbacksBuilder::new()
-        .up(Arc::new(|_info, user, rp| {
-            println!("  [UP] User presence requested (auto-approved)");
+        .up(Arc::new(|info, user, rp| {
+            println!("\n  [UP] 👆 User Presence Requested");
+            println!("       Info: {}", info);
             if let Some(u) = user {
                 println!("       User: {}", u);
             }
             if let Some(r) = rp {
                 println!("       RP: {}", r);
             }
+            println!("       ✓ AUTO-APPROVED");
             Ok(UpResult::Accepted)
         }))
-        .uv(Arc::new(|_info, user, rp| {
-            println!("  [UV] User verification requested (auto-approved)");
+        .uv(Arc::new(|info, user, rp| {
+            println!("\n  [UV] 🔐 User Verification Requested");
+            println!("       Info: {}", info);
             if let Some(u) = user {
                 println!("       User: {}", u);
             }
             if let Some(r) = rp {
                 println!("       RP: {}", r);
             }
+            println!("       ✓ AUTO-APPROVED (biometric/PIN simulated)");
             Ok(UvResult::Accepted)
         }))
         .write(Arc::new(move |rp_id, user_name, cred| {
@@ -219,8 +223,13 @@ fn main() -> Result<()> {
             if !user_name.is_empty() {
                 println!("  User: {}", user_name);
             }
+            println!("  User ID: {} bytes", cred.user_id.len());
             println!("  Credential ID: {} bytes", cred.id.len());
-            println!("  Total stored: {}\n", store.len());
+            println!("  Discoverable: {}", cred.discoverable);
+            if let Some(cp) = cred.cred_protect {
+                println!("  CredProtect: 0x{:02x}", cp);
+            }
+            println!("  Total credentials stored: {}\n", store.len());
 
             Ok(())
         }))
@@ -252,11 +261,16 @@ fn main() -> Result<()> {
             let store = creds_get.lock().unwrap();
             match store.get(cred_id) {
                 Some(cred) => {
-                    println!("  [GET] Retrieved credential for RP: {}", cred.rp.id);
+                    println!("\n  [AUTH] 🔑 Credential Retrieved");
+                    println!("         RP: {}", cred.rp.id);
+                    if let Some(ref name) = cred.user.name {
+                        println!("         User: {}", name);
+                    }
+                    println!("         Sign count: {}", cred.sign_count);
                     Ok(cred.clone())
                 }
                 None => {
-                    println!("  [GET] Credential not found");
+                    println!("\n  [AUTH] ✗ Credential not found");
                     Err(Error::DoesNotExist)
                 }
             }
@@ -277,6 +291,7 @@ fn main() -> Result<()> {
             0x74, 0x75,
         ])
         .max_credentials(100)
+        // Note: Default algorithm is ES256 (-7), which is the only one currently implemented
         .extensions(vec![
             "credProtect".to_string(),
             "hmac-secret".to_string(),
@@ -285,15 +300,21 @@ fn main() -> Result<()> {
         .options(
             AuthenticatorOptions::new()
                 .with_resident_keys(true) // Support discoverable credentials
-                .with_user_verification(Some(true)) // Support UV
-                .with_client_pin(Some(false)), // No PIN for demo (auto-approve)
+                .with_user_presence(true) // Support UP
+                .with_user_verification(Some(true)) // Support UV capability
+                .with_client_pin(Some(false)), // No PIN required (auto-approve UV)
         )
         .build();
 
-    println!("Authenticator Configuration:");
+    println!("╔═══════════════════════════════════════════════════════════╗");
+    println!("║  Authenticator Configuration                              ║");
+    println!("╚═══════════════════════════════════════════════════════════╝");
     println!("  AAGUID: soft-fido2-virtu");
-    println!("  Resident Keys: Enabled");
-    println!("  User Verification: Enabled (auto-approved)");
+    println!("  Algorithms: ES256 (-7)");
+    println!("  Resident Keys (rk): ✓ Supported");
+    println!("  User Presence (up): ✓ Supported (auto-approved)");
+    println!("  User Verification (uv): ✓ Supported (auto-approved)");
+    println!("  Client PIN: Not set (UV works without PIN)");
     println!("  Extensions: credProtect, hmac-secret, largeBlobKey");
     println!("  Max Credentials: 100");
     println!();
