@@ -310,7 +310,11 @@ impl<C: AuthenticatorCallbacks> CredentialStorageCallbacks for CallbackAdapter<C
     fn credential_exists(&self, credential_id: &[u8]) -> soft_fido2_ctap::Result<bool> {
         // Try to read the credential with a placeholder RP ID
         // Note: This is a limitation of the current design
-        Ok(self.callbacks.read_credential(credential_id, "").is_ok())
+        match self.callbacks.read_credential(credential_id, "") {
+            Ok(Some(_)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(_) => Ok(false),
+        }
     }
 
     fn get_credential(&self, credential_id: &[u8]) -> soft_fido2_ctap::Result<CtapCredential> {

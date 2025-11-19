@@ -199,7 +199,16 @@ impl MapBuilder {
 
     /// Insert bytes directly (encodes as CBOR byte string)
     pub fn insert_bytes(mut self, key: i32, bytes: &[u8]) -> Result<Self> {
+        #[cfg(test)]
+        eprintln!("[CBOR DEBUG] MapBuilder::insert_bytes() - key={}, bytes_len={}, first_bytes={:02x?}",
+                 key, bytes.len(), &bytes[..bytes.len().min(8)]);
+
         let encoded = encode(&serde_bytes::Bytes::new(bytes))?;
+
+        #[cfg(test)]
+        eprintln!("[CBOR DEBUG]   Encoded to CBOR: {} bytes, cbor={:02x?}",
+                 encoded.len(), &encoded[..encoded.len().min(16)]);
+
         self.entries.push((key, encoded));
         Ok(self)
     }
@@ -209,13 +218,24 @@ impl MapBuilder {
         // Use BTreeMap to ensure canonical ordering (required by CTAP)
         let mut map = BTreeMap::new();
 
+        #[cfg(test)]
+        eprintln!("[CBOR DEBUG] MapBuilder::build() - building map with {} entries", self.entries.len());
+
         for (key, value_bytes) in self.entries {
+            #[cfg(test)]
+            eprintln!("[CBOR DEBUG]   Entry key={}, value_bytes_len={}, first_bytes={:02x?}",
+                     key, value_bytes.len(), &value_bytes[..value_bytes.len().min(8)]);
+
             // We need to store the raw CBOR bytes for each value
             // cbor4ii doesn't have a Value type, so we use a wrapper
             map.insert(key, RawCborValue(value_bytes));
         }
 
-        encode(&map)
+        let result = encode(&map)?;
+        #[cfg(test)]
+        eprintln!("[CBOR DEBUG] MapBuilder::build() - final CBOR bytes: {} bytes, first={:02x?}",
+                 result.len(), &result[..result.len().min(16)]);
+        Ok(result)
     }
 
     /// Build the map as a CBOR Value for manual construction (compatibility with ciborium)
@@ -240,9 +260,17 @@ impl Serialize for RawCborValue {
     where
         S: serde::Serializer,
     {
+        #[cfg(test)]
+        eprintln!("[CBOR DEBUG] RawCborValue::serialize() - raw_bytes: {} bytes, cbor={:02x?}",
+                 self.0.len(), &self.0[..self.0.len().min(16)]);
+
         // Deserialize the raw CBOR and re-serialize it
         let value: Value =
             cbor4ii::serde::from_slice(&self.0[..]).map_err(serde::ser::Error::custom)?;
+
+        #[cfg(test)]
+        eprintln!("[CBOR DEBUG]   Decoded to Value: {:?}", value);
+
         value.serialize(serializer)
     }
 }
@@ -491,5 +519,34 @@ mod tests {
         assert_eq!(decoded.get(&1).unwrap(), "value1");
         assert_eq!(decoded.get(&2).unwrap(), "value2");
         assert_eq!(decoded.get(&3).unwrap(), "value3");
+    }
+
+    #[test]
+    fn test_credential_id_round_trip() {
+        // Test that credential IDs (32 random bytes) survive round-trip encoding
+        // This reproduces the bug where credentials created during makeCredential
+        // cannot be found during getAssertion
+        let credential_id: Vec<u8> = (0..32).map(|i| i as u8).collect();
+
+        eprintln!("Original credential ID: {:02x?}", credential_id);
+
+        // Build a CBOR map like in authenticatorGetAssertion response
+        let cbor = MapBuilder::new()
+            .insert(1, "public-key")
+            .unwrap()
+            .insert_bytes(2, &credential_id)
+            .unwrap()
+            .build()
+            .unwrap();
+
+        eprintln!("Encoded CBOR: {:02x?}", &cbor[..cbor.len().min(64)]);
+
+        // Decode and extract credential ID
+        let parser = MapParser::from_bytes(&cbor).unwrap();
+        let decoded_id = parser.get_bytes(2).unwrap();
+
+        eprintln!("Decoded credential ID: {:02x?}", decoded_id);
+
+        assert_eq!(credential_id, decoded_id, "Credential ID corrupted in round-trip!");
     }
 }
