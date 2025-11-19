@@ -3,14 +3,35 @@
 //! This test demonstrates integration between soft-fido2 (authenticator) and
 //! webauthn-rs (relying party), with manual cryptographic verification.
 //!
-//! Architecture:
-//! - soft-fido2: Authenticator (CTAP level)
-//! - webauthn-rs: Relying Party (challenge generation)
-//! - p256 crate: Signature verification
+//! # Architecture
 //!
-//! Note: Full integration requires complex type conversions between CTAP and
-//! WebAuthn browser formats. This test demonstrates the flow and performs
-//! actual cryptographic verification.
+//! - **soft-fido2**: Authenticator (CTAP2 protocol level)
+//! - **webauthn-rs**: Relying Party (challenge generation)
+//! - **p256 crate**: Signature verification
+//!
+//! # Why Manual Cryptographic Verification?
+//!
+//! webauthn-rs's `finish_passkey_registration()` and `finish_passkey_authentication()`
+//! methods expect browser-formatted data (RegisterPublicKeyCredential / PublicKeyCredential)
+//! which includes Base64URL encoding, JSON serialization, and other browser transformations.
+//!
+//! The authenticator operates at the CTAP level, producing raw CBOR-encoded data.
+//! Converting CTAP→WebAuthn format would require reimplementing browser logic, which is
+//! beyond the scope of authenticator testing.
+//!
+//! **For full webauthn-rs integration testing with actual finish_* method verification,
+//! use the manual testing example:**
+//!
+//! ```bash
+//! cargo run --example virtual_authenticator
+//! # Then test with https://webauthn.firstyear.id.au/
+//! ```
+//!
+//! This test verifies:
+//! 1. webauthn-rs generates valid challenges ✓
+//! 2. soft-fido2 creates credentials with valid public keys ✓
+//! 3. soft-fido2 generates valid ECDSA signatures ✓
+//! 4. Cryptographic verification passes (p256) ✓
 //!
 //! Run with: cargo test --test e2e_webauthn_rs_integration_test -- --ignored
 

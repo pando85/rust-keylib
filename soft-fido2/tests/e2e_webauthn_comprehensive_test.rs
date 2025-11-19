@@ -11,10 +11,30 @@
 //! - Extension support
 //! - Error handling and security validation
 //!
-//! Architecture:
-//! - webauthn-rs: Relying Party (challenge generation, verification)
-//! - soft-fido2: Authenticator (CTAP protocol)
-//! - p256: Cryptographic verification
+//! # Architecture
+//!
+//! - **webauthn-rs**: Relying Party (challenge generation)
+//! - **soft-fido2**: Authenticator (CTAP2 protocol)
+//! - **p256**: Cryptographic signature verification
+//!
+//! # Testing Approach
+//!
+//! These automated tests verify cryptographic correctness by:
+//! 1. Using webauthn-rs to generate valid challenges
+//! 2. Exercising soft-fido2's full CTAP2 implementation
+//! 3. Validating ECDSA signatures with p256 crate
+//!
+//! **Note**: webauthn-rs's `finish_passkey_*()` methods expect browser-formatted
+//! WebAuthn data, not raw CTAP responses. For end-to-end verification with actual
+//! webauthn-rs finish methods, use the manual browser testing example:
+//!
+//! ```bash
+//! cargo run --example virtual_authenticator
+//! # Then test at https://webauthn.firstyear.id.au/
+//! ```
+//!
+//! The virtual authenticator creates a real UHID device that works with browsers,
+//! providing the complete WebAuthn stack: Authenticator → Browser → Relying Party.
 //!
 //! Run with: cargo test --test e2e_webauthn_comprehensive_test -- --ignored
 
