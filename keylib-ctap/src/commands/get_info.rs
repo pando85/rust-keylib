@@ -158,7 +158,17 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
         builder = builder.insert(keys::REMAINING_DISCOVERABLE_CREDENTIALS, remaining_count)?;
     }
 
-    builder.build()
+    let response = builder.build()?;
+
+    // DEBUG: Show what we're sending (matching Zig debug format)
+    eprintln!("DEBUG Rust getInfo: {} bytes, {} fields (first byte: 0x{:02x})",
+        response.len(),
+        if response.len() > 0 && response[0] >= 0xa0 { response[0] - 0xa0 } else { 0 },
+        if response.len() > 0 { response[0] } else { 0 });
+    eprintln!("DEBUG Rust getInfo: extensions={:?}", config.extensions);
+    eprintln!("DEBUG Rust getInfo: clientPin={} plat=true", auth.is_pin_set());
+
+    Ok(response)
 }
 
 #[cfg(test)]
