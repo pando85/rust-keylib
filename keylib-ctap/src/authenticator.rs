@@ -85,7 +85,7 @@ impl AuthenticatorConfig {
             max_msg_size: Some(7609),          // CTAP max message size
             pin_uv_auth_protocols: vec![1, 2], // Support both V1 and V2
             max_credential_id_length: Some(128),
-            transports: vec!["usb".to_string(), "nfc".to_string()],
+            transports: vec!["usb".to_string()], // Match Zig: only USB (NFC might trigger U2F probing!)
             max_cred_blob_length: Some(32),
             min_pin_length: Some(4), // CTAP default minimum PIN length
             credential_wrapping_key: None,     // Will be generated if needed
