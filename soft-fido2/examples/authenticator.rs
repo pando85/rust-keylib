@@ -90,24 +90,31 @@ impl AuthenticatorCallbacks for SimpleCallbacks {
         Ok(UvResult::Accepted)
     }
 
-    fn write_credential(&self, cred_id: &[u8], _rp_id: &str, cred: &CredentialRef) -> Result<()> {
+    fn write_credential(&self, cred_id: &[u8], rp_id: &str, cred: &CredentialRef) -> Result<()> {
+        eprintln!("[CALLBACK] write_credential: cred_id={:02x?}..., rp_id={}", &cred_id[..cred_id.len().min(8)], rp_id);
         let mut store = self.credentials.lock().unwrap();
         store.insert(cred_id.to_vec(), cred.to_owned());
+        eprintln!("[CALLBACK] Credential stored. Total credentials: {}", store.len());
         Ok(())
     }
 
-    fn read_credential(&self, cred_id: &[u8], _rp_id: &str) -> Result<Option<Credential>> {
+    fn read_credential(&self, cred_id: &[u8], rp_id: &str) -> Result<Option<Credential>> {
+        eprintln!("[CALLBACK] read_credential: cred_id={:02x?}..., rp_id={}", &cred_id[..cred_id.len().min(8)], rp_id);
         let store = self.credentials.lock().unwrap();
-        Ok(store.get(cred_id).cloned())
+        let result = store.get(cred_id).cloned();
+        eprintln!("[CALLBACK] read_credential result: {}", if result.is_some() { "FOUND" } else { "NOT FOUND" });
+        Ok(result)
     }
 
     fn delete_credential(&self, cred_id: &[u8]) -> Result<()> {
+        eprintln!("[CALLBACK] delete_credential: cred_id={:02x?}...", &cred_id[..cred_id.len().min(8)]);
         let mut store = self.credentials.lock().unwrap();
         store.remove(cred_id);
         Ok(())
     }
 
     fn list_credentials(&self, rp_id: &str, user_id: Option<&[u8]>) -> Result<Vec<Credential>> {
+        eprintln!("[CALLBACK] list_credentials: rp_id={}, user_id={:?}", rp_id, user_id.map(|u| format!("{:02x?}", &u[..u.len().min(8)])));
         let store = self.credentials.lock().unwrap();
         let filtered: Vec<Credential> = store
             .values()
@@ -116,6 +123,7 @@ impl AuthenticatorCallbacks for SimpleCallbacks {
             })
             .cloned()
             .collect();
+        eprintln!("[CALLBACK] list_credentials returning {} credentials", filtered.len());
         Ok(filtered)
     }
 }
