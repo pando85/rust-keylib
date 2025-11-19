@@ -165,6 +165,51 @@ pub fn into_writer<T: Serialize, W: Write>(value: &T, writer: W) -> Result<()> {
     cbor4ii::serde::to_writer(writer, value).map_err(|_| StatusCode::InvalidCbor)
 }
 
+/// Wrapper for i32 that sorts by CBOR encoding order (for canonical CBOR)
+///
+/// CBOR canonical ordering requires map keys to be sorted by their encoded representation:
+/// - Positive integers 0-23: 0x00-0x17
+/// - Positive integers 24-255: 0x18 + byte
+/// - Larger positive integers: 0x19/0x1a/0x1b + bytes
+/// - Negative integers -1 to -24: 0x20-0x37
+/// - Larger negative integers: 0x38/0x39/0x3a/0x3b + bytes
+///
+/// This means positive integers come before negative integers in canonical order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CborOrderedI32(i32);
+
+impl PartialOrd for CborOrderedI32 {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CborOrderedI32 {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        use core::cmp::Ordering;
+
+        let a = self.0;
+        let b = other.0;
+
+        // Both positive or both zero: compare normally
+        if a >= 0 && b >= 0 {
+            return a.cmp(&b);
+        }
+
+        // Both negative: compare absolute values (smaller absolute = larger in CBOR encoding)
+        if a < 0 && b < 0 {
+            return b.cmp(&a); // Reversed because -1 (0x20) < -2 (0x21) in encoding
+        }
+
+        // One positive, one negative: positive comes first in CBOR canonical order
+        if a >= 0 {
+            Ordering::Less // a is positive, b is negative
+        } else {
+            Ordering::Greater // a is negative, b is positive
+        }
+    }
+}
+
 /// Build a CBOR map with integer keys (common in CTAP)
 ///
 /// This builder still requires some allocations for storing entries, but encoding
@@ -215,7 +260,7 @@ impl MapBuilder {
 
     /// Build the map and encode to CBOR bytes
     pub fn build(self) -> Result<Vec<u8>> {
-        // Use BTreeMap to ensure canonical ordering (required by CTAP)
+        // Use BTreeMap with CborOrderedI32 to ensure canonical ordering (required by CTAP)
         let mut map = BTreeMap::new();
 
         #[cfg(test)]
@@ -228,10 +273,58 @@ impl MapBuilder {
 
             // We need to store the raw CBOR bytes for each value
             // cbor4ii doesn't have a Value type, so we use a wrapper
-            map.insert(key, RawCborValue(value_bytes));
+            map.insert(CborOrderedI32(key), RawCborValue(value_bytes));
         }
 
-        let result = encode(&map)?;
+        // Manually write CBOR map with keys in canonical order
+        let mut buffer = StackBuffer::new();
+
+        // Write map header
+        let len = map.len();
+        if len <= 23 {
+            buffer.write_all(&[0xa0 | len as u8]).map_err(|_| StatusCode::InvalidCbor)?;
+        } else if len <= 255 {
+            buffer.write_all(&[0xb8, len as u8]).map_err(|_| StatusCode::InvalidCbor)?;
+        } else {
+            return Err(StatusCode::InvalidCbor);
+        }
+
+        // Write entries in canonical order (already sorted by CborOrderedI32)
+        for (key, value) in map {
+            // Encode the key
+            let k = key.0;
+            if k >= 0 {
+                // Positive integer
+                if k <= 23 {
+                    buffer.write_all(&[k as u8]).map_err(|_| StatusCode::InvalidCbor)?;
+                } else if k <= 255 {
+                    buffer.write_all(&[0x18, k as u8]).map_err(|_| StatusCode::InvalidCbor)?;
+                } else if k <= 65535 {
+                    buffer.write_all(&[0x19, (k >> 8) as u8, k as u8]).map_err(|_| StatusCode::InvalidCbor)?;
+                } else {
+                    buffer.write_all(&[0x1a]).map_err(|_| StatusCode::InvalidCbor)?;
+                    buffer.write_all(&k.to_be_bytes()).map_err(|_| StatusCode::InvalidCbor)?;
+                }
+            } else {
+                // Negative integer: CBOR encodes as -(value + 1)
+                let abs_val = (-k - 1) as u32;
+                if abs_val <= 23 {
+                    buffer.write_all(&[0x20 | abs_val as u8]).map_err(|_| StatusCode::InvalidCbor)?;
+                } else if abs_val <= 255 {
+                    buffer.write_all(&[0x38, abs_val as u8]).map_err(|_| StatusCode::InvalidCbor)?;
+                } else if abs_val <= 65535 {
+                    buffer.write_all(&[0x39, (abs_val >> 8) as u8, abs_val as u8]).map_err(|_| StatusCode::InvalidCbor)?;
+                } else {
+                    buffer.write_all(&[0x3a]).map_err(|_| StatusCode::InvalidCbor)?;
+                    buffer.write_all(&abs_val.to_be_bytes()).map_err(|_| StatusCode::InvalidCbor)?;
+                }
+            }
+
+            // Write the value (already encoded as CBOR)
+            buffer.write_all(&value.0).map_err(|_| StatusCode::InvalidCbor)?;
+        }
+
+        let result = buffer.to_vec();
         #[cfg(test)]
         eprintln!("[CBOR DEBUG] MapBuilder::build() - final CBOR bytes: {} bytes, first={:02x?}",
                  result.len(), &result[..result.len().min(16)]);
@@ -548,5 +641,53 @@ mod tests {
         eprintln!("Decoded credential ID: {:02x?}", decoded_id);
 
         assert_eq!(credential_id, decoded_id, "Credential ID corrupted in round-trip!");
+    }
+
+    #[test]
+    fn test_cbor_canonical_ordering() {
+        // Test that CBOR maps have keys in canonical order (positive before negative)
+        // This is critical for WebAuthn - browsers reject non-canonical CBOR
+        let cbor = MapBuilder::new()
+            .insert(1, "kty")
+            .unwrap()
+            .insert(3, "alg")
+            .unwrap()
+            .insert(-1, "crv")
+            .unwrap()
+            .insert(-2, "x")
+            .unwrap()
+            .insert(-3, "y")
+            .unwrap()
+            .build()
+            .unwrap();
+
+        // CBOR map starts with 0xA5 (map with 5 entries)
+        assert_eq!(cbor[0], 0xa5, "Should be a map with 5 entries");
+
+        // Keys should appear in this order: 1, 3, -1, -2, -3
+        // CBOR encoding: 0x01, 0x03, 0x20, 0x21, 0x22
+        let key_positions = [
+            1,  // First key after map header
+            // Find subsequent keys by looking for text string encodings
+        ];
+
+        // First key should be 1 (0x01)
+        assert_eq!(cbor[1], 0x01, "First key should be 1");
+
+        // After first value (text "kty" = 0x63 0x6b 0x74 0x79), next key should be 3
+        let second_key_pos = 1 + 1 + 1 + 3; // map + key1 + text_len + text_bytes
+        assert_eq!(cbor[second_key_pos], 0x03, "Second key should be 3");
+
+        // After second value (text "alg" = 0x63 0x61 0x6c 0x67), next key should be -1 (0x20)
+        let third_key_pos = second_key_pos + 1 + 1 + 3;
+        assert_eq!(cbor[third_key_pos], 0x20, "Third key should be -1 (0x20)");
+
+        // After third value (text "crv"), next key should be -2 (0x21)
+        let fourth_key_pos = third_key_pos + 1 + 1 + 3;
+        assert_eq!(cbor[fourth_key_pos], 0x21, "Fourth key should be -2 (0x21)");
+
+        // After fourth value (text "x"), next key should be -3 (0x22)
+        let fifth_key_pos = fourth_key_pos + 1 + 1 + 1;
+        assert_eq!(cbor[fifth_key_pos], 0x22, "Fifth key should be -3 (0x22)");
     }
 }
