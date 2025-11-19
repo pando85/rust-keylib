@@ -134,7 +134,7 @@ fn main() -> Result<()> {
             0x7c, 0x88,
         ])
         .max_credentials(100)
-        .extensions(vec!["credProtect".to_string(), "hmac-secret".to_string()])
+        .extensions(vec!["credProtect".to_string()])  // Match Zig: only credProtect (hmac-secret triggers U2F probing!)
         .force_resident_keys(true)  // For testing: always store credentials
         .build();
 
