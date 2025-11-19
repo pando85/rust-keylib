@@ -43,6 +43,13 @@ pub struct AuthenticatorOptions {
 
     /// Always require user verification
     pub always_uv: Option<bool>,
+
+    /// Make credential without UV (makeCredUvNotRqd)
+    ///
+    /// When true, indicates that the authenticator can create credentials
+    /// without performing UV when UV is not required by the relying party.
+    /// This provides more flexible UV behavior for testing.
+    pub make_cred_uv_not_required: Option<bool>,
 }
 
 impl Default for AuthenticatorOptions {
@@ -59,6 +66,7 @@ impl Default for AuthenticatorOptions {
             large_blobs: None,
             ep: None,
             always_uv: None,
+            make_cred_uv_not_required: None,
         }
     }
 }
@@ -132,6 +140,12 @@ impl AuthenticatorOptions {
     /// Set always require user verification
     pub fn with_always_uv(mut self, state: Option<bool>) -> Self {
         self.always_uv = state;
+        self
+    }
+
+    /// Set make credential without UV support
+    pub fn with_make_cred_uv_not_required(mut self, state: Option<bool>) -> Self {
+        self.make_cred_uv_not_required = state;
         self
     }
 }

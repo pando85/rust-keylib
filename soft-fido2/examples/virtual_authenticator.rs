@@ -302,8 +302,8 @@ fn main() -> Result<()> {
                 .with_resident_keys(true) // Support discoverable credentials
                 .with_user_presence(true) // Support UP
                 .with_user_verification(Some(true)) // Support UV capability
-                .with_always_uv(Some(true)) // Always perform UV (like built-in biometric)
-                .with_client_pin(Some(false)), // No PIN (using built-in UV instead)
+                .with_client_pin(Some(true)) // UV available via PIN
+                .with_make_cred_uv_not_required(Some(true)), // Flexible UV (not always required)
         )
         // Note: force_resident_keys defaults to true for WebAuthn test compatibility
         .build();
@@ -316,19 +316,23 @@ fn main() -> Result<()> {
     println!("  Resident Keys (rk): ✓ Supported");
     println!("  Force Resident Keys: ✓ Enabled by default");
     println!("  User Presence (up): ✓ Supported (auto-approved)");
-    println!("  User Verification (uv): ✓ ALWAYS (like built-in biometric)");
-    println!("  UV Method: Built-in (alwaysUV=true, no PIN required)");
+    println!("  User Verification (uv): ✓ Supported (auto-approved)");
+    println!("  UV Method: PIN-based (clientPin=true)");
+    println!("  UV Flexibility: makeCredUvNotRqd=true (flexible UV behavior)");
     println!("  Extensions: credProtect, hmac-secret, largeBlobKey");
     println!("  Max Credentials: 100");
     println!();
-    println!("  NOTE: force_resident_keys defaults to true for WebAuthn");
-    println!("        test compatibility (all credentials stored).");
+    println!("  NOTE: Configuration optimized for WebAuthn test compatibility:");
+    println!("        - force_resident_keys=true (all credentials stored)");
+    println!("        - makeCredUvNotRqd=true (consistent UV behavior)");
     println!();
 
     // Create authenticator
-    // Note: alwaysUV=true mimics a platform authenticator with built-in biometric UV
-    // This provides consistent UV behavior for webauthn-rs compatibility tests
-    // We auto-approve all UV requests in callbacks (no actual biometric verification)
+    // Note: Using clientPin=true + makeCredUvNotRqd=true provides flexible UV behavior:
+    // - UV is available when requested (via PIN simulation)
+    // - Credentials can be created without UV when not required
+    // - This ensures consistent UV behavior across different userVerification preferences
+    // We auto-approve all UV requests in callbacks (no actual PIN verification)
     let auth = Authenticator::with_config(callbacks, config)?;
 
     // Create UHID virtual device

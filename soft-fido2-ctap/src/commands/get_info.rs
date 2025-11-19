@@ -82,6 +82,8 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
         credential_mgmt_preview: Option<bool>,
         #[serde(rename = "credMgmt", skip_serializing_if = "Option::is_none")]
         cred_mgmt: Option<bool>,
+        #[serde(rename = "makeCredUvNotRqd", skip_serializing_if = "Option::is_none")]
+        make_cred_uv_not_required: Option<bool>,
     }
 
     // Determine clientPin value: use configured option if set, otherwise check actual PIN state
@@ -98,6 +100,11 @@ pub fn handle<C: AuthenticatorCallbacks>(auth: &Authenticator<C>) -> Result<Vec<
         client_pin: Some(client_pin_value),
         credential_mgmt_preview: Some(config.options.cred_mgmt),
         cred_mgmt: Some(config.options.cred_mgmt),
+        make_cred_uv_not_required: if config.options.make_cred_uv_not_required {
+            Some(true)
+        } else {
+            None
+        },
     };
     builder = builder.insert(keys::OPTIONS, options)?;
 
