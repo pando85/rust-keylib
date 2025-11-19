@@ -28,7 +28,8 @@
 //! ## Example (with std)
 //!
 //! ```no_run
-//! # #[cfg(feature = "std")] {
+//! # #[cfg(feature = "std")]
+//! # fn main() -> Result<(), soft_fido2::Error> {
 //! use soft_fido2::{TransportList, Client};
 //!
 //! let mut list = TransportList::enumerate()?;
@@ -36,8 +37,10 @@
 //! transport.open()?;
 //!
 //! let info = Client::authenticator_get_info(&mut transport)?;
-//! # Ok::<(), soft_fido2::Error>(())
+//! # Ok(())
 //! # }
+//! # #[cfg(not(feature = "std"))]
+//! # fn main() {}
 //! ```
 
 extern crate alloc;
