@@ -63,22 +63,120 @@ pub fn handle<C: AuthenticatorCallbacks>(
     }
     eprintln!("[DEBUG][getAssertion] ✓ clientDataHash: {} bytes", client_data_hash.len());
 
-    // 2. Parse optional parameters
+    // 2. Parse optional parameters - allowList
     eprintln!("[DEBUG][getAssertion] Parsing allowList (key 0x{:02x})...", req_keys::ALLOW_LIST);
+
+    // Manually parse allowList to handle CBOR byte strings correctly
     let allow_list: Option<Vec<PublicKeyCredentialDescriptor>> =
-        match parser.get_opt::<Vec<PublicKeyCredentialDescriptor>>(req_keys::ALLOW_LIST) {
-            Ok(list) => {
-                if let Some(ref l) = list {
-                    eprintln!("[DEBUG][getAssertion] ✓ allowList parsed successfully: {} credentials", l.len());
-                } else {
-                    eprintln!("[DEBUG][getAssertion] ✓ allowList not present (will search resident credentials)");
+        if let Some(raw_allow_list) = parser.get_raw(req_keys::ALLOW_LIST) {
+            eprintln!("[DEBUG][getAssertion] Raw allowList CBOR value: {:?}", raw_allow_list);
+
+            match raw_allow_list {
+                ciborium::Value::Array(arr) => {
+                    eprintln!("[DEBUG][getAssertion] allowList is CBOR Array with {} elements", arr.len());
+
+                    let mut descriptors = Vec::new();
+                    for (idx, elem) in arr.iter().enumerate() {
+                        eprintln!("[DEBUG][getAssertion]   Element {}: {:?}", idx, elem);
+
+                        // Each element should be a map with "type", "id", and optionally "transports"
+                        if let ciborium::Value::Map(map) = elem {
+                            let mut cred_type = None;
+                            let mut id = None;
+                            let mut transports = None;
+
+                            for (key, value) in map {
+                                if let ciborium::Value::Text(key_str) = key {
+                                    match key_str.as_str() {
+                                        "type" => {
+                                            if let ciborium::Value::Text(t) = value {
+                                                cred_type = Some(t.clone());
+                                            }
+                                        }
+                                        "id" => {
+                                            // CRITICAL: Handle CBOR byte string for credential ID
+                                            match value {
+                                                ciborium::Value::Bytes(bytes) => {
+                                                    id = Some(bytes.clone());
+                                                    eprintln!("[DEBUG][getAssertion]     ✓ id is CBOR Bytes ({} bytes)", bytes.len());
+                                                }
+                                                ciborium::Value::Array(arr) => {
+                                                    // Handle legacy array encoding (shouldn't happen but handle it)
+                                                    let bytes: Vec<u8> = arr.iter()
+                                                        .filter_map(|v| {
+                                                            if let ciborium::Value::Integer(i) = v {
+                                                                let i128_val: i128 = (*i).into();
+                                                                if i128_val >= 0 && i128_val <= 255 {
+                                                                    Some(i128_val as u8)
+                                                                } else {
+                                                                    None
+                                                                }
+                                                            } else {
+                                                                None
+                                                            }
+                                                        })
+                                                        .collect();
+                                                    id = Some(bytes);
+                                                    eprintln!("[DEBUG][getAssertion]     ⚠ id is CBOR Array (legacy), converted to {} bytes", arr.len());
+                                                }
+                                                _ => {
+                                                    eprintln!("[DEBUG][getAssertion]     ✗ id has unexpected type: {:?}", value);
+                                                    return Err(StatusCode::InvalidCbor);
+                                                }
+                                            }
+                                        }
+                                        "transports" => {
+                                            if let ciborium::Value::Array(trans_arr) = value {
+                                                let trans: Vec<String> = trans_arr.iter()
+                                                    .filter_map(|v| {
+                                                        if let ciborium::Value::Text(s) = v {
+                                                            Some(s.clone())
+                                                        } else {
+                                                            None
+                                                        }
+                                                    })
+                                                    .collect();
+                                                transports = Some(trans);
+                                            }
+                                        }
+                                        _ => {
+                                            eprintln!("[DEBUG][getAssertion]     Unknown key: {}", key_str);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Construct the descriptor
+                            if let (Some(cred_type), Some(id)) = (cred_type, id) {
+                                let descriptor = PublicKeyCredentialDescriptor {
+                                    cred_type,
+                                    id,
+                                    transports,
+                                };
+                                eprintln!("[DEBUG][getAssertion]   ✓ Parsed descriptor {}: type={}, id_len={}",
+                                    idx, descriptor.cred_type, descriptor.id.len());
+                                descriptors.push(descriptor);
+                            } else {
+                                eprintln!("[DEBUG][getAssertion]   ✗ Missing required fields in descriptor {}", idx);
+                                return Err(StatusCode::InvalidCbor);
+                            }
+                        } else {
+                            eprintln!("[DEBUG][getAssertion]   ✗ Element {} is not a Map: {:?}", idx, elem);
+                            return Err(StatusCode::InvalidCbor);
+                        }
+                    }
+
+                    eprintln!("[DEBUG][getAssertion] ✓ allowList parsed successfully: {} credentials", descriptors.len());
+                    Some(descriptors)
                 }
-                list
+                _ => {
+                    eprintln!("[DEBUG][getAssertion] ✗ allowList is not an array");
+                    return Err(StatusCode::InvalidCbor);
+                }
             }
-            Err(e) => {
-                eprintln!("[DEBUG][getAssertion] ✗ allowList parse error: {:?}", e);
-                return Err(e);
-            }
+        } else {
+            eprintln!("[DEBUG][getAssertion] ✓ allowList not present (will search resident credentials)");
+            None
         };
 
     let pin_uv_auth_param: Option<Vec<u8>> = if parser.get_raw(req_keys::PIN_UV_AUTH_PARAM).is_some() {
